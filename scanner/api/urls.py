@@ -20,6 +20,11 @@ urlpatterns = [
     path("api/oxidized/nodes", views.oxidized_nodes, name="oxidized-nodes"),
     path("api/oxidized/nodes/<str:name>", views.oxidized_node_show, name="oxidized-node-show"),
     path(
+        "api/oxidized/nodes/<str:name>/versions",
+        views.oxidized_node_versions,
+        name="oxidized-node-versions",
+    ),
+    path(
         "api/oxidized/nodes/<str:name>/fetch",
         views.oxidized_node_fetch,
         name="oxidized-node-fetch",

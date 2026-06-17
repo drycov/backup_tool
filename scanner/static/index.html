@@ -348,6 +348,11 @@
             <div class="card card-outline card-dark" id="config-card" style="display:none;">
               <div class="card-header">
                 <h3 class="card-title">Конфигурация: <span id="config-node-name"></span></h3>
+                <div class="card-tools">
+                  <button type="button" class="btn btn-tool btn-show-versions" title="История версий">
+                    <i class="fas fa-history"></i>
+                  </button>
+                </div>
               </div>
               <div class="card-body p-0">
                 <pre class="config-viewer p-3 m-0" id="config-content"></pre>
@@ -357,13 +362,22 @@
 
           <!-- Oxidized UI -->
           <div id="page-oxidized-ui" class="page d-none">
-            <div class="mb-2">
-              <a class="btn btn-outline-secondary btn-sm" id="link-oxidized-3" href="#" target="_blank" rel="noopener">
+            <div class="oxidized-ui-toolbar mb-2 d-flex flex-wrap align-items-center">
+              <div class="btn-group btn-group-sm mr-2 mb-1">
+                <button type="button" class="btn btn-outline-secondary" id="btn-oxidized-iframe-reload" title="Обновить">
+                  <i class="fas fa-sync-alt mr-1"></i> Обновить
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="btn-oxidized-iframe-nodes" title="Список узлов">
+                  <i class="fas fa-list mr-1"></i> Узлы
+                </button>
+              </div>
+              <a class="btn btn-outline-secondary btn-sm mb-1" id="link-oxidized-3" href="#" target="_blank" rel="noopener">
                 <i class="fas fa-external-link-alt mr-1"></i> Открыть в новой вкладке
               </a>
+              <span class="text-muted small ml-auto mb-1">Diff и версии работают через proxy Scanner</span>
             </div>
-            <div class="card card-outline card-info">
-              <div class="card-body p-0 iframe-wrap">
+            <div class="card card-outline card-info oxidized-ui-card">
+              <div class="card-body p-0 iframe-wrap iframe-wrap-lg">
                 <iframe id="oxidized-iframe" title="Oxidized UI" src="about:blank"></iframe>
               </div>
             </div>
@@ -734,6 +748,69 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Oxidized versions -->
+  <div class="modal fade" id="oxidized-versions-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-history mr-2 text-muted"></i>
+            Версии: <span id="oxidized-versions-node"></span>
+          </h5>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Дата</th>
+                  <th>OID</th>
+                  <th class="text-right">Действия</th>
+                </tr>
+              </thead>
+              <tbody id="oxidized-versions-table"></tbody>
+            </table>
+          </div>
+          <div id="oxidized-versions-empty" class="text-muted text-center py-4" style="display:none;">
+            Нет сохранённых версий
+          </div>
+        </div>
+        <div class="modal-footer bg-light">
+          <a href="#" class="btn btn-outline-secondary btn-sm mr-auto" id="oxidized-versions-open-web" target="_blank" rel="noopener">
+            <i class="fas fa-globe mr-1"></i> Oxidized Web
+          </a>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Oxidized diff -->
+  <div class="modal fade" id="oxidized-diff-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable oxidized-diff-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-file-diff mr-2 text-muted"></i>
+            Diff: <span id="oxidized-diff-node"></span>
+          </h5>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body p-0">
+          <iframe id="oxidized-diff-iframe" title="Oxidized diff" src="about:blank"></iframe>
+        </div>
+        <div class="modal-footer bg-light py-2">
+          <a href="#" class="btn btn-outline-secondary btn-sm" id="oxidized-diff-open-tab" target="_blank" rel="noopener">
+            <i class="fas fa-external-link-alt mr-1"></i> В новой вкладке
+          </a>
+          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
+        </div>
       </div>
     </div>
   </div>

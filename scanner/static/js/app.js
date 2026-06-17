@@ -3,6 +3,7 @@ let inventory = null;
 let editingDeviceName = null;
 let oxidizedPublicUrl = "http://localhost:8888";
 let oxidizedProxyUrl = "/oxidized-proxy/nodes";
+const OXIDIZED_PROXY_PREFIX = "/oxidized-proxy";
 let currentUser = null;
 let scanPollTimer = null;
 let globalSearchQuery = "";
@@ -1221,7 +1222,7 @@ async function syncOxidized() {
 async function loadOxidizedNodes() {
   try {
     const health = await api("/api/oxidized/health");
-    setOxidizedLinks(health.public_url);
+    setOxidizedLinks(health.public_url, "/oxidized-proxy/nodes");
 
     qs("#oxidized-stats").innerHTML = `
       <div class="col-12 stats-row">
@@ -1284,8 +1285,13 @@ function renderOxidizedNodesTable(nodes) {
         <td>${formatDate(last.time)}</td>
         <td>${badge(status === "success" ? "success" : status)}</td>
         <td>
-          <button class="btn btn-info btn-sm btn-show-config" data-name="${escapeHtml(n.name)}"><i class="fas fa-file-alt"></i></button>
-          ${can("oxidized:write") ? `<button class="btn btn-primary btn-sm btn-fetch-config" data-name="${escapeHtml(n.name)}"><i class="fas fa-download"></i></button>` : ""}
+          <button class="btn btn-secondary btn-sm btn-show-versions" data-name="${escapeHtml(n.name)}" title="Версии / diff">
+            <i class="fas fa-history"></i>
+          </button>
+          <button class="btn btn-info btn-sm btn-show-config" data-name="${escapeHtml(n.name)}" title="Конфиг">
+            <i class="fas fa-file-alt"></i>
+          </button>
+          ${can("oxidized:write") ? `<button class="btn btn-primary btn-sm btn-fetch-config" data-name="${escapeHtml(n.name)}" title="Fetch"><i class="fas fa-download"></i></button>` : ""}
         </td>
       </tr>
     `;
@@ -1294,9 +1300,87 @@ function renderOxidizedNodesTable(nodes) {
   qs("#oxidized-nodes-table").querySelectorAll(".btn-show-config").forEach(btn => {
     btn.addEventListener("click", () => showNodeConfig(btn.dataset.name));
   });
+  qs("#oxidized-nodes-table").querySelectorAll(".btn-show-versions").forEach(btn => {
+    btn.addEventListener("click", () => showNodeVersions(btn.dataset.name));
+  });
   qs("#oxidized-nodes-table").querySelectorAll(".btn-fetch-config").forEach(btn => {
     btn.addEventListener("click", () => fetchNodeConfig(btn.dataset.name));
   });
+}
+
+function navigateOxidizedIframe(path) {
+  const iframe = qs("#oxidized-iframe");
+  if (!iframe || !currentUser) return;
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  iframe.setAttribute("src", `${OXIDIZED_PROXY_PREFIX}${suffix}`);
+}
+
+async function showNodeVersions(name) {
+  try {
+    const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/versions`);
+    qs("#oxidized-versions-node").textContent = data.group
+      ? `${data.node} (${data.group})`
+      : data.node;
+    const webLink = qs("#oxidized-versions-open-web");
+    if (webLink) {
+      webLink.href = `${window.location.origin}${data.versions_proxy_url}`;
+    }
+
+    const tbody = qs("#oxidized-versions-table");
+    const emptyEl = qs("#oxidized-versions-empty");
+    const versions = data.versions || [];
+
+    if (!versions.length) {
+      if (tbody) tbody.innerHTML = "";
+      if (emptyEl) emptyEl.style.display = "block";
+    } else {
+      if (emptyEl) emptyEl.style.display = "none";
+      tbody.innerHTML = versions.map(v => `
+        <tr>
+          <td>${v.num}</td>
+          <td>${formatDate(v.time)}</td>
+          <td><code class="small">${escapeHtml(String(v.oid || "").slice(0, 12))}</code></td>
+          <td class="text-right text-nowrap">
+            <a class="btn btn-outline-secondary btn-sm" href="${escapeHtml(v.view_url)}" target="_blank" rel="noopener" title="Просмотр версии">
+              <i class="fas fa-eye"></i>
+            </a>
+            ${v.diff_url ? `
+              <button type="button" class="btn btn-outline-primary btn-sm btn-open-diff" data-name="${escapeHtml(name)}" data-url="${escapeHtml(v.diff_url)}" title="Diff с предыдущей">
+                <i class="fas fa-file-diff"></i> Diff
+              </button>
+            ` : `<span class="text-muted small">—</span>`}
+          </td>
+        </tr>
+      `).join("");
+
+      tbody.querySelectorAll(".btn-open-diff").forEach(btn => {
+        btn.addEventListener("click", () => {
+          openOxidizedDiff(btn.dataset.name, btn.dataset.url);
+        });
+      });
+    }
+
+    $("#oxidized-versions-modal").modal("show");
+  } catch (e) {
+    showAlert("oxidized-alert", e.message, "error");
+  }
+}
+
+function openOxidizedDiff(name, diffUrl) {
+  const iframe = qs("#oxidized-diff-iframe");
+  const openTab = qs("#oxidized-diff-open-tab");
+  qs("#oxidized-diff-node").textContent = name;
+  const fullUrl = diffUrl.startsWith("http")
+    ? diffUrl
+    : `${window.location.origin}${diffUrl}`;
+  if (iframe) iframe.setAttribute("src", fullUrl);
+  if (openTab) openTab.href = fullUrl;
+  $("#oxidized-diff-modal").modal("show");
+}
+
+function closeOxidizedDiffModal() {
+  const iframe = qs("#oxidized-diff-iframe");
+  if (iframe) iframe.setAttribute("src", "about:blank");
 }
 
 function classifyOxidizedLogLine(line) {
@@ -1377,6 +1461,7 @@ async function showNodeConfig(name) {
     const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}`);
     qs("#config-card").style.display = "block";
     qs("#config-node-name").textContent = name;
+    qs("#config-card")?.setAttribute("data-node-name", name);
     const content = typeof data === "string" ? data : (data.full || JSON.stringify(data, null, 2));
     qs("#config-content").textContent = content || "Пустой конфиг";
   } catch (e) {
@@ -1497,6 +1582,13 @@ function bindEvents() {
   qs("#btn-sync-oxidized")?.addEventListener("click", syncOxidized);
   qs("#btn-refresh-oxidized")?.addEventListener("click", loadOxidizedNodes);
   qs("#btn-refresh-oxidized-logs")?.addEventListener("click", loadOxidizedLogs);
+  qs("#btn-oxidized-iframe-reload")?.addEventListener("click", () => loadOxidizedIframe(true));
+  qs("#btn-oxidized-iframe-nodes")?.addEventListener("click", () => navigateOxidizedIframe("/nodes"));
+  qs("#config-card")?.querySelector(".btn-show-versions")?.addEventListener("click", () => {
+    const name = qs("#config-card")?.getAttribute("data-node-name");
+    if (name) showNodeVersions(name);
+  });
+  $("#oxidized-diff-modal").on("hidden.bs.modal", closeOxidizedDiffModal);
   qs("#oxidized-logs-autorefresh")?.addEventListener("change", () => {
     if (!qs("#page-oxidized")?.classList.contains("d-none")) {
       startOxidizedLogsPolling();

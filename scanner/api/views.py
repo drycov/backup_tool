@@ -1,5 +1,3 @@
-import re
-from typing import Optional
 
 import httpx
 from django.conf import settings
@@ -35,7 +33,23 @@ from services.inventory import (
     update_oxidized_credentials,
 )
 from services.ldap_auth import auth_methods
-from services.oxidized_client import check_health, fetch_node, get_node_config, get_nodes
+from services.oxidized_client import (
+    build_diff_proxy_path,
+    build_version_view_proxy_path,
+    build_versions_proxy_path,
+    check_health,
+    fetch_node,
+    get_node_config,
+    get_node_versions,
+    get_nodes,
+)
+from services.oxidized_proxy import (
+    OXIDIZED_PROXY_PREFIX,
+    embed_block_headers,
+    hop_headers,
+    rewrite_proxy_body,
+    rewrite_proxy_location,
+)
 from services.schemas import (
     CredentialProfile,
     CredentialProfileCreate,
@@ -51,71 +65,8 @@ from services.schemas import (
 )
 from services import ldap_settings
 
-_HOP_HEADERS = frozenset(
-    {
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailers",
-        "transfer-encoding",
-        "upgrade",
-    }
-)
-_EMBED_BLOCK_HEADERS = frozenset(
-    {
-        "x-frame-options",
-        "content-security-policy",
-        "content-security-policy-report-only",
-    }
-)
-OXIDIZED_PROXY_PREFIX = "/oxidized-proxy"
-_ROOT_ATTR_RE = re.compile(
-    r"(?P<attr>href|src|action)\s*=\s*(?P<q>['\"])/(?P<rest>[^'\"]*)"
-)
-_CSS_URL_RE = re.compile(r"url\(\s*(['\"]?)/")
-
-
-def _rewrite_proxy_location(location: str) -> str:
-    location = location.strip()
-    for base in (settings.OXIDIZED_URL, settings.OXIDIZED_PUBLIC_URL):
-        if location.startswith(base):
-            suffix = location[len(base) :] or "/"
-            if not suffix.startswith("/"):
-                suffix = f"/{suffix}"
-            return f"{OXIDIZED_PROXY_PREFIX}{suffix}"
-    if location.startswith("/") and not location.startswith(OXIDIZED_PROXY_PREFIX):
-        return f"{OXIDIZED_PROXY_PREFIX}{location}"
-    return location
-
-
-def _rewrite_proxy_body(content: bytes, content_type: str) -> bytes:
-    if not content:
-        return content
-    ct = (content_type or "").lower()
-    if not any(token in ct for token in ("html", "css", "javascript", "json")):
-        return content
-    try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        return content
-    text = text.replace(f"{settings.OXIDIZED_URL}/", f"{OXIDIZED_PROXY_PREFIX}/")
-    text = text.replace(
-        f"{settings.OXIDIZED_PUBLIC_URL}/", f"{OXIDIZED_PROXY_PREFIX}/"
-    )
-    if "html" in ct or "javascript" in ct:
-        text = _ROOT_ATTR_RE.sub(
-            lambda m: (
-                f"{m.group('attr')}={m.group('q')}"
-                f"{OXIDIZED_PROXY_PREFIX}/{m.group('rest')}"
-            ),
-            text,
-        )
-    if "css" in ct:
-        text = _CSS_URL_RE.sub(f"url(\\1{OXIDIZED_PROXY_PREFIX}/", text)
-    return text.encode("utf-8")
-
+_HOP_HEADERS = hop_headers()
+_EMBED_BLOCK_HEADERS = embed_block_headers()
 
 def _job_to_status(job: scan_job.ScanJob | None) -> ScanJobStatus:
     if not job:
@@ -343,7 +294,7 @@ def oxidized_proxy(request: HttpRequest, path: str = "") -> HttpResponse:
         return error_response("Таймаут Oxidized", status=504)
 
     content_type = upstream.headers.get("content-type", "")
-    body = _rewrite_proxy_body(upstream.content, content_type)
+    body = rewrite_proxy_body(upstream.content, content_type)
 
     response = HttpResponse(body, status=upstream.status_code)
     for key, value in upstream.headers.items():
@@ -353,7 +304,7 @@ def oxidized_proxy(request: HttpRequest, path: str = "") -> HttpResponse:
         if lower == "content-length":
             continue
         if lower == "location":
-            value = _rewrite_proxy_location(value)
+            value = rewrite_proxy_location(value)
         response[key] = value
     if content_type:
         response["Content-Type"] = content_type
@@ -376,6 +327,75 @@ def oxidized_node_show(request: HttpRequest, name: str) -> JsonResponse:
     if data is None:
         return error_response(f"Node '{name}' not found", status=404)
     return json_response(data)
+
+
+def _parse_version_epoch(raw_time) -> int:
+    if raw_time is None:
+        return 0
+    if isinstance(raw_time, (int, float)):
+        return int(raw_time)
+    text = str(raw_time).strip()
+    if not text:
+        return 0
+    from datetime import datetime
+
+    normalized = text.replace("Z", "+00:00")
+    try:
+        return int(datetime.fromisoformat(normalized).timestamp())
+    except ValueError:
+        pass
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S %z",
+        "%Y-%m-%d %H:%M:%S",
+        "%a, %d %b %Y %H:%M:%S %z",
+    ):
+        try:
+            return int(datetime.strptime(text, fmt).timestamp())
+        except ValueError:
+            continue
+    return 0
+
+
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
+def oxidized_node_versions(request: HttpRequest, name: str) -> JsonResponse:
+    data, err = get_node_versions(name)
+    if err:
+        status = 404 if "не найден" in err.lower() else 503
+        return error_response(err, status=status)
+    versions = data.get("versions") or []
+    enriched = []
+    total = len(versions)
+    for idx, item in enumerate(versions):
+        num = total - idx
+        raw_time = item.get("time")
+        epoch = _parse_version_epoch(raw_time)
+        enriched.append(
+            {
+                "oid": item.get("oid"),
+                "time": raw_time,
+                "epoch": epoch,
+                "num": num,
+                "view_url": build_version_view_proxy_path(
+                    data["node"], data.get("group") or "", item.get("oid", ""), epoch, num
+                ),
+                "diff_url": build_diff_proxy_path(
+                    data["node"], data.get("group") or "", item.get("oid", ""), epoch, num
+                )
+                if idx < total - 1
+                else None,
+            }
+        )
+    return json_response(
+        {
+            "node": data["node"],
+            "group": data.get("group") or "",
+            "node_full": data.get("node_full"),
+            "versions_proxy_url": build_versions_proxy_path(
+                data["node"], data.get("group") or ""
+            ),
+            "versions": enriched,
+        }
+    )
 
 
 @csrf_exempt

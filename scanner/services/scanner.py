@@ -152,6 +152,11 @@ async def apply_device_names(
     credential_profiles: list[CredentialProfile],
 ) -> tuple[list[Device], bool]:
     """Обновить имена online/partial устройств из system identity (SSH)."""
+    from services.inventory import load_inventory_async
+
+    inventory = await load_inventory_async()
+    devices = inventory.devices
+
     active_ips = {
         r.ip
         for r in scan_results
@@ -198,10 +203,26 @@ async def apply_device_names(
         new_name = rename_map.get(device.ip)
         if not new_name or new_name == device.name:
             continue
+        occupied = next(
+            (d for d in devices if d.name == new_name and d.ip != device.ip),
+            None,
+        )
+        if occupied:
+            new_name = _unique_device_name(new_name, device.ip, names_in_use)
+            logger.warning(
+                "scan | rename | %s (%s) -> %s (name '%s' already used by %s)",
+                device.name,
+                device.ip,
+                new_name,
+                rename_map[device.ip],
+                occupied.ip,
+            )
         updated_device = device.model_copy(update={"name": new_name})
         from services.inventory import rename_device_async
 
         await rename_device_async(device.name, updated_device)
+        names_in_use.discard(device.name)
+        names_in_use.add(new_name)
         changed = True
 
     if changed:

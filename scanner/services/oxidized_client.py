@@ -1,6 +1,8 @@
 from typing import Any, Optional
 
 import httpx
+from urllib.parse import quote
+
 from django.conf import settings
 
 TIMEOUT = 30.0
@@ -41,6 +43,91 @@ def get_node_config(name: str) -> tuple[Optional[str], Optional[str]]:
 
 def fetch_node(name: str) -> tuple[Optional[Any], Optional[str]]:
     return _request("GET", f"/node/fetch/{name}.json")
+
+
+def _find_node(name: str) -> tuple[Optional[dict], Optional[str]]:
+    nodes, err = get_nodes()
+    if err:
+        return None, err
+    for node in nodes or []:
+        if node.get("name") == name:
+            return node, None
+    return None, f"Узел '{name}' не найден"
+
+
+def _node_full_name(name: str, group: Optional[str] = None) -> str:
+    if group and group not in ("", "default"):
+        return f"{group}/{name}"
+    return name
+
+
+def get_node_versions(name: str) -> tuple[Optional[dict], Optional[str]]:
+    node, err = _find_node(name)
+    if err:
+        return None, err
+    group = node.get("group") or ""
+    node_full = _node_full_name(name, group)
+    data, err = _request(
+        "GET",
+        f"/node/version.json?node_full={quote(node_full, safe='')}",
+    )
+    if err:
+        return None, err
+    if not isinstance(data, list):
+        return None, "Неверный формат ответа version.json"
+    return {
+        "node": name,
+        "group": group,
+        "node_full": node_full,
+        "versions": data,
+    }, None
+
+
+def build_diff_proxy_path(
+    name: str,
+    group: str,
+    oid: str,
+    epoch: int,
+    num: int,
+    oid2: Optional[str] = None,
+) -> str:
+    params = {
+        "node": name,
+        "group": group or "",
+        "oid": oid,
+        "epoch": str(epoch),
+        "num": str(num),
+    }
+    if oid2:
+        params["oid2"] = oid2
+    query = "&".join(f"{key}={quote(str(value), safe='')}" for key, value in params.items())
+    return f"/oxidized-proxy/node/version/diffs?{query}"
+
+
+def build_version_view_proxy_path(
+    name: str,
+    group: str,
+    oid: str,
+    epoch: int,
+    num: int,
+) -> str:
+    params = {
+        "node": name,
+        "group": group or "",
+        "oid": oid,
+        "epoch": str(epoch),
+        "num": str(num),
+    }
+    query = "&".join(f"{key}={quote(str(value), safe='')}" for key, value in params.items())
+    return f"/oxidized-proxy/node/version/view?{query}"
+
+
+def build_versions_proxy_path(name: str, group: str = "") -> str:
+    node_full = _node_full_name(name, group)
+    return (
+        f"/oxidized-proxy/node/version?"
+        f"node_full={quote(node_full, safe='')}"
+    )
 
 
 def check_health() -> dict:

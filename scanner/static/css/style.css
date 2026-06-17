@@ -152,6 +152,37 @@ body.login-page .login-logo {
   display: block;
 }
 
+.iframe-wrap-lg {
+  min-height: calc(100vh - 10rem);
+}
+
+.iframe-wrap-lg iframe,
+#oxidized-iframe {
+  height: calc(100vh - 10rem);
+  min-height: 560px;
+}
+
+#oxidized-diff-iframe {
+  width: 100%;
+  min-height: 420px;
+  height: 65vh;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+
+.oxidized-diff-modal .modal-body {
+  background: #f4f6f9;
+}
+
+.oxidized-ui-toolbar .btn-group .btn {
+  min-width: 6rem;
+}
+
+#oxidized-versions-table code {
+  font-size: 0.75rem;
+}
+
 #settings-credentials-table input.form-control-sm {
   min-width: 7rem;
 }

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import yaml
 from django.conf import settings
+from django.db import transaction
 
 from core.models import CredentialProfile as CredentialProfileModel
 from core.models import Device as DeviceModel
@@ -221,17 +222,35 @@ def save_inventory(inventory: Inventory) -> None:
     _save_inventory_to_db(inventory)
 
 
+def _upsert_device_record(device: Device, *, old_name: str | None = None) -> None:
+    """Create or update a device row without delete+insert (avoids unique name races)."""
+    DeviceModel.objects.filter(name=device.name).exclude(ip=device.ip).delete()
+    record = None
+    if old_name:
+        record = DeviceModel.objects.filter(name=old_name).first()
+    if record is None:
+        record = DeviceModel.objects.filter(ip=device.ip).first()
+    if record:
+        record.name = device.name
+        record.ip = device.ip
+        record.model = device.model
+        record.group = device.group
+        record.enabled = device.enabled
+        record.ports = device.ports
+        record.save()
+    else:
+        _model_from_device(device).save()
+
+
 def add_device(device: Device) -> Inventory:
-    DeviceModel.objects.filter(name=device.name).delete()
-    DeviceModel.objects.filter(ip=device.ip).delete()
-    _model_from_device(device).save()
+    with transaction.atomic():
+        _upsert_device_record(device)
     return load_inventory()
 
 
 def rename_device(old_name: str, device: Device) -> Inventory:
-    DeviceModel.objects.filter(name=old_name).delete()
-    DeviceModel.objects.filter(name=device.name).exclude(name=old_name).delete()
-    _model_from_device(device).save()
+    with transaction.atomic():
+        _upsert_device_record(device, old_name=old_name)
     return load_inventory()
 
 
