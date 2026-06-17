@@ -248,6 +248,10 @@ class BackupSettingsUpdate(BaseModel):
     smtp_from: str = ""
     smtp_to_notify: str = ""
     smtp_to_report: str = ""
+    degrade_notify_telegram: bool = False
+    degrade_notify_email: bool = False
+    stale_days_threshold: int = 30
+    alert_cooldown_hours: int = 24
 
 
 class BackupNotifyTestRequest(BaseModel):

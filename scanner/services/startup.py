@@ -38,4 +38,8 @@ def initialize() -> None:
     else:
         logger.info("oxidized | ruby engine mode — config synced, worker in oxidized container")
 
+    from services.degradation_monitor import start_degradation_monitor
+
+    start_degradation_monitor()
+
     _initialized = True

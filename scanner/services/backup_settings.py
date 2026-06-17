@@ -41,6 +41,10 @@ class BackupConfigData:
     smtp_from: str
     smtp_to_notify: str
     smtp_to_report: str
+    degrade_notify_telegram: bool
+    degrade_notify_email: bool
+    stale_days_threshold: int
+    alert_cooldown_hours: int
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -76,6 +80,12 @@ def _defaults_from_env() -> dict[str, Any]:
         "smtp_from": os.environ.get("SMTP_FROM_MAIL", ""),
         "smtp_to_notify": os.environ.get("SMTP_TO_MAIL_NOTIFY", ""),
         "smtp_to_report": os.environ.get("SMTP_TO_MAIL_REPORT", ""),
+        "degrade_notify_telegram": _env_bool("DEGRADE_NOTIFICATION_TELEGRAM")
+        or _env_bool("ERROR_NOTIFICATION_TELEGRAM"),
+        "degrade_notify_email": _env_bool("DEGRADE_NOTIFICATION_EMAIL")
+        or _env_bool("ERROR_NOTIFICATION_EMAIL"),
+        "stale_days_threshold": max(1, int(os.environ.get("STALE_DAYS_THRESHOLD", "30"))),
+        "alert_cooldown_hours": max(1, int(os.environ.get("ALERT_COOLDOWN_HOURS", "24"))),
     }
 
 
@@ -105,6 +115,10 @@ def _row_to_data(row: BackupConfig) -> BackupConfigData:
         smtp_from=row.smtp_from or "",
         smtp_to_notify=row.smtp_to_notify or "",
         smtp_to_report=row.smtp_to_report or "",
+        degrade_notify_telegram=row.degrade_notify_telegram,
+        degrade_notify_email=row.degrade_notify_email,
+        stale_days_threshold=row.stale_days_threshold or 30,
+        alert_cooldown_hours=row.alert_cooldown_hours or 24,
     )
 
 
@@ -168,6 +182,10 @@ def get_config_public() -> dict[str, Any]:
         "smtp_from": cfg.smtp_from,
         "smtp_to_notify": cfg.smtp_to_notify,
         "smtp_to_report": cfg.smtp_to_report,
+        "degrade_notify_telegram": cfg.degrade_notify_telegram,
+        "degrade_notify_email": cfg.degrade_notify_email,
+        "stale_days_threshold": cfg.stale_days_threshold,
+        "alert_cooldown_hours": cfg.alert_cooldown_hours,
         "notifications_configured": bool(
             cfg.telegram_token
             or (cfg.smtp_server and cfg.smtp_from)
@@ -239,6 +257,20 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
     row.smtp_from = str(payload.get("smtp_from", row.smtp_from)).strip()
     row.smtp_to_notify = str(payload.get("smtp_to_notify", row.smtp_to_notify)).strip()
     row.smtp_to_report = str(payload.get("smtp_to_report", row.smtp_to_report)).strip()
+    row.degrade_notify_telegram = bool(
+        payload.get("degrade_notify_telegram", row.degrade_notify_telegram)
+    )
+    row.degrade_notify_email = bool(
+        payload.get("degrade_notify_email", row.degrade_notify_email)
+    )
+    stale_days = int(payload.get("stale_days_threshold", row.stale_days_threshold))
+    if stale_days < 1 or stale_days > 365:
+        raise ValueError("stale_days_threshold должен быть от 1 до 365")
+    row.stale_days_threshold = stale_days
+    cooldown = int(payload.get("alert_cooldown_hours", row.alert_cooldown_hours))
+    if cooldown < 1 or cooldown > 168:
+        raise ValueError("alert_cooldown_hours должен быть от 1 до 168")
+    row.alert_cooldown_hours = cooldown
     row.save()
 
     try:

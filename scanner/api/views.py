@@ -17,6 +17,19 @@ from api.helpers import (
 )
 from core.models import User
 from services import auth, scan_job
+from services.audit import (
+    ACTION_CREDENTIAL_CREATE,
+    ACTION_CREDENTIAL_DELETE,
+    ACTION_CREDENTIAL_UPDATE,
+    ACTION_OXIDIZED_BACKUP_ALL,
+    ACTION_OXIDIZED_FETCH,
+    ACTION_SCAN_DISCOVER,
+    ACTION_SCAN_RUN,
+    list_audit_events,
+    log_audit_user,
+)
+from services.compliance import compute_compliance_summary
+from services.scan_history import get_scan_history, get_scan_trends
 from services.inventory import (
     OXIDIZED_SOURCE_TOKEN,
     OXIDIZED_SOURCE_URL,
@@ -426,6 +439,7 @@ def oxidized_node_fetch(request: HttpRequest, name: str) -> JsonResponse:
     data, err = fetch_node(name)
     if err:
         return error_response(err, status=503)
+    log_audit_user(request.api_user, ACTION_OXIDIZED_FETCH, target=name, request=request)
     return json_response({"status": "ok", "name": name, "result": data})
 
 
@@ -438,6 +452,12 @@ def oxidized_backup_all(request: HttpRequest) -> JsonResponse:
     from services.oxidized_engine import get_manager
 
     result = get_manager().backup_all()
+    log_audit_user(
+        request.api_user,
+        ACTION_OXIDIZED_BACKUP_ALL,
+        detail=f"queued={result.get('queued', 0)}",
+        request=request,
+    )
     return json_response({"status": "ok", **result})
 
 
@@ -522,14 +542,21 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
 def health(request: HttpRequest) -> JsonResponse:
     inventory = load_inventory()
     summary, last_scan_at = scan_job.get_last_scan()
-    return json_response(
-        {
-            "status": "ok",
-            "inventory_devices": len(inventory.devices),
-            "networks": len(inventory.networks),
-            "last_scan": last_scan_at,
-        }
-    )
+    if summary is None:
+        from services.scan_history import get_last_scan_from_db
+
+        summary, last_scan_at = get_last_scan_from_db()
+    payload = {
+        "status": "ok",
+        "inventory_devices": len(inventory.devices),
+        "networks": len(inventory.networks),
+        "last_scan": last_scan_at,
+    }
+    if summary:
+        payload["scan_online"] = summary.online
+        payload["scan_offline"] = summary.offline
+        payload["scan_partial"] = summary.partial
+    return json_response(payload)
 
 
 @csrf_exempt
@@ -603,6 +630,13 @@ def create_credential_profile_view(request: HttpRequest) -> JsonResponse:
     except ValueError as exc:
         return error_response(str(exc))
     update_oxidized_credentials(inventory)
+    log_audit_user(
+        request.api_user,
+        ACTION_CREDENTIAL_CREATE,
+        target=profile.name,
+        detail=f"group={profile.group_name}",
+        request=request,
+    )
     return json_response(mask_inventory_for_role(inventory, user.role), status=201)
 
 
@@ -618,6 +652,12 @@ def credential_profile_detail_view(request: HttpRequest, name: str) -> JsonRespo
         except ValueError as exc:
             return error_response(str(exc), status=404)
         update_oxidized_credentials(inventory)
+        log_audit_user(
+            request.api_user,
+            ACTION_CREDENTIAL_UPDATE,
+            target=name,
+            request=request,
+        )
         return json_response(mask_inventory_for_role(inventory, user.role))
     if request.method == "DELETE":
         try:
@@ -626,6 +666,12 @@ def credential_profile_detail_view(request: HttpRequest, name: str) -> JsonRespo
             status = 404 if "не найден" in str(exc).lower() or "not found" in str(exc).lower() else 400
             return error_response(str(exc), status=status)
         update_oxidized_credentials(inventory)
+        log_audit_user(
+            request.api_user,
+            ACTION_CREDENTIAL_DELETE,
+            target=name,
+            request=request,
+        )
         return json_response(mask_inventory_for_role(inventory, user.role))
     return error_response("Method not allowed", status=405)
 
@@ -649,6 +695,12 @@ def import_network_inventory_view(request: HttpRequest) -> JsonResponse:
 def scan_inventory_view(request: HttpRequest) -> JsonResponse:
     discover = request.GET.get("discover", "").lower() in ("1", "true", "yes")
     job = scan_job.start_scan(discover=discover)
+    log_audit_user(
+        request.api_user,
+        ACTION_SCAN_DISCOVER if discover else ACTION_SCAN_RUN,
+        detail=f"job_id={job.id}",
+        request=request,
+    )
     return json_response(
         ScanStartResponse(job_id=job.id, status=job.status, discover=job.discover),
         status=202,
@@ -663,7 +715,52 @@ def scan_status_view(request: HttpRequest) -> JsonResponse:
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
 def get_latest_scan_view(request: HttpRequest) -> JsonResponse:
     summary, _ = scan_job.get_last_scan()
+    if summary is None:
+        from services.scan_history import get_last_scan_from_db
+
+        summary, _ = get_last_scan_from_db()
     return json_response(summary)
+
+
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def compliance_summary_view(request: HttpRequest) -> JsonResponse:
+    return json_response(compute_compliance_summary())
+
+
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def scan_history_view(request: HttpRequest) -> JsonResponse:
+    try:
+        limit = int(request.GET.get("limit", "50"))
+    except ValueError:
+        limit = 50
+    try:
+        days = int(request.GET.get("days", "30"))
+    except ValueError:
+        days = 30
+    return json_response(get_scan_history(limit=limit, days=days))
+
+
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def scan_trends_view(request: HttpRequest) -> JsonResponse:
+    try:
+        days = int(request.GET.get("days", "30"))
+    except ValueError:
+        days = 30
+    return json_response(get_scan_trends(days=days))
+
+
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def audit_events_view(request: HttpRequest) -> JsonResponse:
+    try:
+        limit = int(request.GET.get("limit", "100"))
+    except ValueError:
+        limit = 100
+    try:
+        offset = int(request.GET.get("offset", "0"))
+    except ValueError:
+        offset = 0
+    action = request.GET.get("action", "").strip()
+    return json_response(list_audit_events(limit=limit, offset=offset, action=action))
 
 
 @csrf_exempt

@@ -140,6 +140,12 @@
                 <p>Пользователи</p>
               </a>
             </li>
+            <li class="nav-item" data-permission="users:manage">
+              <a href="#" class="nav-link nav-page" data-page="audit">
+                <i class="nav-icon fas fa-history"></i>
+                <p>Аудит</p>
+              </a>
+            </li>
           </ul>
         </nav>
       </div>
@@ -160,6 +166,40 @@
           <!-- Dashboard -->
           <div id="page-dashboard" class="page">
             <div class="row" id="dashboard-stats"></div>
+            <div class="row" id="dashboard-compliance-stats"></div>
+            <div class="row">
+              <div class="col-lg-7">
+                <div class="card card-outline card-success">
+                  <div class="card-header">
+                    <h3 class="card-title">Compliance бэкапов</h3>
+                    <div class="card-tools">
+                      <span class="badge badge-light" id="compliance-generated-at">—</span>
+                    </div>
+                  </div>
+                  <div class="card-body table-responsive p-0" style="max-height: 360px; overflow-y: auto;">
+                    <table class="table table-sm table-hover mb-0">
+                      <thead>
+                        <tr>
+                          <th>Статус</th><th>Устройство</th><th>IP</th><th>Группа</th>
+                          <th>Последний бэкап</th><th>Scan</th>
+                        </tr>
+                      </thead>
+                      <tbody id="compliance-table"></tbody>
+                    </table>
+                  </div>
+                  <div id="compliance-empty" class="text-center text-muted p-4" style="display:none;">Нет включённых устройств</div>
+                </div>
+              </div>
+              <div class="col-lg-5">
+                <div class="card card-outline card-info">
+                  <div class="card-header">
+                    <h3 class="card-title">Тренд scan (30 дней)</h3>
+                  </div>
+                  <div class="card-body" id="scan-trends-chart"></div>
+                  <div id="scan-trends-empty" class="text-center text-muted p-4" style="display:none;">Нет данных scan за период</div>
+                </div>
+              </div>
+            </div>
             <div class="card card-outline card-primary">
               <div class="card-header">
                 <h3 class="card-title">Быстрые действия</h3>
@@ -204,6 +244,7 @@
 
           <!-- Inventory -->
           <div id="page-inventory" class="page d-none">
+            <div id="inventory-alert" class="page-alert"></div>
             <div class="card card-outline card-info" id="networks-card">
               <div class="card-header">
                 <h3 class="card-title">Подсети для discovery</h3>
@@ -284,6 +325,22 @@
               </div>
             </div>
             <div class="row" id="scan-stats"></div>
+            <div class="card card-outline card-info mb-3">
+              <div class="card-header">
+                <h3 class="card-title">История scan / discovery</h3>
+              </div>
+              <div class="card-body table-responsive p-0">
+                <table class="table table-bordered table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Время</th><th>Режим</th><th>Статус</th><th>Online</th><th>Offline</th><th>Partial</th><th>Всего</th>
+                    </tr>
+                  </thead>
+                  <tbody id="scan-history-table"></tbody>
+                </table>
+              </div>
+              <div id="scan-history-empty" class="text-center text-muted p-4" style="display:none;">История появится после первого scan</div>
+            </div>
             <div class="card card-outline card-warning">
               <div class="card-header">
                 <h3 class="card-title">Результаты <span class="badge badge-secondary ml-1" id="scan-results-count-badge" style="display:none;"></span></h3>
@@ -303,6 +360,8 @@
           <!-- Oxidized -->
           <div id="page-oxidized" class="page d-none">
             <div id="oxidized-alert" class="page-alert"></div>
+            <div id="oxidized-engine-banner" class="alert alert-info py-2 small mb-2" style="display:none;" role="status"></div>
+            <div id="oxidized-models-warning" class="alert alert-warning py-2 small mb-2" style="display:none;" role="status"></div>
             <div class="row" id="oxidized-stats"></div>
             <div class="mb-3">
               <button class="btn btn-secondary mr-1" id="btn-refresh-oxidized"><i class="fas fa-redo mr-1"></i> Обновить</button>
@@ -472,6 +531,10 @@
                     </form>
 
                     <hr>
+                    <div id="mikrotik-backup-settings">
+                    <div id="mikrotik-external-note" class="alert alert-secondary py-2 small" style="display:none;">
+                      MikroTik binary/export доступны только при <code>OXIDIZED_ENGINE=python</code> (worker в scanner).
+                    </div>
                     <h5 class="mb-2"><i class="fas fa-hdd text-info mr-1"></i> MikroTik backup</h5>
                     <p class="text-muted small mb-3">Binary <code>.backup</code> и export <code>.rsc</code>. Настройки в БД, применяются без перезапуска. Операции пишутся в <strong>лог Oxidized</strong>.</p>
                     <form id="backup-settings-form">
@@ -529,6 +592,7 @@
                         <i class="fas fa-save mr-1"></i> Сохранить MikroTik backup
                       </button>
                     </form>
+                    </div>
                   </div>
                 </div>
 
@@ -558,6 +622,27 @@
                           <input type="checkbox" class="custom-control-input" id="nt-report-email">
                           <label class="custom-control-label" for="nt-report-email">Email</label>
                         </div>
+                      </div>
+                    </div>
+                    <div class="row mb-3">
+                      <div class="col-md-6">
+                        <h6 class="text-muted text-uppercase small">Деградация (stale / offline / overdue)</h6>
+                        <div class="custom-control custom-checkbox mb-1">
+                          <input type="checkbox" class="custom-control-input" id="nt-degrade-telegram">
+                          <label class="custom-control-label" for="nt-degrade-telegram">Telegram</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="nt-degrade-email">
+                          <label class="custom-control-label" for="nt-degrade-email">Email</label>
+                        </div>
+                      </div>
+                      <div class="col-md-3">
+                        <label for="nt-stale-days" class="small text-muted">Stale, дней</label>
+                        <input type="number" id="nt-stale-days" class="form-control form-control-sm" min="1" max="365">
+                      </div>
+                      <div class="col-md-3">
+                        <label for="nt-alert-cooldown" class="small text-muted">Cooldown, ч</label>
+                        <input type="number" id="nt-alert-cooldown" class="form-control form-control-sm" min="1" max="168">
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2">Telegram</h6>
@@ -868,7 +953,36 @@
             </div>
           </div>
 
-          <!-- Users -->
+          <div id="page-audit" class="page d-none">
+            <div id="audit-alert" class="page-alert"></div>
+            <div class="card card-outline card-secondary">
+              <div class="card-header">
+                <h3 class="card-title">Журнал действий</h3>
+                <div class="card-tools">
+                  <select id="audit-action-filter" class="form-control form-control-sm" style="width:220px;">
+                    <option value="">Все действия</option>
+                    <option value="credential.create">Создание credentials</option>
+                    <option value="credential.update">Изменение credentials</option>
+                    <option value="credential.delete">Удаление credentials</option>
+                    <option value="oxidized.fetch">Fetch узла</option>
+                    <option value="oxidized.backup_all">Backup all</option>
+                    <option value="scan.run">Scan</option>
+                    <option value="scan.discover">Discovery</option>
+                  </select>
+                </div>
+              </div>
+              <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-striped mb-0">
+                  <thead>
+                    <tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Детали</th><th>IP</th></tr>
+                  </thead>
+                  <tbody id="audit-table"></tbody>
+                </table>
+              </div>
+              <div id="audit-empty" class="text-center text-muted p-4" style="display:none;">Записей пока нет</div>
+            </div>
+          </div>
+
           <div id="page-users" class="page d-none">
             <div id="users-alert" class="page-alert"></div>
             <div class="card card-outline card-info">
@@ -1058,11 +1172,20 @@
           </h5>
           <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
         </div>
-        <div class="modal-body">
-          <h6 class="text-muted">Binary (.backup)</h6>
-          <div id="oxidized-backups-bin" class="mb-3"></div>
-          <h6 class="text-muted">Export (.rsc)</h6>
-          <div id="oxidized-backups-rsc"></div>
+        <div class="modal-body p-0">
+          <div id="oxidized-backups-loading" class="p-3 text-muted small" style="display:none;">
+            <i class="fas fa-spinner fa-spin mr-1"></i> Загрузка списка файлов…
+          </div>
+          <div id="oxidized-backups-content">
+            <h6 class="text-muted px-3 pt-3 mb-2">Binary (.backup)</h6>
+            <div id="oxidized-backups-bin" class="mb-3 px-3"></div>
+            <h6 class="text-muted px-3 mb-2">Export (.rsc)</h6>
+            <div id="oxidized-backups-rsc" class="px-3 pb-3"></div>
+          </div>
+          <div id="oxidized-backups-empty-hint" class="alert alert-light border mx-3 mb-3 small" style="display:none;">
+            Файлов нет. Проверьте <a href="#" id="oxidized-backups-goto-settings">Настройки → Бэкап</a>
+            (Binary backup / Export .rsc) или <a href="#" id="oxidized-backups-goto-logs">лог Oxidized</a>.
+          </div>
         </div>
         <div class="modal-footer bg-light py-2">
           <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
@@ -1103,22 +1226,34 @@
             <span class="badge badge-info ml-1" id="oxidized-log-engine" style="display:none;"></span>
             <span class="badge badge-secondary ml-1" id="oxidized-logs-count" style="display:none;" title="Число строк"></span>
           </h5>
-          <div class="d-flex align-items-center ml-auto mr-2">
-            <div class="custom-control custom-checkbox custom-control-inline mr-3 mb-0">
+          <div class="d-flex align-items-center flex-wrap ml-auto mr-2">
+            <div class="btn-group btn-group-sm mr-2 mb-1" id="oxidized-logs-level-filter" role="group" aria-label="Фильтр уровня">
+              <button type="button" class="btn btn-outline-secondary active" data-level="all">All</button>
+              <button type="button" class="btn btn-outline-danger" data-level="error">Error</button>
+              <button type="button" class="btn btn-outline-warning" data-level="warn">Warn</button>
+              <button type="button" class="btn btn-outline-success" data-level="ok">OK</button>
+            </div>
+            <div class="custom-control custom-checkbox custom-control-inline mr-2 mb-1">
               <input type="checkbox" class="custom-control-input" id="oxidized-logs-autorefresh" checked>
               <label class="custom-control-label text-sm" for="oxidized-logs-autorefresh">Авто</label>
             </div>
-            <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="btn-refresh-oxidized-logs" title="Обновить">
+            <button type="button" class="btn btn-outline-secondary btn-sm mr-1 mb-1" id="btn-refresh-oxidized-logs" title="Обновить">
               <i class="fas fa-sync-alt"></i>
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="btn-copy-oxidized-logs" title="Копировать">
+              <i class="fas fa-copy"></i>
             </button>
           </div>
           <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
         </div>
+        <div id="oxidized-logs-search-banner" class="alert alert-warning py-1 px-3 mb-0 small rounded-0 border-0" style="display:none;" role="status"></div>
         <div class="modal-body p-0">
           <pre id="oxidized-log-viewer" class="oxidized-log-viewer p-3 m-0">Загрузка…</pre>
         </div>
-        <div class="modal-footer bg-light py-2">
-          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
+        <div class="modal-footer bg-light py-2 flex-wrap">
+          <small class="text-muted text-truncate mr-auto mb-1" id="oxidized-logs-path" title=""></small>
+          <span class="badge badge-warning mr-2 mb-1" id="oxidized-logs-truncated" style="display:none;">обрезано</span>
+          <button type="button" class="btn btn-secondary btn-sm mb-1" data-dismiss="modal">Закрыть</button>
         </div>
       </div>
     </div>

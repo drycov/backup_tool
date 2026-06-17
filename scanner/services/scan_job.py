@@ -223,6 +223,17 @@ async def _run_scan_job(job: ScanJob) -> None:
         job.finished_at = datetime.now(timezone.utc)
         append_job_log(job, job.message, "success")
         logger.info("scan_job | completed | job_id=%s", job.id)
+        try:
+            from services.scan_history import persist_scan_run
+
+            persist_scan_run(
+                summary,
+                job_id=job.id,
+                discover=job.discover,
+                status="completed",
+            )
+        except Exception:
+            logger.exception("scan_job | failed to persist history")
 
     except Exception as exc:
         logger.exception("scan_job | failed | job_id=%s", job.id)
@@ -232,6 +243,12 @@ async def _run_scan_job(job: ScanJob) -> None:
         job.message = f"Ошибка: {exc}"
         job.finished_at = datetime.now(timezone.utc)
         append_job_log(job, job.message, "error")
+        try:
+            from services.scan_history import persist_failed_scan
+
+            persist_failed_scan(job_id=job.id, discover=job.discover, error=str(exc))
+        except Exception:
+            logger.exception("scan_job | failed to persist failed run")
 
 
 def _thread_runner(job: ScanJob) -> None:

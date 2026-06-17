@@ -113,7 +113,52 @@ class BackupConfig(models.Model):
     smtp_to_notify = models.CharField(max_length=256, blank=True, default="")
     smtp_to_report = models.CharField(max_length=256, blank=True, default="")
 
+    degrade_notify_telegram = models.BooleanField(default=False)
+    degrade_notify_email = models.BooleanField(default=False)
+    stale_days_threshold = models.PositiveIntegerField(default=30)
+    alert_cooldown_hours = models.PositiveIntegerField(default=24)
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "backup_config"
+
+
+class ScanRun(models.Model):
+    job_id = models.CharField(max_length=32, blank=True, default="")
+    discover = models.BooleanField(default=False)
+    status = models.CharField(max_length=16, default="completed")
+    total = models.PositiveIntegerField(default=0)
+    online = models.PositiveIntegerField(default=0)
+    offline = models.PositiveIntegerField(default=0)
+    partial = models.PositiveIntegerField(default=0)
+    scanned_at = models.DateTimeField(db_index=True)
+    error = models.TextField(blank=True, default="")
+    results_json = LegacyJSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "scan_runs"
+        ordering = ["-scanned_at"]
+
+
+class AuditEvent(models.Model):
+    username = models.CharField(max_length=64, db_index=True)
+    action = models.CharField(max_length=64, db_index=True)
+    target = models.CharField(max_length=256, blank=True, default="")
+    detail = models.TextField(blank=True, default="")
+    ip_address = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "audit_events"
+        ordering = ["-created_at"]
+
+
+class AlertState(models.Model):
+    alert_key = models.CharField(max_length=128, unique=True, db_index=True)
+    last_notified_at = models.DateTimeField()
+    device_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "alert_states"

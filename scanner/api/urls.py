@@ -77,5 +77,9 @@ urlpatterns = [
     path("scan", views.scan_inventory_view, name="scan"),
     path("scan/status", views.scan_status_view, name="scan-status"),
     path("scan/latest", views.get_latest_scan_view, name="scan-latest"),
+    path("api/scan/history", views.scan_history_view, name="scan-history"),
+    path("api/scan/trends", views.scan_trends_view, name="scan-trends"),
+    path("api/compliance/summary", views.compliance_summary_view, name="compliance-summary"),
+    path("api/audit", views.audit_events_view, name="audit-events"),
     path("oxidized/sync", views.sync_oxidized_view, name="oxidized-sync"),
 ]

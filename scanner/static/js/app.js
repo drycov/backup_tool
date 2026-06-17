@@ -14,6 +14,8 @@ let oxidizedNodesCache = [];
 let usersCache = [];
 let oxidizedLogsTimer = null;
 let oxidizedLogsStickToBottom = true;
+let oxidizedLogsLevelFilter = "all";
+let oxidizedLogsRawData = null;
 let oxidizedSettingsCache = null;
 
 const SCAN_PHASE_LABELS = {
@@ -33,6 +35,26 @@ const PAGE_TITLES = {
   "oxidized-ui": "Oxidized UI",
   settings: "Настройки",
   users: "Пользователи",
+  audit: "Аудит",
+};
+
+const COMPLIANCE_BADGE = {
+  ok: "success",
+  failed: "danger",
+  stale: "warning",
+  overdue: "warning",
+  never: "secondary",
+  unreachable: "dark",
+};
+
+const AUDIT_ACTION_LABELS = {
+  "credential.create": "Создание credentials",
+  "credential.update": "Изменение credentials",
+  "credential.delete": "Удаление credentials",
+  "oxidized.fetch": "Fetch узла",
+  "oxidized.backup_all": "Backup all",
+  "scan.run": "Scan",
+  "scan.discover": "Discovery",
 };
 
 function qs(sel) { return document.querySelector(sel); }
@@ -92,7 +114,10 @@ function applyGlobalSearch() {
   if (oxidizedNodesCache.length) renderOxidizedNodesTable(oxidizedNodesCache);
   if (!qs("#page-oxidized")?.classList.contains("d-none")) {
     refreshOxidizedLogBadge();
-    if ($("#oxidized-logs-modal").hasClass("show")) loadOxidizedLogs();
+    if ($("#oxidized-logs-modal").hasClass("show")) {
+      updateOxidizedLogsSearchBanner();
+      loadOxidizedLogs();
+    }
   }
   renderSettingsCredentials();
   if (usersCache.length) renderUsersTable(usersCache);
@@ -277,10 +302,14 @@ function smallBox(value, label, bg = "bg-info", icon = "fa-server", valueClass =
   `;
 }
 
-function formatDate(d) {
+function formatDate(d, short = false) {
   if (!d) return "—";
   try {
-    return new Date(d).toLocaleString("ru-RU");
+    const dt = new Date(d);
+    if (short) {
+      return dt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
+    }
+    return dt.toLocaleString("ru-RU");
   } catch {
     return d;
   }
@@ -296,7 +325,47 @@ function showAlert(containerId, msg, type = "danger") {
       <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
     </div>
   `;
-  setTimeout(() => { el.innerHTML = ""; }, 5000);
+  if (type !== "error") {
+    setTimeout(() => { el.innerHTML = ""; }, 5000);
+  }
+}
+
+function isPythonEngine() {
+  return oxidizedEngine === "python";
+}
+
+function isRouterOsModel(model) {
+  const key = String(model || "").toLowerCase().replace(/[\s_-]/g, "");
+  return key === "routeros" || key === "mikrotik" || key === "ros" || key.startsWith("mikrotik");
+}
+
+function applyEngineAwareUi() {
+  const python = isPythonEngine();
+  const backupAll = qs("#btn-backup-all");
+  if (backupAll) backupAll.style.display = python ? "" : "none";
+
+  const mikrotikBlock = qs("#mikrotik-backup-settings");
+  if (mikrotikBlock) {
+    const externalNote = qs("#mikrotik-external-note");
+    if (externalNote) externalNote.style.display = python ? "none" : "";
+    qsa("#mikrotik-backup-settings > h5, #mikrotik-backup-settings > p, #mikrotik-backup-settings > form").forEach(el => {
+      el.style.display = python ? "" : "none";
+    });
+  }
+
+  const engineBanner = qs("#oxidized-engine-banner");
+  if (engineBanner) {
+    if (python) {
+      engineBanner.style.display = "none";
+      engineBanner.innerHTML = "";
+    } else {
+      engineBanner.style.display = "";
+      engineBanner.innerHTML =
+        '<i class="fas fa-info-circle mr-1"></i> Режим <strong>Ruby Oxidized</strong>: «Backup все» и MikroTik binary/export недоступны в scanner. Используйте внешний контейнер oxidized.';
+    }
+  }
+
+  if (oxidizedNodesCache.length) renderOxidizedNodesTable(oxidizedNodesCache);
 }
 
 function loadOxidizedIframe(force = false) {
@@ -340,6 +409,7 @@ function setOxidizedLinks(url, proxyUrl, engine) {
       ? "Встроенный Oxidized Web (Python engine)"
       : "Proxy к Ruby Oxidized Web";
   }
+  applyEngineAwareUi();
 }
 
 function setPageTitle(page) {
@@ -377,7 +447,11 @@ function initNavigation() {
         loadUsers();
         loadRbacMatrix();
       }
-      if (page === "scan") resumeScanIfRunning();
+      if (page === "scan") {
+        resumeScanIfRunning();
+        loadScanHistory();
+      }
+      if (page === "audit") loadAudit();
       if (page === "settings") loadSettings();
     });
   });
@@ -439,8 +513,12 @@ async function loadRbacMatrix() {
 }
 
 async function loadUsers() {
-  usersCache = await api("/api/auth/users");
-  renderUsersTable(usersCache);
+  try {
+    usersCache = await api("/api/auth/users");
+    renderUsersTable(usersCache);
+  } catch (e) {
+    showAlert("users-alert", e.message, "error");
+  }
 }
 
 function renderUsersTable(users) {
@@ -485,65 +563,246 @@ function renderUsersTable(users) {
 
   tbody.querySelectorAll(".user-role-select").forEach(sel => {
     sel.addEventListener("change", async () => {
-      await api(`/api/auth/users/${sel.dataset.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ role: sel.value }),
-      });
-      showAlert("users-alert", "Роль обновлена", "success");
+      try {
+        await api(`/api/auth/users/${sel.dataset.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ role: sel.value }),
+        });
+        showAlert("users-alert", "Роль обновлена", "success");
+      } catch (e) {
+        showAlert("users-alert", e.message, "error");
+        loadUsers();
+      }
     });
   });
 
   tbody.querySelectorAll(".user-active-check").forEach(chk => {
     chk.addEventListener("change", async () => {
-      await api(`/api/auth/users/${chk.dataset.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ is_active: chk.checked }),
-      });
-      showAlert("users-alert", "Статус обновлён", "success");
+      try {
+        await api(`/api/auth/users/${chk.dataset.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ is_active: chk.checked }),
+        });
+        showAlert("users-alert", "Статус обновлён", "success");
+      } catch (e) {
+        showAlert("users-alert", e.message, "error");
+        chk.checked = !chk.checked;
+      }
     });
   });
 
   tbody.querySelectorAll(".user-role-locked").forEach(chk => {
     chk.addEventListener("change", async () => {
-      await api(`/api/auth/users/${chk.dataset.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ role_locked: chk.checked }),
-      });
-      showAlert("users-alert", "Фиксация роли обновлена", "success");
+      try {
+        await api(`/api/auth/users/${chk.dataset.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ role_locked: chk.checked }),
+        });
+        showAlert("users-alert", "Фиксация роли обновлена", "success");
+      } catch (e) {
+        showAlert("users-alert", e.message, "error");
+        chk.checked = !chk.checked;
+      }
     });
   });
 
   tbody.querySelectorAll(".btn-delete-user").forEach(btn => {
     btn.addEventListener("click", async () => {
       if (!confirm("Удалить пользователя?")) return;
-      await api(`/api/auth/users/${btn.dataset.id}`, { method: "DELETE" });
-      loadUsers();
+      try {
+        await api(`/api/auth/users/${btn.dataset.id}`, { method: "DELETE" });
+        loadUsers();
+      } catch (e) {
+        showAlert("users-alert", e.message, "error");
+      }
     });
   });
 }
 
 async function loadHealth() {
-  const health = await api("/health");
-  const oxHealth = await api("/api/oxidized/health").catch(() => ({ reachable: false }));
+  try {
+    const health = await api("/health");
+    const oxHealth = await api("/api/oxidized/health").catch(() => ({ reachable: false }));
+    const trends = await api("/api/scan/trends?days=30").catch(() => ({ points: [] }));
 
-  qs("#dashboard-stats").innerHTML = `
-    <div class="col-12 stats-row">
+    let warningHtml = "";
+    if (oxHealth.models === "python-fallback") {
+      warningHtml = `
+        <div class="col-12 mb-2">
+          <div class="alert alert-warning py-2 mb-0">
+            <i class="fas fa-exclamation-triangle mr-1"></i>
+            Ruby bridge недоступен — gem-модели Oxidized не загружены. Поддерживается только <strong>routeros</strong>.
+          </div>
+        </div>`;
+    }
+
+    const latest = trends.latest || {};
+    qs("#dashboard-stats").innerHTML = `
+      ${warningHtml}
+      <div class="col-12 stats-row">
+        <div class="row">
+          ${smallBox(health.inventory_devices, "Устройств", "bg-info", "fa-hdd")}
+          ${smallBox(health.networks, "Подсетей", "bg-secondary", "fa-network-wired")}
+          ${smallBox(oxHealth.reachable ? "OK" : "OFF", "Oxidized", oxHealth.reachable ? "bg-success" : "bg-danger", "fa-database")}
+          ${smallBox(oxHealth.nodes_count || 0, "Узлов Oxidized", "bg-primary", "fa-server")}
+          ${smallBox(latest.online ?? "—", "Online (scan)", "bg-success", "fa-check-circle")}
+          ${smallBox(latest.offline ?? "—", "Offline (scan)", "bg-danger", "fa-times-circle")}
+          ${smallBox(formatDate(health.last_scan), "Последний scan", "bg-warning", "fa-clock", "text-sm")}
+        </div>
+      </div>
+    `;
+    await loadComplianceDashboard();
+    renderScanTrends(trends);
+  } catch (e) {
+    showAlert("dashboard-alert", e.message, "error");
+  }
+}
+
+async function loadComplianceDashboard() {
+  const compliance = await api("/api/compliance/summary").catch(() => null);
+  if (!compliance) return;
+
+  const counts = compliance.counts || {};
+  qs("#dashboard-compliance-stats").innerHTML = `
+    <div class="col-12 stats-row mb-2">
       <div class="row">
-        ${smallBox(health.inventory_devices, "Устройств", "bg-info", "fa-hdd")}
-        ${smallBox(health.networks, "Подсетей", "bg-secondary", "fa-network-wired")}
-        ${smallBox(oxHealth.reachable ? "OK" : "OFF", "Oxidized", oxHealth.reachable ? "bg-success" : "bg-danger", "fa-database")}
-        ${smallBox(oxHealth.nodes_count || 0, "Узлов Oxidized", "bg-primary", "fa-server")}
-        ${smallBox(formatDate(health.last_scan), "Последний scan", "bg-warning", "fa-clock", "text-sm")}
+        ${smallBox(`${compliance.compliance_pct}%`, "Compliance", compliance.compliance_pct >= 90 ? "bg-success" : "bg-warning", "fa-shield-alt")}
+        ${smallBox(counts.ok || 0, "OK", "bg-success", "fa-check")}
+        ${smallBox(counts.failed || 0, "Ошибки бэкапа", "bg-danger", "fa-exclamation-triangle")}
+        ${smallBox(counts.overdue || 0, "Просрочено", "bg-warning", "fa-hourglass-half")}
+        ${smallBox(counts.stale || 0, `Stale >${compliance.stale_days_threshold}д`, "bg-orange", "fa-pause-circle")}
+        ${smallBox(counts.unreachable || 0, "Offline", "bg-dark", "fa-unlink")}
+        ${smallBox(counts.never || 0, "Нет бэкапа", "bg-secondary", "fa-question-circle")}
       </div>
     </div>
   `;
+
+  const genEl = qs("#compliance-generated-at");
+  if (genEl) genEl.textContent = formatDate(compliance.generated_at);
+
+  const tbody = qs("#compliance-table");
+  const empty = qs("#compliance-empty");
+  const nodes = compliance.nodes || [];
+  if (!tbody) return;
+  if (!nodes.length) {
+    tbody.innerHTML = "";
+    if (empty) empty.style.display = "";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  tbody.innerHTML = nodes.map(n => `
+    <tr>
+      <td><span class="badge badge-${COMPLIANCE_BADGE[n.state] || "secondary"}">${escapeHtml(n.state_label)}</span></td>
+      <td>${escapeHtml(n.name)}</td>
+      <td>${escapeHtml(n.ip)}</td>
+      <td>${escapeHtml(n.group)}</td>
+      <td class="text-sm">${formatDate(n.last_backup_at) || "—"}</td>
+      <td>${n.reachability ? `<span class="badge badge-${n.reachability === "online" ? "success" : "danger"}">${escapeHtml(n.reachability)}</span>` : "—"}</td>
+    </tr>
+  `).join("");
+}
+
+function renderScanTrends(trends) {
+  const chart = qs("#scan-trends-chart");
+  const empty = qs("#scan-trends-empty");
+  if (!chart) return;
+  const points = trends?.points || [];
+  if (!points.length) {
+    chart.innerHTML = "";
+    if (empty) empty.style.display = "";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  const maxTotal = Math.max(1, ...points.map(p => p.total || 0));
+  chart.innerHTML = `
+    <div class="scan-trend-bars">
+      ${points.map(p => {
+        const onlineH = Math.round(100 * (p.online || 0) / maxTotal);
+        const offlineH = Math.round(100 * (p.offline || 0) / maxTotal);
+        const partialH = Math.round(100 * (p.partial || 0) / maxTotal);
+        const label = formatDate(p.scanned_at, true);
+        return `
+          <div class="scan-trend-col" title="${label}: online ${p.online}, offline ${p.offline}">
+            <div class="scan-trend-stack">
+              <div class="scan-trend-seg bg-success" style="height:${onlineH}%"></div>
+              <div class="scan-trend-seg bg-warning" style="height:${partialH}%"></div>
+              <div class="scan-trend-seg bg-danger" style="height:${offlineH}%"></div>
+            </div>
+            <div class="scan-trend-label">${label}</div>
+          </div>`;
+      }).join("")}
+    </div>
+    <div class="small text-muted mt-2">
+      <span class="badge badge-success mr-1">online</span>
+      <span class="badge badge-warning mr-1">partial</span>
+      <span class="badge badge-danger">offline</span>
+    </div>`;
+}
+
+async function loadScanHistory() {
+  const data = await api("/api/scan/history?limit=30&days=30").catch(() => ({ items: [] }));
+  const tbody = qs("#scan-history-table");
+  const empty = qs("#scan-history-empty");
+  if (!tbody) return;
+  const items = data.items || [];
+  if (!items.length) {
+    tbody.innerHTML = "";
+    if (empty) empty.style.display = "";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  tbody.innerHTML = items.map(row => `
+    <tr>
+      <td class="text-sm">${formatDate(row.scanned_at)}</td>
+      <td>${row.discover ? '<span class="badge badge-info">discovery</span>' : "scan"}</td>
+      <td><span class="badge badge-${row.status === "completed" ? "success" : "danger"}">${escapeHtml(row.status)}</span></td>
+      <td>${row.online}</td>
+      <td>${row.offline}</td>
+      <td>${row.partial}</td>
+      <td>${row.total}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadAudit() {
+  const filter = qs("#audit-action-filter")?.value || "";
+  const query = filter ? `?limit=100&action=${encodeURIComponent(filter)}` : "?limit=100";
+  try {
+    const data = await api(`/api/audit${query}`);
+    const tbody = qs("#audit-table");
+    const empty = qs("#audit-empty");
+    if (!tbody) return;
+    const items = data.items || [];
+    if (!items.length) {
+      tbody.innerHTML = "";
+      if (empty) empty.style.display = "";
+      return;
+    }
+    if (empty) empty.style.display = "none";
+    tbody.innerHTML = items.map(row => `
+      <tr>
+        <td class="text-sm">${formatDate(row.created_at)}</td>
+        <td>${escapeHtml(row.username)}</td>
+        <td><code>${escapeHtml(AUDIT_ACTION_LABELS[row.action] || row.action)}</code></td>
+        <td>${escapeHtml(row.target || "—")}</td>
+        <td class="text-sm">${escapeHtml(row.detail || "—")}</td>
+        <td class="text-sm">${escapeHtml(row.ip_address || "—")}</td>
+      </tr>
+    `).join("");
+  } catch (e) {
+    showAlert("audit-alert", e.message, "error");
+  }
 }
 
 async function loadInventory() {
-  inventory = await api("/inventory");
-  updateGroupSelects();
-  renderNetworksTable();
-  renderDevicesTable();
+  try {
+    inventory = await api("/inventory");
+    updateGroupSelects();
+    renderNetworksTable();
+    renderDevicesTable();
+  } catch (e) {
+    showAlert("inventory-alert", e.message, "error");
+  }
 }
 
 function renderNetworksTable() {
@@ -627,9 +886,13 @@ function renderDevicesTable() {
   tbody.querySelectorAll(".btn-delete-device").forEach(btn => {
     btn.addEventListener("click", async () => {
       if (!confirm(`Удалить ${btn.dataset.name}?`)) return;
-      await api(`/inventory/devices/${encodeURIComponent(btn.dataset.name)}`, { method: "DELETE" });
-      loadInventory();
-      loadHealth();
+      try {
+        await api(`/inventory/devices/${encodeURIComponent(btn.dataset.name)}`, { method: "DELETE" });
+        loadInventory();
+        loadHealth();
+      } catch (e) {
+        showAlert("inventory-alert", e.message, "error");
+      }
     });
   });
 }
@@ -779,6 +1042,10 @@ function fillBackupSettingsForm(cfg) {
   if (qs("#nt-error-email")) qs("#nt-error-email").checked = !!cfg.error_notify_email;
   if (qs("#nt-report-telegram")) qs("#nt-report-telegram").checked = !!cfg.report_send_telegram;
   if (qs("#nt-report-email")) qs("#nt-report-email").checked = !!cfg.report_send_email;
+  if (qs("#nt-degrade-telegram")) qs("#nt-degrade-telegram").checked = !!cfg.degrade_notify_telegram;
+  if (qs("#nt-degrade-email")) qs("#nt-degrade-email").checked = !!cfg.degrade_notify_email;
+  if (qs("#nt-stale-days")) qs("#nt-stale-days").value = cfg.stale_days_threshold ?? 30;
+  if (qs("#nt-alert-cooldown")) qs("#nt-alert-cooldown").value = cfg.alert_cooldown_hours ?? 24;
   if (qs("#nt-telegram-chat-notify")) qs("#nt-telegram-chat-notify").value = cfg.telegram_chat_notify || "";
   if (qs("#nt-telegram-chat-report")) qs("#nt-telegram-chat-report").value = cfg.telegram_chat_report || "";
   if (qs("#nt-smtp-server")) qs("#nt-smtp-server").value = cfg.smtp_server || "";
@@ -833,6 +1100,10 @@ function collectBackupSettingsForm() {
     smtp_from: qs("#nt-smtp-from")?.value.trim() || "",
     smtp_to_notify: qs("#nt-smtp-to-notify")?.value.trim() || "",
     smtp_to_report: qs("#nt-smtp-to-report")?.value.trim() || "",
+    degrade_notify_telegram: qs("#nt-degrade-telegram")?.checked === true,
+    degrade_notify_email: qs("#nt-degrade-email")?.checked === true,
+    stale_days_threshold: parseInt(qs("#nt-stale-days")?.value, 10) || 30,
+    alert_cooldown_hours: parseInt(qs("#nt-alert-cooldown")?.value, 10) || 24,
   };
 }
 
@@ -1319,21 +1590,24 @@ async function saveDevice() {
   };
 
   if (!device.name || !device.ip) {
-    alert("Имя и IP обязательны");
+    showAlert("inventory-alert", "Имя и IP обязательны", "error");
     return;
   }
 
-  if (editingDeviceName) {
-    inventory.devices = inventory.devices.filter(d => d.name !== editingDeviceName);
-    inventory.devices.push(device);
-    await api("/inventory", { method: "PUT", body: JSON.stringify(inventory) });
-  } else {
-    await api("/inventory/devices", { method: "POST", body: JSON.stringify(device) });
+  try {
+    if (editingDeviceName) {
+      inventory.devices = inventory.devices.filter(d => d.name !== editingDeviceName);
+      inventory.devices.push(device);
+      await api("/inventory", { method: "PUT", body: JSON.stringify(inventory) });
+    } else {
+      await api("/inventory/devices", { method: "POST", body: JSON.stringify(device) });
+    }
+    closeDeviceModal();
+    loadInventory();
+    loadHealth();
+  } catch (e) {
+    showAlert("inventory-alert", e.message, "error");
   }
-
-  closeDeviceModal();
-  loadInventory();
-  loadHealth();
 }
 
 function setScanButtonsDisabled(disabled) {
@@ -1463,6 +1737,7 @@ async function pollScanStatus(onComplete) {
       renderScanResults(status.summary);
       showAlert("scan-alert", status.message || "Сканирование завершено", "success");
       loadHealth();
+      loadScanHistory();
       loadInventory();
     } else if (status.status === "failed") {
       showAlert("scan-alert", status.error || status.message || "Ошибка сканирования", "error");
@@ -1612,6 +1887,18 @@ async function loadOxidizedNodes() {
       return;
     }
 
+    const modelsWarning = qs("#oxidized-models-warning");
+    if (modelsWarning) {
+      if (health.models === "python-fallback" && isPythonEngine()) {
+        modelsWarning.style.display = "";
+        modelsWarning.innerHTML =
+          '<i class="fas fa-exclamation-triangle mr-1"></i> Ruby bridge недоступен — бэкап только для модели <strong>routeros</strong>.';
+      } else {
+        modelsWarning.style.display = "none";
+        modelsWarning.innerHTML = "";
+      }
+    }
+
     const nodes = await api("/api/oxidized/nodes");
     oxidizedNodesCache = nodes;
     renderOxidizedNodesTable(nodes);
@@ -1646,6 +1933,7 @@ function renderOxidizedNodesTable(nodes) {
   qs("#oxidized-nodes-table").innerHTML = filtered.map(n => {
     const last = n.last || {};
     const status = last.status || "unknown";
+    const showMikrotik = isPythonEngine() && isRouterOsModel(n.model);
     return `
       <tr>
         <td><strong>${escapeHtml(n.name)}</strong></td>
@@ -1662,9 +1950,7 @@ function renderOxidizedNodesTable(nodes) {
             <i class="fas fa-file-alt"></i>
           </button>
           ${can("oxidized:write") ? `<button class="btn btn-primary btn-sm btn-fetch-config" data-name="${escapeHtml(n.name)}" title="Fetch"><i class="fas fa-download"></i></button>` : ""}
-          <button class="btn btn-outline-secondary btn-sm btn-show-backups" data-name="${escapeHtml(n.name)}" title="Файлы бэкапа">
-            <i class="fas fa-archive"></i>
-          </button>
+          ${showMikrotik ? `<button class="btn btn-outline-secondary btn-sm btn-show-backups" data-name="${escapeHtml(n.name)}" title="MikroTik binary / export"><i class="fas fa-archive"></i></button>` : ""}
         </td>
       </tr>
     `;
@@ -1780,11 +2066,76 @@ function classifyOxidizedLogLine(line) {
   return "";
 }
 
-function renderOxidizedLogs(data) {
+function filterOxidizedLogLines(lines, level) {
+  if (!lines || level === "all") return lines || [];
+  return lines.filter(line => {
+    const cls = classifyOxidizedLogLine(line);
+    if (level === "error") return cls === "log-error";
+    if (level === "warn") return cls === "log-warn";
+    if (level === "ok") return cls === "log-ok";
+    return true;
+  });
+}
+
+function updateOxidizedLogsSearchBanner() {
+  const banner = qs("#oxidized-logs-search-banner");
+  if (!banner) return;
+  const q = globalSearchQuery.trim();
+  if (q) {
+    banner.style.display = "";
+    banner.innerHTML =
+      `<i class="fas fa-search mr-1"></i> Активен глобальный поиск: <code>${escapeHtml(q)}</code> — очищает фильтр в navbar`;
+  } else {
+    banner.style.display = "none";
+    banner.innerHTML = "";
+  }
+}
+
+function paintOxidizedLogViewer(lines) {
   const viewer = qs("#oxidized-log-viewer");
+  if (!viewer) return;
+  if (!lines.length) {
+    const levelHint = oxidizedLogsLevelFilter !== "all" ? ` (фильтр: ${oxidizedLogsLevelFilter})` : "";
+    viewer.textContent = globalSearchQuery.trim()
+      ? `Нет строк, подходящих под фильтр${levelHint}`
+      : oxidizedLogsLevelFilter !== "all"
+        ? `Нет строк уровня «${oxidizedLogsLevelFilter}»`
+        : "Лог пуст";
+    return;
+  }
+  viewer.innerHTML = lines
+    .map(line => {
+      const cls = classifyOxidizedLogLine(line);
+      return cls ? `<span class="${cls}">${escapeHtml(line)}</span>` : escapeHtml(line);
+    })
+    .join("\n");
+  if (oxidizedLogsStickToBottom) {
+    viewer.scrollTop = viewer.scrollHeight;
+  }
+}
+
+function renderOxidizedLogs(data) {
   const badge = qs("#oxidized-logs-count");
   const engineBadge = qs("#oxidized-log-engine");
-  if (!viewer) return;
+  const pathEl = qs("#oxidized-logs-path");
+  const truncatedEl = qs("#oxidized-logs-truncated");
+
+  oxidizedLogsRawData = data;
+  updateOxidizedLogsSearchBanner();
+
+  if (pathEl) {
+    if (data.path) {
+      pathEl.textContent = data.path;
+      pathEl.title = data.path;
+      pathEl.style.display = "";
+    } else {
+      pathEl.textContent = "";
+      pathEl.style.display = "none";
+    }
+  }
+  if (truncatedEl) {
+    truncatedEl.style.display = data.truncated ? "inline" : "none";
+  }
 
   if (engineBadge) {
     if (data.engine_title) {
@@ -1796,39 +2147,32 @@ function renderOxidizedLogs(data) {
   }
 
   if (!data.available) {
-    viewer.textContent = data.error || "Лог недоступен";
+    paintOxidizedLogViewer([]);
+    const viewer = qs("#oxidized-log-viewer");
+    if (viewer) viewer.textContent = data.error || "Лог недоступен";
     if (badge) badge.style.display = "none";
     updateOxidizedLogBtnBadge(data);
     return;
   }
 
-  const lines = data.lines || [];
-  if (!lines.length) {
-    viewer.textContent = globalSearchQuery.trim()
-      ? "Нет строк, подходящих под фильтр поиска"
-      : "Лог пуст";
-    if (badge) badge.style.display = "none";
-    updateOxidizedLogBtnBadge(data);
-    return;
-  }
-
-  viewer.innerHTML = lines
-    .map(line => {
-      const cls = classifyOxidizedLogLine(line);
-      return cls ? `<span class="${cls}">${escapeHtml(line)}</span>` : escapeHtml(line);
-    })
-    .join("\n");
+  const allLines = data.lines || [];
+  const lines = filterOxidizedLogLines(allLines, oxidizedLogsLevelFilter);
+  paintOxidizedLogViewer(lines);
 
   if (badge) {
-    badge.style.display = "inline";
-    badge.textContent = data.truncated ? `${data.returned}+` : String(data.returned);
+    if (allLines.length) {
+      badge.style.display = "inline";
+      const shown = lines.length;
+      const suffix = oxidizedLogsLevelFilter !== "all" ? ` / ${shown}` : "";
+      badge.textContent = data.truncated
+        ? `${data.returned}+${suffix}`
+        : `${data.returned}${suffix}`;
+    } else {
+      badge.style.display = "none";
+    }
   }
 
   updateOxidizedLogBtnBadge(data);
-
-  if (oxidizedLogsStickToBottom) {
-    viewer.scrollTop = viewer.scrollHeight;
-  }
 }
 
 function updateOxidizedLogBtnBadge(data) {
@@ -1858,7 +2202,33 @@ async function refreshOxidizedLogBadge() {
 
 function openOxidizedLogsModal() {
   oxidizedLogsStickToBottom = true;
+  updateOxidizedLogsSearchBanner();
   $("#oxidized-logs-modal").modal("show");
+}
+
+function setOxidizedLogsLevelFilter(level) {
+  oxidizedLogsLevelFilter = level;
+  qsa("#oxidized-logs-level-filter [data-level]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.level === level);
+  });
+  if (oxidizedLogsRawData) renderOxidizedLogs(oxidizedLogsRawData);
+}
+
+async function copyOxidizedLogs() {
+  const viewer = qs("#oxidized-log-viewer");
+  const btn = qs("#btn-copy-oxidized-logs");
+  if (!viewer) return;
+  const text = viewer.innerText || viewer.textContent || "";
+  try {
+    await navigator.clipboard.writeText(text);
+    if (btn) {
+      const icon = btn.innerHTML;
+      btn.innerHTML = '<i class="fas fa-check text-success"></i>';
+      window.setTimeout(() => { btn.innerHTML = icon; }, 1500);
+    }
+  } catch (e) {
+    showAlert("oxidized-alert", "Не удалось скопировать: " + e.message, "error");
+  }
 }
 
 async function loadOxidizedLogs() {
@@ -1971,13 +2341,30 @@ function formatBytes(bytes) {
 }
 
 async function showNodeBackups(name) {
+  const loading = qs("#oxidized-backups-loading");
+  const content = qs("#oxidized-backups-content");
+  const emptyHint = qs("#oxidized-backups-empty-hint");
+  qs("#oxidized-backups-node").textContent = name;
+  if (loading) loading.style.display = "";
+  if (content) content.style.display = "none";
+  if (emptyHint) emptyHint.style.display = "none";
+  qs("#oxidized-backups-bin").innerHTML = "";
+  qs("#oxidized-backups-rsc").innerHTML = "";
+  $("#oxidized-backups-modal").modal("show");
   try {
     const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/backups`);
-    qs("#oxidized-backups-node").textContent = name;
-    qs("#oxidized-backups-bin").innerHTML = renderBackupFileList(name, "bin", data.backups?.binary || []);
-    qs("#oxidized-backups-rsc").innerHTML = renderBackupFileList(name, "rsc", data.backups?.export || []);
-    $("#oxidized-backups-modal").modal("show");
+    const binFiles = data.backups?.binary || [];
+    const rscFiles = data.backups?.export || [];
+    qs("#oxidized-backups-bin").innerHTML = renderBackupFileList(name, "bin", binFiles);
+    qs("#oxidized-backups-rsc").innerHTML = renderBackupFileList(name, "rsc", rscFiles);
+    if (loading) loading.style.display = "none";
+    if (content) content.style.display = "";
+    if (emptyHint && isPythonEngine() && !binFiles.length && !rscFiles.length) {
+      emptyHint.style.display = "";
+    }
   } catch (e) {
+    if (loading) loading.style.display = "none";
+    $("#oxidized-backups-modal").modal("hide");
     showAlert("oxidized-alert", e.message, "error");
   }
 }
@@ -2026,6 +2413,7 @@ function bindEvents() {
   qs("#oxidized-settings-form")?.addEventListener("submit", saveOxidizedSettings);
   qs("#backup-settings-form")?.addEventListener("submit", saveBackupSettings);
   qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
+  qs("#audit-action-filter")?.addEventListener("change", () => loadAudit());
   qs("#btn-test-notify-report")?.addEventListener("click", () => testBackupNotify("report"));
   qs("#btn-test-notify-error")?.addEventListener("click", () => testBackupNotify("error"));
   qs("#btn-settings-sync-oxidized")?.addEventListener("click", syncOxidizedFromSettings);
@@ -2105,6 +2493,21 @@ function bindEvents() {
   qs("#btn-refresh-oxidized")?.addEventListener("click", loadOxidizedNodes);
   qs("#btn-refresh-oxidized-logs")?.addEventListener("click", loadOxidizedLogs);
   qs("#btn-open-oxidized-logs")?.addEventListener("click", openOxidizedLogsModal);
+  qs("#btn-copy-oxidized-logs")?.addEventListener("click", copyOxidizedLogs);
+  qsa("#oxidized-logs-level-filter [data-level]").forEach(btn => {
+    btn.addEventListener("click", () => setOxidizedLogsLevelFilter(btn.dataset.level));
+  });
+  qs("#oxidized-backups-goto-settings")?.addEventListener("click", e => {
+    e.preventDefault();
+    $("#oxidized-backups-modal").modal("hide");
+    navigateToPage("settings");
+  });
+  qs("#oxidized-backups-goto-logs")?.addEventListener("click", e => {
+    e.preventDefault();
+    $("#oxidized-backups-modal").modal("hide");
+    navigateToPage("oxidized");
+    window.setTimeout(openOxidizedLogsModal, 300);
+  });
   $("#oxidized-logs-modal").on("shown.bs.modal", startOxidizedLogsPolling);
   $("#oxidized-logs-modal").on("hidden.bs.modal", stopOxidizedLogsPolling);
   qs("#btn-oxidized-iframe-reload")?.addEventListener("click", () => loadOxidizedIframe(true));

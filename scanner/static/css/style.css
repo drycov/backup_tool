@@ -178,6 +178,14 @@ body.login-page .login-logo {
   gap: 0.35rem;
 }
 
+#oxidized-logs-level-filter .btn.active {
+  font-weight: 600;
+}
+
+#oxidized-logs-path {
+  max-width: 55%;
+}
+
 .oxidized-log-viewer .log-warn { color: #d29922; }
 .oxidized-log-viewer .log-error { color: #f85149; }
 .oxidized-log-viewer .log-ok { color: #3fb950; }
@@ -373,4 +381,47 @@ mark.search-hit {
 
 #ldap-test-result {
   min-height: 1.25rem;
+}
+
+/* Compliance / scan trends */
+.bg-orange {
+  background-color: #fd7e14 !important;
+  color: #fff;
+}
+
+.scan-trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  min-height: 160px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.scan-trend-col {
+  flex: 0 0 28px;
+  text-align: center;
+}
+
+.scan-trend-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-start;
+  height: 140px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #f4f6f9;
+}
+
+.scan-trend-seg {
+  width: 100%;
+  min-height: 2px;
+}
+
+.scan-trend-label {
+  font-size: 0.65rem;
+  color: #6c757d;
+  margin-top: 4px;
+  transform: rotate(-45deg);
+  height: 28px;
 }

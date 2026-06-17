@@ -71,6 +71,13 @@ def _dispatch(cfg: BackupConfigData, *, kind: str, subject: str, body: str) -> N
         if cfg.report_send_email:
             ok, msg = _send_email(cfg, cfg.smtp_to_report, subject, body)
             logger.log(logging.INFO if ok else logging.WARNING, "backup | notify | %s", msg)
+    elif kind == "degrade":
+        if cfg.degrade_notify_telegram:
+            ok, msg = _send_telegram(cfg.telegram_token, cfg.telegram_chat_notify, body)
+            logger.log(logging.INFO if ok else logging.WARNING, "backup | degrade | %s", msg)
+        if cfg.degrade_notify_email:
+            ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, body)
+            logger.log(logging.INFO if ok else logging.WARNING, "backup | degrade | %s", msg)
 
 
 def notify_backup_error(device: str, ip: str, status: str, detail: str = "") -> None:
@@ -82,6 +89,24 @@ def notify_backup_error(device: str, ip: str, status: str, detail: str = "") -> 
         lines.append(f"Детали: {detail}")
     body = "\n".join(lines)
     _dispatch(cfg, kind="error", subject="RMBackup: ошибка бэкапа", body=body)
+
+
+def notify_degradation(kind_label: str, device_lines: list[str], *, stale_days: int = 30) -> None:
+    cfg = get_config()
+    if not cfg.degrade_notify_telegram and not cfg.degrade_notify_email:
+        return
+    if not device_lines:
+        return
+    body = "\n".join(
+        [
+            "Backup Tools — деградация",
+            f"Категория: {kind_label}",
+            f"Устройств: {len(device_lines)}",
+            "",
+            *device_lines,
+        ]
+    )
+    _dispatch(cfg, kind="degrade", subject=f"Backup Tools: {kind_label}", body=body)
 
 
 def notify_backup_report(device: str, ip: str, *, config_changed: bool, binary_ok: bool = True) -> None:
