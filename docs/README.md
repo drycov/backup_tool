@@ -13,6 +13,9 @@ Backup Tools — платформа для **сканирования сети**
 | [Сканирование](scanning.md) | Ping sweep, discovery, проверка портов и SSH |
 | [Oxidized и бэкапы](oxidized.md) | Git push, SSH-ключи, API |
 | [**Типы движков**](engines.md) | Python vs Ruby Oxidized — сравнение и выбор |
+| [MikroTik бэкапы](mikrotik-backups.md) | Binary `.backup` и export `.rsc` |
+| [Уведомления](notifications.md) | Telegram и Email |
+| [Web UI](ui.md) | Разделы интерфейса, чеклист первого запуска |
 | [Аутентификация](authentication.md) | JWT, RBAC, LDAP / Active Directory |
 | [API](api.md) | REST-эндпоинты Scanner |
 | [Эксплуатация](operations.md) | Команды, мониторинг, резервное копирование, troubleshooting |
@@ -43,4 +46,4 @@ UI: **http://localhost:8000/ui**
 |--------|------|----------|
 | Scanner UI | 8000 | Web-интерфейс, REST API, scan/discovery, встроенный Oxidized |
 | Oxidized (external) | 8888 | Ruby Oxidized — только при `OXIDIZED_ENGINE=external` |
-| PostgreSQL | — | Инвентарь, пользователи, LDAP-настройки (внутренняя сеть Docker) |
+| PostgreSQL | — | Инвентарь, пользователи, LDAP, backup/notify settings |

@@ -7,7 +7,8 @@
 - **Discovery** — ping sweep подсетей, автоматическое добавление устройств
 - **Scan** — проверка доступности (ICMP, TCP, SSH probe)
 - **Инвентарь** — PostgreSQL, Web UI, REST API, импорт из YAML
-- **Бэкапы** — встроенный Python-движок Oxidized или Ruby Oxidized (external)
+- **Бэкапы** — Oxidized Git + MikroTik binary/export (RealMikrotikBackup)
+- **Уведомления** — Telegram и Email при ошибках и успешных бэкапах
 - **Git push** — сохранение конфигов в Gitea/GitLab через HTTP или SSH
 - **RBAC** — роли viewer / operator / admin
 - **LDAP / AD** — корпоративная аутентификация с маппингом групп
@@ -47,6 +48,9 @@ docker compose up -d --build
 | [Сканирование](docs/scanning.md) | Scan, discovery, tuning |
 | [Oxidized](docs/oxidized.md) | Бэкапы, Git push, SSH-ключи |
 | [Типы движков](docs/engines.md) | Python vs Ruby Oxidized |
+| [MikroTik бэкапы](docs/mikrotik-backups.md) | Binary и export файлы |
+| [Уведомления](docs/notifications.md) | Telegram, Email |
+| [Web UI](docs/ui.md) | Интерфейс и чеклист |
 | [Аутентификация](docs/authentication.md) | JWT, RBAC, LDAP / AD |
 | [API](docs/api.md) | REST-эндпоинты |
 | [Эксплуатация](docs/operations.md) | Мониторинг, backup, troubleshooting |

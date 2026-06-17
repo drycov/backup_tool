@@ -47,7 +47,9 @@ docker compose --profile external up -d
 2. **Schedule** — каждые `OXIDIZED_INTERVAL` секунд worker обрабатывает очередь
 3. **Collect** — SSH-сессия, выполнение команд модели
 4. **Store** — diff с предыдущей версией, commit в локальный Git (`oxidized-data` volume)
-5. **Push** — отправка в `GIT_REMOTE_URL` (hook post_store)
+5. **Push** — отправка в `GIT_REMOTE_URL`
+6. **MikroTik files** (python, routeros) — binary `.backup` + export `.rsc` → [mikrotik-backups.md](mikrotik-backups.md)
+7. **Notify** (опц.) — Telegram/Email → [notifications.md](notifications.md)
 
 ## Поддерживаемые модели
 
@@ -69,8 +71,26 @@ docker compose --profile external up -d
 - Таблица узлов: имя, IP, группа, модель, last status, mtime
 - **Fetch** — принудительный сбор одного узла
 - **Sync** — синхронизация source/credentials
+- **Backup all** — постановка всех узлов в очередь (python only)
 - Просмотр конфигурации, версий, diff
+- **MikroTik backups** — список и скачивание `.backup` / `.rsc` (routeros)
 - Логи (`/api/oxidized/logs`)
+
+## Настройки worker (UI / API)
+
+**Настройки → Бэкап → Oxidized worker** или `GET/PUT /api/settings/oxidized`:
+
+| Поле | Описание |
+|------|----------|
+| `interval` | Интервал опроса (≥ 60 сек) |
+| `threads` | Параллельные потоки (1–64) |
+| `timeout` / `retries` | SSH timeout и повторы |
+| `default_model` | Модель по умолчанию |
+| `ssh_port` | SSH порт в config |
+| `group_models` | Модель per group (`hex` → `routeros`) |
+| `resolve_dns` | DNS resolve |
+
+Сохранение записывает `oxidized/config` и вызывает reload engine. `OXIDIZED_ENGINE` и `GIT_REMOTE_URL` — только из `.env`.
 
 Раздел **Oxidized Web** — iframe/proxy к Ruby UI (external) или справка (python).
 
@@ -185,7 +205,12 @@ X-Auth-Token: <OXIDIZED_SOURCE_TOKEN>   # если задан
 | GET | `/api/oxidized/nodes/{name}/versions/{oid}` | Конкретная версия |
 | GET | `/api/oxidized/nodes/{name}/diff` | Diff версий |
 | POST | `/api/oxidized/nodes/{name}/fetch` | Принудительный fetch |
+| POST | `/api/oxidized/backup/all` | Очередь всех узлов (python) |
+| GET | `/api/oxidized/nodes/{name}/backups` | MikroTik binary/export файлы |
+| GET | `/api/oxidized/nodes/{name}/backups/download` | Скачать backup file |
 | POST | `/oxidized/sync` | Sync credentials/source |
+| GET/PUT | `/api/settings/oxidized` | Настройки worker |
+| GET/PUT | `/api/settings/backup` | MikroTik + уведомления |
 | GET | `/api/oxidized/logs` | Tail лога |
 
 ## Логи

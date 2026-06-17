@@ -14,7 +14,7 @@
 
 | Метод | Путь | Описание |
 |-------|------|----------|
-| GET | `/health` | Healthcheck |
+| GET | `/health` | Healthcheck приложения |
 | GET | `/ui` | Web UI (HTML) |
 | GET | `/api/ui/config` | Конфиг UI (engine, auth methods) |
 | POST | `/api/auth/login` | Вход |
@@ -25,17 +25,32 @@
 ```json
 {
   "status": "ok",
+  "inventory_devices": 42,
+  "networks": 12,
+  "last_scan": "2026-06-17T10:00:00Z"
+}
+```
+
+### GET /api/ui/config
+
+```json
+{
+  "oxidized_public_url": "http://host:8888",
+  "oxidized_proxy_url": null,
   "oxidized_engine": "python",
-  "database": "ok"
+  "oxidized_engine_title": "Python Oxidized",
+  "scanner_version": "1.0.0",
+  "auth_required": true,
+  "auth": {"local": true, "ldap": false}
 }
 ```
 
 ## Аутентификация
 
-| Метод | Путь | Auth | Описание |
-|-------|------|------|----------|
-| POST | `/api/auth/logout` | ✓ | Выход (очистка cookie) |
-| GET | `/api/auth/me` | ✓ | Текущий пользователь |
+| Метод | Путь | Permission | Описание |
+|-------|------|------------|----------|
+| POST | `/api/auth/logout` | ✓ | Выход |
+| GET | `/api/auth/me` | `inventory:read` | Текущий пользователь + permissions |
 
 ## Инвентарь
 
@@ -43,67 +58,108 @@
 |-------|------|------------|----------|
 | GET | `/inventory` | `inventory:read` | Полный инвентарь |
 | PUT | `/inventory` | `inventory:write` | Замена инвентаря |
-| GET | `/inventory/devices` | `inventory:read` | Список устройств |
 | POST | `/inventory/devices` | `inventory:devices` | Добавить устройство |
 | DELETE | `/inventory/devices/{name}` | `inventory:devices` | Удалить устройство |
 | POST | `/inventory/credentials` | `credentials:write` | Создать профиль |
-| PUT | `/inventory/credentials/{name}` | `credentials:write` | Обновить профиль |
+| PUT | `/inventory/credentials/{name}` | `credentials:write` | Обновить профиль (+ model группы) |
 | DELETE | `/inventory/credentials/{name}` | `credentials:write` | Удалить профиль |
 | POST | `/inventory/import-network` | `inventory:write` | Импорт network_inventory.yml |
-
-### Device (POST /inventory/devices)
-
-```json
-{
-  "name": "router-01",
-  "ip": "10.0.0.1",
-  "model": "routeros",
-  "group": "hex",
-  "enabled": true,
-  "ports": [44333]
-}
-```
-
-### Inventory (PUT /inventory)
-
-```json
-{
-  "credential_profiles": [
-    {"name": "ovn", "group_name": "hex", "username": "admin", "password": "secret"}
-  ],
-  "networks": [
-    {"network": "10.0.0.0/24", "group_name": "hex", "environment_name": "lab", "gateway": "10.0.0.1"}
-  ],
-  "devices": [
-    {"name": "router-01", "ip": "10.0.0.1", "model": "routeros", "group": "hex", "enabled": true, "ports": [44333]}
-  ]
-}
-```
+| POST | `/inventory/cleanup-discovered` | `inventory:write` | Удалить `discovered-*` устройства |
 
 ## Scan
 
 | Метод | Путь | Permission | Описание |
 |-------|------|------------|----------|
-| POST | `/scan` | `scan:run` | Запуск scan |
+| POST | `/scan` | `scan:run` | Запуск scan → `202` |
 | POST | `/scan?discover=true` | `scan:run` | Scan + discovery |
-| GET | `/scan/status` | `scan:read` | Статус текущего job |
-| GET | `/scan/latest` | `scan:read` | Последний ScanSummary |
+| GET | `/scan/status` | `inventory:read`* | Статус job |
+| GET | `/scan/latest` | `inventory:read`* | Последний ScanSummary |
 
-## Oxidized
+\* В коде используется `PERMISSION_VIEW_INVENTORY` (эквивалент `inventory:read` + scan results для viewer).
+
+## Oxidized — узлы и конфиги
+
+| Метод | Путь | Permission | Движок | Описание |
+|-------|------|------------|--------|----------|
+| GET | `/api/oxidized/health` | `oxidized:read` | оба | Health + engine, models |
+| GET | `/api/oxidized/logs` | `oxidized:read` | оба | Tail лога |
+| GET | `/api/oxidized/models` | `inventory:read` | оба | Список моделей |
+| GET | `/api/oxidized/nodes` | `oxidized:read` | оба | Список узлов |
+| GET | `/api/oxidized/nodes/{name}` | `oxidized:read` | оба | Текущий конфиг (text) |
+| GET | `/api/oxidized/nodes/{name}/versions` | `oxidized:read` | оба | Git versions |
+| GET | `/api/oxidized/nodes/{name}/versions/{oid}` | `oxidized:read` | **python** | Версия по OID |
+| GET | `/api/oxidized/nodes/{name}/diff` | `oxidized:read` | **python** | Diff (`?oid=&oid2=&format=html\|text\|json`) |
+| POST | `/api/oxidized/nodes/{name}/fetch` | `oxidized:write` | оба | Принудительный fetch |
+| POST | `/api/oxidized/backup/all` | `oxidized:write` | **python** | Очередь всех узлов |
+| POST | `/oxidized/sync` | `oxidized:write` | оба | Sync credentials/source |
+| * | `/oxidized-proxy/{path}` | `oxidized:read` | **external** | Прокси Ruby UI |
+
+Эндпоинты с пометкой **python** возвращают `501` при `OXIDIZED_ENGINE=external` (versions/diff через proxy).
+
+### GET /api/oxidized/health (python)
+
+```json
+{
+  "reachable": true,
+  "nodes_count": 42,
+  "engine": "python",
+  "engine_title": "Python Oxidized",
+  "models": "oxidized-gem",
+  "log_path": "/var/lib/oxidized/oxidized-python.log"
+}
+```
+
+## MikroTik файловые бэкапы
 
 | Метод | Путь | Permission | Описание |
 |-------|------|------------|----------|
-| GET | `/api/oxidized/health` | `oxidized:read` | Health движка |
-| GET | `/api/oxidized/logs` | `oxidized:read` | Хвост лога |
-| GET | `/api/oxidized/models` | `oxidized:read` | Доступные модели |
-| GET | `/api/oxidized/nodes` | `oxidized:read` | Список узлов |
-| GET | `/api/oxidized/nodes/{name}` | `oxidized:read` | Текущий конфиг (text) |
-| GET | `/api/oxidized/nodes/{name}/versions` | `oxidized:read` | Git versions |
-| GET | `/api/oxidized/nodes/{name}/versions/{oid}` | `oxidized:read` | Версия по OID |
-| GET | `/api/oxidized/nodes/{name}/diff?oid=...` | `oxidized:read` | Diff |
-| POST | `/api/oxidized/nodes/{name}/fetch` | `oxidized:write` | Принудительный fetch |
-| POST | `/oxidized/sync` | `oxidized:write` | Sync source/credentials |
-| * | `/oxidized-proxy/{path}` | `oxidized:read` | Прокси к Ruby Oxidized |
+| GET | `/api/oxidized/nodes/{name}/backups` | `oxidized:read` | Список `.backup` / `.rsc` |
+| GET | `/api/oxidized/nodes/{name}/backups/download` | `oxidized:read` | Скачать файл (`?type=bin\|rsc&file=...`) |
+
+См. [mikrotik-backups.md](mikrotik-backups.md).
+
+## Настройки
+
+| Метод | Путь | Permission | Описание |
+|-------|------|------------|----------|
+| GET | `/api/settings/oxidized` | `oxidized:read` | Worker settings + health |
+| PUT | `/api/settings/oxidized` | `oxidized:write` | Сохранить interval, threads, models… |
+| GET | `/api/settings/backup` | `oxidized:read` | MikroTik backup + notifications |
+| PUT | `/api/settings/backup` | `oxidized:write` | Сохранить backup/notify settings |
+| POST | `/api/settings/backup/test-notify` | `oxidized:write` | Тест Telegram/Email |
+| GET | `/api/settings/ldap` | `users:manage` | LDAP config |
+| PUT | `/api/settings/ldap` | `users:manage` | Сохранить LDAP |
+| POST | `/api/settings/ldap/test` | `users:manage` | Тест LDAP bind |
+
+### PUT /api/settings/oxidized
+
+```json
+{
+  "interval": 3600,
+  "threads": 10,
+  "timeout": 20,
+  "retries": 3,
+  "default_model": "routeros",
+  "ssh_port": 44333,
+  "resolve_dns": true,
+  "group_models": {"hex": "routeros", "us": "routeros"}
+}
+```
+
+### PUT /api/settings/backup
+
+```json
+{
+  "binary_enabled": true,
+  "export_enabled": true,
+  "hide_sensitive": false,
+  "purge_enabled": true,
+  "purge_keep": 10,
+  "error_notify_telegram": true,
+  "telegram_token": "…",
+  "telegram_chat_notify": "-100…"
+}
+```
 
 ## Пользователи
 
@@ -115,45 +171,40 @@
 | PUT | `/api/auth/users/{id}` | `users:manage` | Обновить |
 | DELETE | `/api/auth/users/{id}` | `users:manage` | Удалить |
 
-## LDAP
-
-| Метод | Путь | Permission | Описание |
-|-------|------|------------|----------|
-| GET | `/api/settings/ldap` | `users:manage` | Текущие настройки |
-| PUT | `/api/settings/ldap` | `users:manage` | Сохранить |
-| POST | `/api/settings/ldap/test` | `users:manage` | Тест bind |
-
 ## Примеры curl
 
-### Login
+### Login + inventory
 
 ```bash
 curl -c cookies.txt -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"secret"}'
+
+curl -b cookies.txt http://localhost:8000/inventory
 ```
 
-### Scan
+### Discovery scan
 
 ```bash
 curl -b cookies.txt -X POST "http://localhost:8000/scan?discover=true"
 curl -b cookies.txt http://localhost:8000/scan/status
 ```
 
-### Fetch node
+### Backup all + MikroTik files
 
 ```bash
-curl -b cookies.txt -X POST http://localhost:8000/api/oxidized/nodes/my-router/fetch
+curl -b cookies.txt -X POST http://localhost:8000/api/oxidized/backup/all
+curl -b cookies.txt http://localhost:8000/api/oxidized/nodes/my-router/backups
+curl -b cookies.txt -OJ \
+  "http://localhost:8000/api/oxidized/nodes/my-router/backups/download?type=bin&file=1_my-router_last.backup"
 ```
 
-### Bearer token
+### Test notification
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+curl -b cookies.txt -X POST http://localhost:8000/api/settings/backup/test-notify \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"secret"}' | jq -r .access_token)
-
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/inventory
+  -d '{"kind":"report"}'
 ```
 
 ## Коды ответов
@@ -168,9 +219,10 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/inventory
 | 404 | Не найдено |
 | 405 | Method not allowed |
 | 409 | Конфликт (scan уже running) |
-| 500 | Внутренняя ошибка |
+| 501 | Не поддерживается для текущего engine |
+| 503 | Oxidized/external недоступен |
 
-## Oxidized Source (для external)
+## Oxidized Source (external)
 
 ```bash
 curl -H "Accept: application/json" \
@@ -178,4 +230,4 @@ curl -H "Accept: application/json" \
   http://localhost:8000/api/oxidized/source
 ```
 
-Формат ответа — массив объектов `{name, ip, model, group, ssh_port}`.
+Формат: массив `{hostname, ip, os, group, ssh_port}`.

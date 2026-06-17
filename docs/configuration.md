@@ -145,6 +145,44 @@
 
 **Push по движку:** при `python` используется Python HookRunner (переменные выше); при `external` — hook `githubrepo` в `oxidized/config`. См. [engines.md](engines.md).
 
+## MikroTik binary/export
+
+См. [mikrotik-backups.md](mikrotik-backups.md). Настройки также редактируются в UI → **Настройки → Бэкап**.
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `MK_BACKUP_BINARY` | `true` | Binary `.backup` через `/system backup save` |
+| `MK_BACKUP_EXPORT` | `true` | Export `.rsc` |
+| `MK_BACKUP_HIDE_SENSITIVE` | `false` | Скрывать секреты в export |
+| `MK_BACKUP_ENCRYPT_PASSWORD` | — | Пароль AES для binary (опционально) |
+| `MK_BACKUP_BIN_DIR` | `/var/lib/oxidized/bin` | Каталог binary на volume |
+| `MK_BACKUP_RSC_DIR` | `/var/lib/oxidized/rsc` | Каталог export |
+| `MK_BACKUP_TIMEOUT` | `300` | Таймаут SSH/SFTP (сек) |
+| `PURGE_OLD_BACKUP` | `true` | Ротация dated binary |
+| `PURGE_N_PIECE` | `10` | Сколько binary хранить |
+
+## Уведомления
+
+См. [notifications.md](notifications.md). UI → **Настройки → Уведомления**.
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `ERROR_NOTIFICATION_TELEGRAM` | `false` | Telegram при ошибках |
+| `ERROR_NOTIFICATION_EMAIL` | `false` | Email при ошибках |
+| `REPORT_SEND_TELEGRAM` | `false` | Telegram при успешном отчёте |
+| `REPORT_SEND_EMAIL` | `false` | Email при отчёте |
+| `TELEGRAM_ACCESS_TOKEN` | — | Bot token |
+| `TELEGRAM_CHATID_NOTIFY` | — | Chat ID для ошибок |
+| `TELEGRAM_CHATID_REPORT` | — | Chat ID для отчётов |
+| `SMTP_SERVER` | — | SMTP host |
+| `SMTP_PORT` | `465` | SMTP port |
+| `SMTP_USER` | — | SMTP login |
+| `SMTP_PASSWORD` | — | SMTP password |
+| `SMTP_SSL` | `true` | SMTPS (иначе STARTTLS) |
+| `SMTP_FROM_MAIL` | — | From address |
+| `SMTP_TO_MAIL_NOTIFY` | — | To для ошибок |
+| `SMTP_TO_MAIL_REPORT` | — | To для отчётов |
+
 ## Файл `oxidized/config`
 
 Дополняет `.env` для external-режима и ruby_bridge. Основные секции:
@@ -180,9 +218,9 @@ hooks:
 
 ## Приоритет настроек
 
-1. **Runtime UI** — LDAP, профили credentials (БД)
-2. **`.env`** — большинство параметров scanner и oxidized engine
-3. **`oxidized/config`** — groups, model_map, SSH port для external/ruby_bridge
+1. **Runtime UI** — LDAP, backup/notify (`backup_config`), oxidized worker (`/api/settings/oxidized`), профили credentials
+2. **`.env`** — engine, Git, seed для UI-настроек
+3. **`oxidized/config`** — groups, model_map, interval (синхронизируется из UI)
 4. **Defaults** — значения в коде
 
 После изменения `.env`:

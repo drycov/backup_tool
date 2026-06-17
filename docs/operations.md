@@ -65,7 +65,8 @@ UI → **Пользователи** → Add (admin)
 | Что | Где | Как бэкапить |
 |-----|-----|--------------|
 | PostgreSQL | volume `pg-data` | `pg_dump` или snapshot volume |
-| Git конфиги | volume `oxidized-data` | Уже в remote Git (Gitea) |
+| Git конфиги | volume `oxidized-data` | Remote Git (Gitea) + локально |
+| MikroTik bin/rsc | volume `oxidized-data` `/bin`, `/rsc` | Отдельный файловый бэкап volume |
 | Конфигурация | `./.env`, `./oxidized/`, `./inventory/` | Git или файловый бэкап |
 | SSH-ключи | `./oxidized-ssh/` | Зашифрованный бэкап |
 
@@ -158,6 +159,23 @@ curl -s http://localhost:8000/api/oxidized/health | jq '{engine, engine_title, m
 3. Для AD: `LDAP_AD=true`, правильный filter/UPN
 4. `LDAP_FALLBACK_LOCAL=true` — временный локальный вход
 
+### MikroTik backups не создаются
+
+1. `OXIDIZED_ENGINE=python` (не external)
+2. Модель устройства `routeros`
+3. `MK_BACKUP_BINARY` / `MK_BACKUP_EXPORT` включены
+4. Проверить каталоги: `docker compose exec scanner ls /var/lib/oxidized/bin/`
+
+См. [mikrotik-backups.md](mikrotik-backups.md).
+
+### Уведомления не приходят
+
+1. UI → **Настройки → Уведомления** — включить канал + **Тест**
+2. Исходящий доступ к `api.telegram.org` / SMTP
+3. Report шлётся только при изменении Git или ошибке binary
+
+См. [notifications.md](notifications.md).
+
 ### CRLF на Windows
 
 `init-stack.sh` и compose entrypoint нормализуют `\r\n` → `\n` для shell-скриптов и `known_hosts`.
@@ -186,15 +204,17 @@ docker compose build scanner && docker compose up -d scanner
 
 ## Web UI — разделы
 
+Полное описание: [ui.md](ui.md).
+
 | Раздел | Роли | Функции |
 |--------|------|---------|
-| Dashboard | all | Сводка: устройства, scan, Oxidized status |
-| Инвентарь | read+ | Устройства, подсети, import |
-| Scan | operator+ | Запуск scan/discovery |
-| Oxidized | read+ | Узлы, fetch, sync, diff |
-| Oxidized Web | read+ | External UI proxy |
-| Настройки | admin | Credentials, LDAP |
-| Пользователи | admin | CRUD пользователей, RBAC matrix |
+| Dashboard | viewer+ | Сводка, health |
+| Инвентарь | viewer+ | Устройства, import, cleanup discovered |
+| Scan | operator+ | Scan / discovery |
+| Oxidized | viewer+ | Узлы, fetch, sync, backup all, MikroTik files |
+| Oxidized Web | viewer+ | Ruby UI proxy (external) |
+| Настройки | mixed | Oxidized worker, MikroTik, notify, groups, LDAP, сервис |
+| Пользователи | admin | CRUD, RBAC |
 
 Глобальный поиск в шапке фильтрует таблицы по имени, IP, группе, модели.
 

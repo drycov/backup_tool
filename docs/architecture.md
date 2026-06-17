@@ -86,11 +86,10 @@ scanner/
 
 Хранит:
 
-- `devices` — устройства инвентаря
-- `networks` — подсети для scan/discovery
-- `credential_profiles` — SSH-логины/пароли по группам
+- `devices`, `networks`, `credential_profiles` — инвентарь
 - `users` — локальные и LDAP-пользователи
-- `ldap_config` — singleton настроек LDAP (pk=1)
+- `ldap_config` — singleton LDAP (pk=1)
+- `backup_config` — MikroTik backup + уведомления (pk=1)
 
 При первом запуске данные могут быть импортированы из `inventory/network_inventory.yml` и `inventory/inventory.yaml`.
 
@@ -118,7 +117,7 @@ scanner/
 | Путь | Тип | Назначение |
 |------|-----|------------|
 | `pg-data` | Docker volume | Данные PostgreSQL |
-| `oxidized-data` | Docker volume | Локальный Git-репозиторий с конфигами |
+| `oxidized-data` | Docker volume | Git-репозиторий конфигов + `bin/` + `rsc/` (MikroTik files) |
 | `./inventory` | Bind-mount | `network_inventory.yml`, seed `inventory.yaml` |
 | `./oxidized` | Bind-mount | `config`, `router.db` (legacy) |
 | `./oxidized-ssh` | Bind-mount | SSH-ключи и `known_hosts` для Git push |
@@ -135,10 +134,14 @@ scanner/
 
 ### Бэкап конфигураций
 
-1. **Source**: список устройств формируется из PostgreSQL (`devices_for_oxidized_source`).
-2. **Collect**: SSH к устройству, выполнение model-specific команд (RouterOS: `/export`).
-3. **Store**: конфиг сохраняется в Git-репозиторий на volume `oxidized-data`.
-4. **Push**: hook `push_to_git` отправляет изменения в `GIT_REMOTE_URL` (HTTP с Gitea token или SSH).
+1. **Source**: PostgreSQL → enabled devices.
+2. **Collect**: SSH, model commands (RouterOS: `/export` via gem или Python).
+3. **Store**: Git commit на volume `oxidized-data`.
+4. **Push**: `GIT_REMOTE_URL` (Python HookRunner или Ruby hook).
+5. **MikroTik** (python, routeros): binary + export → `bin/`, `rsc/` на том же volume.
+6. **Notify**: Telegram/Email при ошибках и отчётах.
+
+Подробнее: [engines.md](engines.md), [mikrotik-backups.md](mikrotik-backups.md).
 
 ### Синхронизация credentials
 

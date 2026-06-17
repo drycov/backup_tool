@@ -105,7 +105,7 @@ GET /api/oxidized/health
 
 Значение `models`:
 
-| Значение | Значение |
+| Значение | Описание |
 |----------|----------|
 | `oxidized-gem` | Ruby bridge + gem oxidized в scanner |
 | `python-fallback` | Только нативные Python-модели (`routeros`) |

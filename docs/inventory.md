@@ -95,6 +95,15 @@ devices:
 - Импорт `network_inventory.yml`
 - Просмотр подсетей
 
+## Cleanup discovered
+
+Discovery создаёт устройства вида `discovered-10-0-0-1`, если SSH probe не определил hostname. После ручного переименования можно удалить placeholder'ы:
+
+- UI: **Настройки → Сервис → Cleanup discovered**
+- API: `POST /inventory/cleanup-discovered` (`inventory:write`)
+
+Удаляются только имена с префиксом `discovered-`. После cleanup — sync Oxidized credentials.
+
 ## Маскирование паролей
 
 Пользователи с ролью **viewer** и **operator** не видят пароли в API (`credentials:read` только у admin). В UI поля паролей скрыты.
