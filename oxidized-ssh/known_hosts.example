@@ -1,0 +1,3 @@
+# Скопируйте в known_hosts после: ssh-keyscan -p PORT git.example.com
+# Пример:
+# git.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5...

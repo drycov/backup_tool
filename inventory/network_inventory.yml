@@ -1,0 +1,113 @@
+environments:
+  hex:
+    - name: hex_r1_ukg
+      id: 850
+      vlan_name: vlan850_mgmt
+      ignored_ips: []
+      ospf:
+        routing_id: rd1_850
+        instance: mgmt_850
+        area: area-vlan850
+        area_id: 0.0.85.0
+      networks:
+        - subnet: 10.216.92.0/23
+          gateway: 10.216.92.1
+          ignored_ips: []
+        - subnet: 10.216.101.0/24
+          gateway: 10.216.101.1
+          ignored_ips: []
+    - name: hex_r3_ukg
+      id: 851
+      vlan_name: vlan851_mgmt
+      ignored_ips: []
+      ospf:
+        routing_id: rd3_851
+        instance: mgmt_851
+        area: area-vlan851
+        area_id: 0.0.85.1
+      networks:
+        - subnet: 10.216.94.0/23
+          gateway: 10.216.94.1
+          ignored_ips: []
+    - name: hex_r8_ukg
+      id: 852
+      vlan_name: vlan852_mgmt
+      ignored_ips: []
+      ospf:
+        routing_id: rd8_852
+        instance: mgmt_852
+        area: area-vlan852
+        area_id: 0.0.85.2
+      networks:
+        - subnet: 10.216.96.0/23
+          gateway: 10.216.96.1
+          ignored_ips: []
+    - name: hex_r12_ukg
+      id: 853
+      vlan_name: vlan853_mgmt
+      ignored_ips: []
+      ospf:
+        routing_id: rd12_853
+        instance: mgmt_853
+        area: area-vlan853
+        area_id: 0.0.85.3
+      networks:
+        - subnet: 10.216.98.0/23
+          gateway: 10.216.98.1
+          ignored_ips: []
+
+  us:
+    - name: us_r1_ukg
+      id: 800
+      vlan_name: vlan800_mgmt
+      ignored_ips: []
+      ospf: null
+      networks:
+        - subnet: 10.216.80.0/24
+          gateway: 10.216.80.1
+          ignored_ips: []
+    - name: us_r3_ukg
+      id: 801
+      vlan_name: vlan801_mgmt
+      ignored_ips: []
+      ospf: null
+      networks:
+        - subnet: 10.216.81.0/24
+          gateway: 10.216.81.1
+          ignored_ips: []
+    - name: us_r8_ukg
+      id: 802
+      vlan_name: vlan802_mgmt
+      ignored_ips: []
+      ospf: null
+      networks:
+        - subnet: 10.216.82.0/24
+          gateway: 10.216.82.1
+          ignored_ips: []
+    - name: us_r12_ukg
+      id: 803
+      vlan_name: vlan803_mgmt
+      ignored_ips: []
+      ospf: null
+      networks:
+        - subnet: 10.216.83.0/24
+          gateway: 10.216.83.1
+          ignored_ips: []
+    - name: us_ridder
+      id: 101
+      vlan_name: vlan101_mgmt
+      ignored_ips: []
+      ospf: null
+      networks:
+        - subnet: 10.164.200.0/24
+          gateway: 10.164.200.1
+          ignored_ips: []
+    - name: us_altay
+      id: 101
+      vlan_name: vlan101_mgmt
+      ignored_ips: []
+      ospf: null
+      networks:
+        - subnet: 10.165.200.0/24
+          gateway: 10.165.200.1
+          ignored_ips: []

@@ -1,0 +1,72 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ${DB_CONTAINER_NAME}
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - backup-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  scanner:
+    build:
+      context: ./scanner
+      dockerfile: Dockerfile
+    container_name: ${SCANNER_CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "${SCANNER_PORT}:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./inventory:/data/inventory
+      - ./oxidized:/data/oxidized
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backup-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  oxidized:
+    image: oxidized/oxidized:latest
+    container_name: ${OXIDIZED_CONTAINER_NAME}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CONFIG_RELOAD_INTERVAL: ${CONFIG_RELOAD_INTERVAL:-3600}
+      OXIDIZED_SSH_PASSPHRASE: ${OXIDIZED_SSH_PASSPHRASE:-}
+      HOME: /home/oxidized
+    ports:
+      - "${OXIDIZED_PORT}:8888"
+    volumes:
+      - ./oxidized:/home/oxidized/.config/oxidized
+      - oxidized-data:/var/lib/oxidized
+      - ./oxidized-ssh:/home/oxidized/.ssh
+      - ./oxidized/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      scanner:
+        condition: service_healthy
+    networks:
+      - backup-net
+
+networks:
+  backup-net:
+    driver: bridge
+
+volumes:
+  pg-data:
+  oxidized-data:

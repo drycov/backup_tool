@@ -1,0 +1,25 @@
+# Seed-файл для первого запуска (импортируется в PostgreSQL при пустой БД)
+# После миграции данные хранятся в БД, редактируйте через UI или API
+# model: ios, routeros, linux, aoscx, junos и др. (см. https://github.com/ytti/oxidized)
+credentials:
+  username: admin
+  password: changeme
+
+networks:
+  - 192.168.1.0/24
+  - 10.0.0.0/24
+
+devices:
+  - name: router-01
+    ip: 192.168.1.1
+    model: ios
+    group: routers
+    enabled: true
+    ports: [22, 44333]
+
+  - name: switch-01
+    ip: 192.168.1.2
+    model: ios
+    group: switches
+    enabled: true
+    ports: [44333]

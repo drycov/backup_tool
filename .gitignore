@@ -1,0 +1,16 @@
+.env
+pg-data/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Oxidized runtime (не коммитить)
+oxidized/crash
+oxidized/pid
+oxidized/router.db
+
+# SSH keys
+oxidized-ssh/id_rsa
+oxidized-ssh/id_rsa.pub
+oxidized-ssh/known_hosts

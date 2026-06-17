@@ -1,0 +1,18 @@
+# Нормализация переводов строк (важно для entrypoint.sh в Linux-контейнере)
+* text=auto
+
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+
+# Бинарные / не трогать
+*.db binary
+*.pyc binary

@@ -1,0 +1,6 @@
+# SSH-ключи для push бэкапов на Git-сервер (не коммитить!)
+id_rsa
+id_rsa.pub
+id_rsa.pem
+known_hosts
+*.pem
