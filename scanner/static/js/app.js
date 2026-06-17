@@ -3,6 +3,7 @@ let inventory = null;
 let editingDeviceName = null;
 let oxidizedPublicUrl = "http://localhost:8888";
 let oxidizedProxyUrl = "/oxidized-proxy/nodes";
+let oxidizedEngine = "python";
 const OXIDIZED_PROXY_PREFIX = "/oxidized-proxy";
 let currentUser = null;
 let scanPollTimer = null;
@@ -295,7 +296,13 @@ function showAlert(containerId, msg, type = "danger") {
 
 function loadOxidizedIframe(force = false) {
   const iframe = qs("#oxidized-iframe");
+  const card = qs(".oxidized-ui-card");
   if (!iframe || !currentUser) return;
+  if (oxidizedEngine === "python" || !oxidizedProxyUrl) {
+    if (card) card.style.display = "none";
+    return;
+  }
+  if (card) card.style.display = "";
   const target = oxidizedProxyUrl || "/oxidized-proxy/nodes";
   const current = iframe.getAttribute("src") || "";
   if (force || current === "about:blank" || !current.includes("/oxidized-proxy")) {
@@ -303,10 +310,15 @@ function loadOxidizedIframe(force = false) {
   }
 }
 
-function setOxidizedLinks(url, proxyUrl) {
+function setOxidizedLinks(url, proxyUrl, engine) {
   oxidizedPublicUrl = url || oxidizedPublicUrl;
+  if (engine) oxidizedEngine = engine;
   if (proxyUrl) oxidizedProxyUrl = proxyUrl;
-  const proxyHref = `${window.location.origin}${oxidizedProxyUrl || "/oxidized-proxy/nodes"}`;
+  const card = qs(".oxidized-ui-card");
+  if (card) card.style.display = oxidizedEngine === "python" || !oxidizedProxyUrl ? "none" : "";
+  const proxyHref = oxidizedProxyUrl
+    ? `${window.location.origin}${oxidizedProxyUrl}`
+    : `${window.location.origin}/#oxidized`;
   ["link-oxidized", "link-oxidized-2"].forEach(id => {
     const a = qs(`#${id}`);
     if (a) a.href = oxidizedPublicUrl;
@@ -1222,7 +1234,7 @@ async function syncOxidized() {
 async function loadOxidizedNodes() {
   try {
     const health = await api("/api/oxidized/health");
-    setOxidizedLinks(health.public_url, "/oxidized-proxy/nodes");
+    setOxidizedLinks(health.public_url, health.engine === "external" ? "/oxidized-proxy/nodes" : null, health.engine);
 
     qs("#oxidized-stats").innerHTML = `
       <div class="col-12 stats-row">
@@ -1640,7 +1652,7 @@ function bindEvents() {
 async function bootstrapApp() {
   try {
     const uiConfig = await api("/api/ui/config");
-    setOxidizedLinks(uiConfig.oxidized_public_url, uiConfig.oxidized_proxy_url);
+    setOxidizedLinks(uiConfig.oxidized_public_url, uiConfig.oxidized_proxy_url, uiConfig.oxidized_engine);
     updateLoginAuthHint(uiConfig.auth || {});
   } catch {}
 

@@ -351,6 +351,14 @@ def devices_for_oxidized_source() -> list[dict]:
 
 
 def update_oxidized_credentials(inventory: Inventory) -> None:
+    from django.conf import settings
+
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
+        from services.oxidized_engine import reload_engine
+
+        reload_engine()
+        return
+
     config_path = Path(settings.OXIDIZED_CONFIG_PATH)
     if not config_path.exists():
         return

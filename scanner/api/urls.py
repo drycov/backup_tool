@@ -25,6 +25,16 @@ urlpatterns = [
         name="oxidized-node-versions",
     ),
     path(
+        "api/oxidized/nodes/<str:name>/versions/<str:oid>",
+        views.oxidized_node_version_view,
+        name="oxidized-node-version-view",
+    ),
+    path(
+        "api/oxidized/nodes/<str:name>/diff",
+        views.oxidized_node_diff,
+        name="oxidized-node-diff",
+    ),
+    path(
         "api/oxidized/nodes/<str:name>/fetch",
         views.oxidized_node_fetch,
         name="oxidized-node-fetch",

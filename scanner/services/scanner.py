@@ -26,6 +26,7 @@ DISCOVERED_NAME_PREFIX = "discovered-"
 PING_TIMEOUT_SEC = 2
 PORT_TIMEOUT_SEC = 2
 DEFAULT_SCAN_PORTS = [DEFAULT_ROUTEROS_SSH_PORT]
+SCAN_CONCURRENCY = max(1, int(os.environ.get("SCAN_CONCURRENCY", "50")))
 
 logger = logging.getLogger(__name__)
 
@@ -319,7 +320,14 @@ async def scan_devices(
             results=[],
         )
 
-    tasks = [asyncio.create_task(scan_device(d)) for d in enabled]
+    logger.info("scan | concurrency=%d", SCAN_CONCURRENCY)
+    sem = asyncio.Semaphore(SCAN_CONCURRENCY)
+
+    async def scan_one(device: Device) -> ScanResult:
+        async with sem:
+            return await scan_device(device)
+
+    tasks = [asyncio.create_task(scan_one(d)) for d in enabled]
     done = 0
     for task in asyncio.as_completed(tasks):
         result = await task

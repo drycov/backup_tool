@@ -17,5 +17,15 @@ def initialize() -> None:
     from services.ldap_settings import ensure_initialized
 
     ensure_initialized()
-    update_oxidized_credentials(load_inventory())
+
+    from django.conf import settings
+
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
+        from services.oxidized_engine import start_engine
+
+        start_engine()
+        logger.info("oxidized | python engine started")
+    else:
+        update_oxidized_credentials(load_inventory())
+
     _initialized = True

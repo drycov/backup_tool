@@ -98,6 +98,12 @@ ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 OXIDIZED_URL = os.environ.get("OXIDIZED_URL", "http://oxidized:8888").rstrip("/")
+OXIDIZED_ENGINE = os.environ.get("OXIDIZED_ENGINE", "python").lower()
+OXIDIZED_INTERVAL = int(os.environ.get("OXIDIZED_INTERVAL", "3600"))
+OXIDIZED_THREADS = int(os.environ.get("OXIDIZED_THREADS", "10"))
+OXIDIZED_TIMEOUT = int(os.environ.get("OXIDIZED_TIMEOUT", "20"))
+OXIDIZED_RETRIES = int(os.environ.get("OXIDIZED_RETRIES", "3"))
+OXIDIZED_GIT_REPO = os.environ.get("OXIDIZED_GIT_REPO", "/var/lib/oxidized")
 OXIDIZED_PUBLIC_URL = os.environ.get(
     "OXIDIZED_PUBLIC_URL", "http://localhost:8888"
 ).rstrip("/")
@@ -117,6 +123,7 @@ OXIDIZED_LOG_PATH = os.environ.get(
     "OXIDIZED_LOG_PATH", "/var/lib/oxidized/oxidized.log"
 )
 ROUTEROS_SSH_PORT = int(os.environ.get("ROUTEROS_SSH_PORT", "44333"))
+SCAN_CONCURRENCY = max(1, int(os.environ.get("SCAN_CONCURRENCY", "50")))
 
 GIT_REMOTE_URL = os.environ.get("GIT_REMOTE_URL", "")
 GITEA_TOKEN = os.environ.get("GITEA_TOKEN", "")

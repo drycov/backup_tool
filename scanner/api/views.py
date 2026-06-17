@@ -98,10 +98,12 @@ def ui_page(request: HttpRequest) -> FileResponse:
 
 
 def ui_config(request: HttpRequest) -> JsonResponse:
+    engine = getattr(settings, "OXIDIZED_ENGINE", "python")
     return json_response(
         {
             "oxidized_public_url": settings.OXIDIZED_PUBLIC_URL,
-            "oxidized_proxy_url": "/oxidized-proxy/nodes",
+            "oxidized_proxy_url": "/oxidized-proxy/nodes" if engine == "external" else None,
+            "oxidized_engine": engine,
             "scanner_version": "1.0.0",
             "auth_required": True,
             "auth": auth_methods(),
@@ -408,6 +410,40 @@ def oxidized_node_fetch(request: HttpRequest, name: str) -> JsonResponse:
     return json_response({"status": "ok", "name": name, "result": data})
 
 
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
+def oxidized_node_version_view(request: HttpRequest, name: str, oid: str) -> HttpResponse:
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
+        return error_response("Доступно только для python engine", status=501)
+    from services.oxidized_engine import get_manager
+    from services.oxidized_engine.exceptions import NodeNotFound
+
+    try:
+        text = get_manager().get_version(name, oid)
+    except NodeNotFound:
+        return error_response(f"Node '{name}' not found", status=404)
+    if text == "version not found":
+        return error_response("version not found", status=404)
+    return HttpResponse(text, content_type="text/plain; charset=utf-8")
+
+
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
+def oxidized_node_diff(request: HttpRequest, name: str) -> JsonResponse:
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
+        return error_response("Доступно только для python engine", status=501)
+    from services.oxidized_engine import get_manager
+    from services.oxidized_engine.exceptions import NodeNotFound
+
+    oid = request.GET.get("oid", "")
+    oid2 = request.GET.get("oid2") or None
+    if not oid:
+        return error_response("oid required", status=400)
+    try:
+        diff = get_manager().get_diff(name, oid, oid2)
+    except NodeNotFound:
+        return error_response(f"Node '{name}' not found", status=404)
+    return json_response(diff)
+
+
 def health(request: HttpRequest) -> JsonResponse:
     inventory = load_inventory()
     summary, last_scan_at = scan_job.get_last_scan()
@@ -551,10 +587,14 @@ def get_latest_scan_view(request: HttpRequest) -> JsonResponse:
 def sync_oxidized_view(request: HttpRequest) -> JsonResponse:
     inventory = load_inventory()
     update_oxidized_credentials(inventory)
+    from django.conf import settings
+
+    engine = getattr(settings, "OXIDIZED_ENGINE", "python")
     return json_response(
         {
             "status": "ok",
-            "source": "http",
+            "engine": engine,
+            "source": "inventory",
             "source_url": OXIDIZED_SOURCE_URL,
             "devices_count": len(inventory.devices),
             "enabled_count": sum(1 for d in inventory.devices if d.enabled),
