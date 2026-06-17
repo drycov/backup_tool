@@ -96,9 +96,16 @@
 
 ## Oxidized
 
+Выбор движка: **`OXIDIZED_ENGINE`**. Сравнение режимов — **[engines.md](engines.md)**.
+
+| Значение | Движок | Контейнеры |
+|----------|--------|------------|
+| `python` | Python Oxidized (default) | `scanner`, `db` |
+| `external` | Ruby Oxidized | + `oxidized` (profile `external`) |
+
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
-| `OXIDIZED_ENGINE` | `python` | `python` — встроенный движок; `external` — Ruby-контейнер |
+| `OXIDIZED_ENGINE` | `python` | `python` — worker в scanner; `external` — Ruby-контейнер |
 | `OXIDIZED_INTERVAL` | `3600` | Интервал опроса узлов (сек) |
 | `OXIDIZED_THREADS` | `10` | Параллельных потоков сбора |
 | `OXIDIZED_TIMEOUT` | `20` | Таймаут SSH (сек) |
@@ -106,10 +113,14 @@
 | `OXIDIZED_GIT_REPO` | `/var/lib/oxidized` | Локальный Git-репозиторий конфигов |
 | `OXIDIZED_RESOLVE_DNS` | `true` | Резолв DNS имён узлов |
 | `OXIDIZED_DEFAULT_MODEL` | `routeros` | Модель по умолчанию |
-| `OXIDIZED_SOURCE_URL` | `http://scanner:8000/api/oxidized/source` | URL source для external Oxidized |
+| `OXIDIZED_PYTHON_LOG_PATH` | `/var/lib/oxidized/oxidized-python.log` | Лог python-движка |
+| `OXIDIZED_LOG_PATH` | `/var/lib/oxidized/oxidized.log` | Лог Ruby Oxidized (external) |
+| `OXIDIZED_SOURCE_URL` | `http://scanner:8000/api/oxidized/source` | HTTP source для **external** |
 | `OXIDIZED_SOURCE_TOKEN` | — | Опциональный токен (`X-Auth-Token`) для source |
 | `OXIDIZED_PUBLIC_URL` | `http://localhost:8888` | Публичный URL для ссылок в UI |
 | `CONFIG_RELOAD_INTERVAL` | `3600` | Интервал перезагрузки конфига (external) |
+| `RUBY_BIN` | `ruby` | Ruby для `ruby_bridge` (python) |
+| `OXIDIZED_RUBY_TIMEOUT` | `300` | Таймаут collect через bridge (python, сек) |
 
 ### Только для `OXIDIZED_ENGINE=external`
 
@@ -131,6 +142,8 @@
 | `GIT_BRANCH` | `main` | Целевая ветка |
 | `GIT_SSH_PRIVATE_KEY` | `/home/oxidized/.ssh/id_rsa` | Путь к приватному ключу |
 | `GIT_SSH_PUBLIC_KEY` | `/home/oxidized/.ssh/id_rsa.pub` | Путь к публичному ключу |
+
+**Push по движку:** при `python` используется Python HookRunner (переменные выше); при `external` — hook `githubrepo` в `oxidized/config`. См. [engines.md](engines.md).
 
 ## Файл `oxidized/config`
 

@@ -186,6 +186,7 @@ def check_health() -> dict:
         payload = get_manager().health()
         payload["public_url"] = settings.OXIDIZED_PUBLIC_URL
         payload["internal_url"] = "python-engine"
+        payload["proxy_url"] = "/oxidized-proxy/nodes"
         return payload
 
     data, err = get_nodes()
@@ -198,4 +199,5 @@ def check_health() -> dict:
         "log_path": str(oxidized_log_path()),
         "public_url": settings.OXIDIZED_PUBLIC_URL,
         "internal_url": settings.OXIDIZED_URL,
+        "proxy_url": "/oxidized-proxy/nodes",
     }

@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,600,700&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="hold-transition">
@@ -355,8 +357,8 @@
                   </button>
                 </div>
               </div>
-              <div class="card-body p-0">
-                <pre class="config-viewer p-3 m-0" id="config-content"></pre>
+              <div class="card-body p-0 config-editor-wrap">
+                <textarea id="config-content" spellcheck="false" aria-label="Конфигурация устройства"></textarea>
               </div>
             </div>
           </div>
@@ -375,7 +377,9 @@
               <a class="btn btn-outline-secondary btn-sm mb-1" id="link-oxidized-3" href="#" target="_blank" rel="noopener">
                 <i class="fas fa-external-link-alt mr-1"></i> Открыть в новой вкладке
               </a>
-              <span class="text-muted small ml-auto mb-1">Diff и версии работают через proxy Scanner</span>
+              <span class="text-muted small ml-auto mb-1" id="oxidized-ui-hint">
+                Встроенный Oxidized Web (Python engine)
+              </span>
             </div>
             <div class="card card-outline card-info oxidized-ui-card">
               <div class="card-body p-0 iframe-wrap iframe-wrap-lg">
@@ -792,6 +796,27 @@
     </div>
   </div>
 
+  <!-- Oxidized config viewer -->
+  <div class="modal fade" id="oxidized-config-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable oxidized-config-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-file-code mr-2 text-muted"></i>
+            Конфиг: <span id="oxidized-config-modal-node"></span>
+          </h5>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body p-0 config-editor-wrap">
+          <textarea id="oxidized-config-modal-content" spellcheck="false" aria-label="Версия конфигурации"></textarea>
+        </div>
+        <div class="modal-footer bg-light py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Oxidized diff -->
   <div class="modal fade" id="oxidized-diff-modal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable oxidized-diff-modal">
@@ -819,6 +844,9 @@
   <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/js/adminlte.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
+  <script src="/static/js/config-editor.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

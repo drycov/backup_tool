@@ -102,7 +102,7 @@ def ui_config(request: HttpRequest) -> JsonResponse:
     return json_response(
         {
             "oxidized_public_url": settings.OXIDIZED_PUBLIC_URL,
-            "oxidized_proxy_url": "/oxidized-proxy/nodes" if engine == "external" else None,
+            "oxidized_proxy_url": "/oxidized-proxy/nodes",
             "oxidized_engine": engine,
             "oxidized_engine_title": (
                 "Python Oxidized" if engine == "python" else "Ruby Oxidized"
@@ -284,6 +284,11 @@ def oxidized_source(request: HttpRequest) -> JsonResponse:
 @csrf_exempt
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_proxy(request: HttpRequest, path: str = "") -> HttpResponse:
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
+        from services.oxidized_web_ui import handle_python_ui
+
+        return handle_python_ui(request, path)
+
     target = upstream_target(path, request.META.get("QUERY_STRING", ""))
 
     forward_headers = {

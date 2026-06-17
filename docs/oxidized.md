@@ -1,22 +1,30 @@
 # Oxidized и бэкапы конфигураций
 
-Backup Tools поддерживает два способа сбора конфигураций сетевых устройств.
+Backup Tools собирает конфигурации через Oxidized. Подробное сравнение движков — **[engines.md](engines.md)**.
 
-## Режимы движка
+## Типы движков (кратко)
 
-### Python-движок (по умолчанию)
+| | **Python Oxidized** | **Ruby Oxidized (external)** |
+|---|-------------------|------------------------------|
+| `OXIDIZED_ENGINE` | `python` (default) | `external` |
+| Контейнер | Только `scanner` | `scanner` + `oxidized` |
+| Запуск | `docker compose up -d` | `docker compose --profile external up -d` |
+| Модели | Gem oxidized в scanner + fallback `routeros` | Полный upstream Oxidized |
+| Git push | Python HookRunner | Hook в `oxidized/config` |
+| Лог | `oxidized-python.log` | `oxidized.log` |
+
+### Python Oxidized (по умолчанию)
 
 ```env
 OXIDIZED_ENGINE=python
 ```
 
-- Работает **внутри контейнера scanner** (фоновый worker-поток)
-- Не требует отдельного контейнера `oxidized`
-- Gunicorn запускается с **1 worker** (избежание дублирования worker-циклов)
-- Модели: встроенные Python (`routeros`) + опционально Ruby через `oxidized_bridge.rb`
-- Git output и push — нативно в Python
+- Worker-поток **внутри scanner**, Gunicorn = 1 worker
+- Узлы из PostgreSQL напрямую (без HTTP source)
+- Сбор: `oxidized_bridge.rb` + gem oxidized (если доступен), иначе нативная модель `routeros`
+- Push через subprocess git (`GITEA_TOKEN` или SSH-ключ)
 
-### External (Ruby Oxidized)
+### Ruby Oxidized (external)
 
 ```env
 OXIDIZED_ENGINE=external
@@ -26,11 +34,12 @@ OXIDIZED_ENGINE=external
 docker compose --profile external up -d
 ```
 
-- Отдельный контейнер `oxidized/oxidized:latest`
-- Source: HTTP API scanner (`/api/oxidized/source`)
-- Полный набор моделей upstream Oxidized
-- Web UI на порту `8888`
-- Прокси в scanner UI: `/oxidized-proxy/*`
+- Контейнер `oxidized/oxidized:latest`, Web UI `:8888`
+- Source: `GET scanner:8000/api/oxidized/source`
+- Scanner API проксирует nodes/fetch/versions на Ruby
+- Push через hook `githubrepo` в config
+
+→ Полное описание: **[docs/engines.md](engines.md)**
 
 ## Жизненный цикл бэкапа
 
@@ -40,14 +49,19 @@ docker compose --profile external up -d
 4. **Store** — diff с предыдущей версией, commit в локальный Git (`oxidized-data` volume)
 5. **Push** — отправка в `GIT_REMOTE_URL` (hook post_store)
 
-## Поддерживаемые модели (Python)
+## Поддерживаемые модели
 
-| Model | Статус | Описание |
-|-------|--------|----------|
-| `routeros` | Встроенная | MikroTik RouterOS — `/export`, resource info |
-| Другие | Ruby bridge | Через `oxidized_bridge.rb` и gem oxidized в scanner |
+| Движок | Режим | Модели |
+|--------|-------|--------|
+| **python** | `oxidized-gem` (по умолчанию в Docker) | Все модели gem oxidized через `ruby_bridge.rb` |
+| **python** | `python-fallback` | Только `routeros` (нативный Python) |
+| **external** | Ruby Oxidized | Полный upstream набор |
 
-Маппинг имён моделей настраивается в `oxidized/config` (`model_map`).
+Проверка активного режима: `GET /api/oxidized/health` → поле `models` (только python).
+
+Список моделей: `GET /api/oxidized/models`.
+
+Маппинг имён: `oxidized/config` → `model_map`.
 
 ## Web UI — раздел «Oxidized»
 
@@ -72,8 +86,6 @@ GITEA_TOKEN=<personal-or-deploy-token>
 GITEA_HTTP_USER=oauth2
 ```
 
-Для external-режима entrypoint подставляет token в `oxidized/config` hooks.
-
 ### SSH
 
 ```env
@@ -88,6 +100,8 @@ ssh-keyscan <gitea-host> >> oxidized-ssh/known_hosts
 ```
 
 Deploy Key с правом **write** в репозитории Gitea.
+
+> **Push по движку:** `python` — Python HookRunner из `.env`; `external` — hook в config + entrypoint. См. [engines.md](engines.md).
 
 Подробнее: [oxidized-ssh/README.md](../oxidized-ssh/README.md).
 

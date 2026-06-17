@@ -1,0 +1,19 @@
+.oxidized-web .config-editor-wrap .CodeMirror {
+  min-height: 420px;
+  max-height: calc(100vh - 12rem);
+  font-size: 0.82rem;
+}
+
+.oxidized-web .config-editor-wrap .CodeMirror-scroll {
+  min-height: 420px;
+  max-height: calc(100vh - 12rem);
+}
+
+.oxidized-web .table td,
+.oxidized-web .table th {
+  vertical-align: middle;
+}
+
+.oxidized-web .breadcrumb {
+  font-size: 0.9rem;
+}

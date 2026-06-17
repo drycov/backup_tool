@@ -125,7 +125,20 @@ docker compose exec scanner python manage.py migrate
 1. Проверить credentials группы устройства
 2. SSH вручную (см. [oxidized.md](oxidized.md))
 3. Проверить `ROUTEROS_SSH_PORT` и `ports` устройства
-4. Лог: `/var/lib/oxidized/oxidized.log`
+4. Лог зависит от движка: `oxidized-python.log` (python) или `oxidized.log` (external)
+
+### Неверный / недоступный движок
+
+```bash
+curl -s http://localhost:8000/api/oxidized/health | jq '{engine, engine_title, models, reachable, error}'
+```
+
+| `engine` | `reachable: false` | Действие |
+|----------|-------------------|----------|
+| `python` | worker error | `docker compose logs scanner`, проверить `oxidized-python.log` |
+| `external` | oxidized down | `docker compose --profile external up -d oxidized` |
+
+Сравнение движков: [engines.md](engines.md).
 
 ### Git push не работает
 

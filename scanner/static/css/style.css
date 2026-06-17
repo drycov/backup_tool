@@ -108,7 +108,30 @@ body.login-page .login-logo {
   margin-bottom: 1rem;
 }
 
-/* ── Config viewer ─────────────────────────────────── */
+/* ── Config viewer (CodeMirror) ─────────────────────── */
+.config-editor-wrap .CodeMirror {
+  height: auto;
+  min-height: 320px;
+  max-height: 70vh;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.config-editor-wrap .CodeMirror-scroll {
+  min-height: 320px;
+  max-height: 70vh;
+}
+
+.oxidized-config-modal .modal-body {
+  background: #282a36;
+}
+
+#oxidized-config-modal .CodeMirror,
+#config-card .CodeMirror {
+  border-radius: 0 0 0.25rem 0.25rem;
+}
+
 .config-viewer {
   background: #1e1e1e;
   color: #e6edf3;

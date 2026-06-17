@@ -94,18 +94,24 @@ scanner/
 
 При первом запуске данные могут быть импортированы из `inventory/network_inventory.yml` и `inventory/inventory.yaml`.
 
-### Oxidized — два режима
+### Oxidized — два режима (`OXIDIZED_ENGINE`)
 
-| Режим | Переменная | Контейнер | Описание |
-|-------|------------|-----------|----------|
-| **Python** (по умолчанию) | `OXIDIZED_ENGINE=python` | Не нужен | Движок внутри scanner: worker-поток, SSH-сбор, Git output |
-| **External** | `OXIDIZED_ENGINE=external` | `oxidized` (profile) | Классический Ruby Oxidized, source через HTTP API scanner |
+| Режим | Контейнер oxidized | Описание |
+|-------|-------------------|----------|
+| `python` (default) | Не нужен | Worker в scanner, gem oxidized + Python fallback |
+| `external` | Profile `external` | Ruby Oxidized, HTTP source, Web UI :8888 |
 
-Запуск external-режима:
+Подробнее: **[docs/engines.md](engines.md)**.
 
-```bash
-docker compose --profile external up -d
-```
+При `python`:
+- Gunicorn: 1 worker
+- Source: PostgreSQL → `devices_for_oxidized_source()`
+- Git push: Python HookRunner (не hooks в config)
+
+При `external`:
+- Source через `/api/oxidized/source`
+- Git push: hook `githubrepo` в `oxidized/config`
+- UI прокси: `/oxidized-proxy/*`
 
 ### Volumes и bind-mounts
 

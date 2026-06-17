@@ -46,6 +46,7 @@ docker compose up -d --build
 | [Инвентарь](docs/inventory.md) | YAML, импорт подсетей, профили credentials |
 | [Сканирование](docs/scanning.md) | Scan, discovery, tuning |
 | [Oxidized](docs/oxidized.md) | Бэкапы, Git push, SSH-ключи |
+| [Типы движков](docs/engines.md) | Python vs Ruby Oxidized |
 | [Аутентификация](docs/authentication.md) | JWT, RBAC, LDAP / AD |
 | [API](docs/api.md) | REST-эндпоинты |
 | [Эксплуатация](docs/operations.md) | Мониторинг, backup, troubleshooting |
@@ -77,16 +78,17 @@ docker compose restart scanner oxidized
 curl -s http://localhost:8000/health
 ```
 
-## External Oxidized
+## Движки Oxidized
 
-По умолчанию используется встроенный Python-движок (`OXIDIZED_ENGINE=python`). Для Ruby Oxidized:
+По умолчанию — **Python Oxidized** (`OXIDIZED_ENGINE=python`): worker внутри scanner, gem oxidized для моделей устройств.
+
+Для **Ruby Oxidized** (Web UI :8888):
 
 ```env
 OXIDIZED_ENGINE=external
-```
-
-```bash
 docker compose --profile external up -d --build
 ```
+
+Сравнение: **[docs/engines.md](docs/engines.md)**
 
 LDAP / Active Directory: **Настройки → LDAP / Active Directory** (роль admin). При первом запуске значения импортируются из `.env`.
