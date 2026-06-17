@@ -199,15 +199,16 @@ async def apply_device_names(
         if not new_name or new_name == device.name:
             continue
         updated_device = device.model_copy(update={"name": new_name})
-        from services.inventory import rename_device
+        from services.inventory import rename_device_async
 
-        await asyncio.to_thread(rename_device, device.name, updated_device)
+        await rename_device_async(device.name, updated_device)
         changed = True
 
     if changed:
-        from services.inventory import load_inventory
+        from services.inventory import load_inventory_async
 
-        return load_inventory().devices, True
+        inventory = await load_inventory_async()
+        return inventory.devices, True
 
     return devices, False
 
@@ -385,7 +386,7 @@ async def discover_and_enrich(
     on_device_saved: Callable[[Device], None] | None = None,
 ) -> list[Device]:
     """Сканирует подсети; каждое проверенное устройство сразу сохраняется в БД."""
-    from services.inventory import add_device
+    from services.inventory import add_device_async
 
     logger.info(
         "discover | start | networks=%d existing_devices=%d",
@@ -424,7 +425,7 @@ async def discover_and_enrich(
             if not device:
                 continue
 
-            await asyncio.to_thread(add_device, device)
+            await add_device_async(device)
             names_in_use.add(device.name)
             known_ips.add(ip)
             saved_devices.append(device)

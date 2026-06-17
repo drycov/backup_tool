@@ -11,6 +11,7 @@ urlpatterns = [
     path("api/auth/users", views.auth_users_dispatch, name="auth-users"),
     path("api/auth/users/<int:user_id>", views.auth_user_detail, name="auth-user-detail"),
     path("api/oxidized/health", views.oxidized_health, name="oxidized-health"),
+    path("api/oxidized/logs", views.oxidized_logs, name="oxidized-logs"),
     path("api/oxidized/source", views.oxidized_source, name="oxidized-source"),
     path("oxidized-proxy", views.oxidized_proxy, name="oxidized-proxy-root"),
     path("oxidized-proxy/<path:path>", views.oxidized_proxy, name="oxidized-proxy"),
@@ -25,9 +26,10 @@ urlpatterns = [
     path("inventory", views.inventory_dispatch, name="inventory"),
     path("inventory/devices", views.inventory_devices_dispatch, name="inventory-devices"),
     path("inventory/devices/<str:name>", views.delete_device_view, name="inventory-device-delete"),
+    path("inventory/credentials", views.create_credential_profile_view, name="inventory-credentials-create"),
     path(
         "inventory/credentials/<str:name>",
-        views.set_credential_profile_view,
+        views.credential_profile_detail_view,
         name="inventory-credentials",
     ),
     path(

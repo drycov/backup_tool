@@ -5,6 +5,21 @@ let oxidizedPublicUrl = "http://localhost:8888";
 let oxidizedProxyUrl = "/oxidized-proxy/nodes";
 let currentUser = null;
 let scanPollTimer = null;
+let globalSearchQuery = "";
+let lastScanSummary = null;
+let oxidizedNodesCache = [];
+let usersCache = [];
+let oxidizedLogsTimer = null;
+let oxidizedLogsStickToBottom = true;
+
+const SCAN_PHASE_LABELS = {
+  idle: "Ожидание",
+  discovery: "Discovery",
+  scan: "Сканирование",
+  rename: "Имена",
+  done: "Готово",
+  failed: "Ошибка",
+};
 
 const PAGE_TITLES = {
   dashboard: "Дашборд",
@@ -12,11 +27,116 @@ const PAGE_TITLES = {
   scan: "Сканирование",
   oxidized: "Oxidized",
   "oxidized-ui": "Oxidized UI",
+  settings: "Настройки",
   users: "Пользователи",
 };
 
 function qs(sel) { return document.querySelector(sel); }
 function qsa(sel) { return document.querySelectorAll(sel); }
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function searchTokens(query) {
+  return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+function matchesSearch(values, query) {
+  const tokens = searchTokens(query);
+  if (!tokens.length) return true;
+  const haystack = values
+    .flatMap(v => (v == null ? [] : [String(v)]))
+    .join(" ")
+    .toLowerCase();
+  return tokens.every(token => haystack.includes(token));
+}
+
+function updateSearchCountBadge(shown, total, badgeId) {
+  const badge = qs(`#${badgeId}`);
+  const navCount = qs("#global-search-count");
+  const q = globalSearchQuery.trim();
+
+  if (badge) {
+    if (q && total > 0) {
+      badge.style.display = "inline";
+      badge.textContent = shown === total ? String(total) : `${shown} / ${total}`;
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  if (navCount) {
+    if (q && total > 0) {
+      navCount.classList.remove("d-none");
+      navCount.textContent = shown === total ? `${total}` : `${shown}/${total}`;
+    } else {
+      navCount.classList.add("d-none");
+      navCount.textContent = "";
+    }
+  }
+}
+
+function applyGlobalSearch() {
+  renderNetworksTable();
+  renderDevicesTable();
+  if (lastScanSummary) renderScanResults(lastScanSummary);
+  if (oxidizedNodesCache.length) renderOxidizedNodesTable(oxidizedNodesCache);
+  if (!qs("#page-oxidized")?.classList.contains("d-none")) loadOxidizedLogs();
+  renderSettingsCredentials();
+  if (usersCache.length) renderUsersTable(usersCache);
+}
+
+function setGlobalSearch(query) {
+  globalSearchQuery = query;
+  const input = qs("#global-search");
+  if (input && input.value !== query) input.value = query;
+  applyGlobalSearch();
+}
+
+function clearGlobalSearch() {
+  setGlobalSearch("");
+}
+
+function bindGlobalSearch() {
+  const input = qs("#global-search");
+  const clearBtn = qs("#global-search-clear");
+  if (!input) return;
+
+  let debounceTimer = null;
+  input.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => setGlobalSearch(input.value), 150);
+  });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      clearGlobalSearch();
+      input.blur();
+    }
+  });
+  clearBtn?.addEventListener("click", () => {
+    clearGlobalSearch();
+    input.focus();
+  });
+
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+function searchEmptyRow(colspan, query) {
+  const q = escapeHtml(query.trim());
+  return `<tr class="search-empty-row"><td colspan="${colspan}">Ничего не найдено${q ? ` по запросу «${q}»` : ""}</td></tr>`;
+}
 
 function can(permission) {
   return currentUser?.permissions?.includes(permission);
@@ -48,10 +168,17 @@ function applyPermissions() {
     }
   });
 
-  const credCard = qs("#credentials-card");
+  const credCard = qs("#settings-groups-card");
   if (credCard) {
     credCard.style.display = can("credentials:read") || can("credentials:write") ? "" : "none";
   }
+  qsa("#settings-add-cred-card, #settings-import-card").forEach(el => {
+    if (!el) return;
+    const perm = el.dataset.permission;
+    if (perm) {
+      el.style.display = can(perm) ? "" : "none";
+    }
+  });
   const netsCard = qs("#networks-card");
   if (netsCard) {
     netsCard.style.display = can("inventory:write") ? "" : "none";
@@ -202,14 +329,38 @@ function initNavigation() {
       const pageEl = qs(`#page-${page}`);
       if (pageEl) pageEl.classList.remove("d-none");
       setPageTitle(page);
-      if (page === "oxidized") loadOxidizedNodes();
+      if (page === "oxidized") {
+        loadOxidizedNodes();
+        startOxidizedLogsPolling();
+      } else {
+        stopOxidizedLogsPolling();
+      }
       if (page === "oxidized-ui") loadOxidizedIframe();
       if (page === "users") {
         loadUsers();
         loadRbacMatrix();
       }
       if (page === "scan") resumeScanIfRunning();
+      if (page === "settings") loadSettings();
     });
+  });
+}
+
+function getGroupNames() {
+  const fromProfiles = (inventory?.credential_profiles || []).map(p => p.group_name);
+  const fromDevices = (inventory?.devices || []).map(d => d.group);
+  const fromNetworks = (inventory?.networks || []).map(n => n.group_name);
+  return [...new Set([...fromProfiles, ...fromDevices, ...fromNetworks].filter(Boolean))].sort();
+}
+
+function updateGroupSelects(selected) {
+  const groups = getGroupNames();
+  const fallback = groups.length ? groups : ["default"];
+  qsa(".group-select").forEach(sel => {
+    const current = selected || sel.value || fallback[0];
+    sel.innerHTML = fallback.map(g =>
+      `<option value="${g}"${g === current ? " selected" : ""}>${g}</option>`
+    ).join("");
   });
 }
 
@@ -251,15 +402,30 @@ async function loadRbacMatrix() {
 }
 
 async function loadUsers() {
-  const users = await api("/api/auth/users");
+  usersCache = await api("/api/auth/users");
+  renderUsersTable(usersCache);
+}
+
+function renderUsersTable(users) {
   const tbody = qs("#users-table");
-  if (!users.length) {
+  if (!tbody) return;
+  const query = globalSearchQuery;
+  const filtered = (users || []).filter(u =>
+    matchesSearch([u.username, u.role, u.auth_source, u.is_active ? "active" : "inactive"], query)
+  );
+
+  if (!users?.length) {
     tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Нет пользователей</td></tr>`;
     return;
   }
-  tbody.innerHTML = users.map(u => `
+  if (!filtered.length) {
+    tbody.innerHTML = searchEmptyRow(6, query);
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(u => `
     <tr>
-      <td><strong>${u.username}</strong></td>
+      <td><strong>${escapeHtml(u.username)}</strong></td>
       <td>
         <select class="form-control form-control-sm user-role-select" data-id="${u.id}" ${u.id === currentUser.id ? "disabled" : ""}>
           <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>viewer</option>
@@ -267,7 +433,7 @@ async function loadUsers() {
           <option value="admin" ${u.role === "admin" ? "selected" : ""}>admin</option>
         </select>
       </td>
-      <td><span class="badge badge-${u.auth_source === "ldap" ? "info" : "secondary"}">${u.auth_source || "local"}</span></td>
+      <td><span class="badge badge-${u.auth_source === "ldap" ? "info" : "secondary"}">${escapeHtml(u.auth_source || "local")}</span></td>
       <td class="text-center">
         ${u.auth_source === "ldap" ? `<input type="checkbox" class="user-role-locked" data-id="${u.id}" ${u.role_locked ? "checked" : ""} title="Не обновлять роль из LDAP">` : "—"}
       </td>
@@ -338,93 +504,82 @@ async function loadHealth() {
 
 async function loadInventory() {
   inventory = await api("/inventory");
+  updateGroupSelects();
+  renderNetworksTable();
+  renderDevicesTable();
+}
 
-  const profilesEl = qs("#credential-profiles");
-  const profiles = inventory.credential_profiles || [];
-  const canEditCreds = can("credentials:write");
-  const canViewCreds = can("credentials:read");
-
-  profilesEl.innerHTML = profiles.map(p => `
-    <form class="card card-outline card-light mb-3 credential-form" data-profile="${p.name}">
-      <div class="card-body">
-        <h5 class="mb-3">${p.name} <small class="text-muted">→ группа <code>${p.group_name}</code></small></h5>
-        <div class="form-row">
-          <div class="form-group col-md-6">
-            <label>Username</label>
-            <input type="text" class="form-control profile-username" value="${p.username}" ${canEditCreds ? "" : "readonly"}>
-          </div>
-          <div class="form-group col-md-6">
-            <label>Password</label>
-            <input type="password" class="form-control profile-password" value="${p.password}" ${canEditCreds ? "" : "readonly"}>
-          </div>
-        </div>
-        ${canEditCreds ? `<button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-save mr-1"></i> Сохранить ${p.name}</button>` : ""}
-      </div>
-    </form>
-  `).join("") || (canViewCreds || canEditCreds
-    ? `<p class="text-muted">Нет профилей — импортируйте network_inventory.yml</p>`
-    : `<p class="text-muted">Пароли доступны только администратору</p>`);
-
-  profilesEl.querySelectorAll(".credential-form").forEach(form => {
-    if (!canEditCreds) return;
-    form.addEventListener("submit", async e => {
-      e.preventDefault();
-      const name = form.dataset.profile;
-      const username = form.querySelector(".profile-username").value;
-      const password = form.querySelector(".profile-password").value;
-      await api(`/inventory/credentials/${encodeURIComponent(name)}`, {
-        method: "PUT",
-        body: JSON.stringify({ username, password }),
-      });
-      showAlert("dashboard-alert", `Профиль ${name} сохранён`, "success");
-    });
-  });
-
+function renderNetworksTable() {
   const netsTable = qs("#networks-table");
-  const networks = inventory.networks || [];
+  if (!netsTable) return;
+  const networks = inventory?.networks || [];
+  const query = globalSearchQuery;
+  const filtered = networks.filter(n =>
+    matchesSearch([n.network, n.group_name, n.environment_name, n.gateway], query)
+  );
+
   if (!networks.length) {
     netsTable.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Нет подсетей</td></tr>`;
-  } else {
-    netsTable.innerHTML = networks.map((n, idx) => `
-      <tr>
-        <td>${n.network}</td>
-        <td>${n.group_name}</td>
-        <td>${n.environment_name || "—"}</td>
-        <td>${n.gateway || "—"}</td>
-        <td>
-          ${can("inventory:write") ? `<button class="btn btn-danger btn-sm btn-remove-network" data-idx="${idx}"><i class="fas fa-trash"></i></button>` : ""}
-        </td>
-      </tr>
-    `).join("");
-
-    netsTable.querySelectorAll(".btn-remove-network").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        const idx = parseInt(btn.dataset.idx, 10);
-        inventory.networks = inventory.networks.filter((_, i) => i !== idx);
-        await api("/inventory", { method: "PUT", body: JSON.stringify(inventory) });
-        loadInventory();
-      });
-    });
+    return;
+  }
+  if (!filtered.length) {
+    netsTable.innerHTML = searchEmptyRow(5, query);
+    return;
   }
 
+  netsTable.innerHTML = filtered.map(n => `
+    <tr>
+      <td>${escapeHtml(n.network)}</td>
+      <td>${escapeHtml(n.group_name)}</td>
+      <td>${escapeHtml(n.environment_name || "—")}</td>
+      <td>${escapeHtml(n.gateway || "—")}</td>
+      <td>
+        ${can("inventory:write") ? `<button class="btn btn-danger btn-sm btn-remove-network" data-network="${escapeHtml(n.network)}"><i class="fas fa-trash"></i></button>` : ""}
+      </td>
+    </tr>
+  `).join("");
+
+  netsTable.querySelectorAll(".btn-remove-network").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const network = btn.dataset.network;
+      inventory.networks = inventory.networks.filter(n => n.network !== network);
+      await api("/inventory", { method: "PUT", body: JSON.stringify(inventory) });
+      loadInventory();
+    });
+  });
+}
+
+function renderDevicesTable() {
   const tbody = qs("#devices-table");
-  const devices = inventory.devices || [];
+  if (!tbody) return;
+  const devices = inventory?.devices || [];
+  const query = globalSearchQuery;
+  const filtered = devices.filter(d =>
+    matchesSearch([d.name, d.ip, d.model, d.group, (d.ports || []).join(" "), d.enabled ? "yes enabled" : "no disabled"], query)
+  );
+
+  updateSearchCountBadge(filtered.length, devices.length, "devices-count-badge");
+
   if (!devices.length) {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Нет устройств</td></tr>`;
     return;
   }
+  if (!filtered.length) {
+    tbody.innerHTML = searchEmptyRow(7, query);
+    return;
+  }
 
-  tbody.innerHTML = devices.map(d => `
+  tbody.innerHTML = filtered.map(d => `
     <tr>
-      <td><strong>${d.name}</strong></td>
-      <td>${d.ip}</td>
-      <td>${d.model}</td>
-      <td>${d.group}</td>
-      <td>${(d.ports || []).join(", ")}</td>
+      <td><strong>${escapeHtml(d.name)}</strong></td>
+      <td>${escapeHtml(d.ip)}</td>
+      <td>${escapeHtml(d.model)}</td>
+      <td>${escapeHtml(d.group)}</td>
+      <td>${escapeHtml((d.ports || []).join(", "))}</td>
       <td>${d.enabled ? '<span class="badge badge-success">yes</span>' : '<span class="badge badge-secondary">no</span>'}</td>
       <td>
-        ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${d.name}"><i class="fas fa-edit"></i></button>` : ""}
-        ${can("inventory:devices") ? `<button class="btn btn-danger btn-sm btn-delete-device" data-name="${d.name}"><i class="fas fa-trash"></i></button>` : ""}
+        ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-edit"></i></button>` : ""}
+        ${can("inventory:devices") ? `<button class="btn btn-danger btn-sm btn-delete-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-trash"></i></button>` : ""}
       </td>
     </tr>
   `).join("");
@@ -442,18 +597,172 @@ async function loadInventory() {
   });
 }
 
+async function loadSettings() {
+  inventory = await api("/inventory");
+  updateGroupSelects();
+  renderSettingsCredentials();
+}
+
+function renderSettingsCredentials() {
+  const profiles = inventory?.credential_profiles || [];
+  const canEdit = can("credentials:write");
+  const canView = can("credentials:read");
+  const tbody = qs("#settings-credentials-table");
+  const emptyEl = qs("#settings-credentials-empty");
+  const query = globalSearchQuery;
+  const filtered = profiles.filter(p =>
+    matchesSearch([p.name, p.group_name, p.username, p.password], query)
+  );
+
+  if (!profiles.length) {
+    if (tbody) tbody.innerHTML = "";
+    if (emptyEl) emptyEl.style.display = "block";
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = "none";
+
+  if (!filtered.length) {
+    tbody.innerHTML = searchEmptyRow(5, query);
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(p => `
+    <tr data-profile="${escapeHtml(p.name)}">
+      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td>
+        ${canEdit
+          ? `<input type="text" class="form-control form-control-sm cred-group" value="${escapeHtml(p.group_name)}">`
+          : `<code>${escapeHtml(p.group_name)}</code>`}
+      </td>
+      <td>
+        ${canEdit || canView
+          ? `<input type="text" class="form-control form-control-sm cred-username" value="${escapeHtml(p.username)}" ${canEdit ? "" : "readonly"}>`
+          : "—"}
+      </td>
+      <td>
+        ${canEdit || canView
+          ? `<input type="password" class="form-control form-control-sm cred-password" value="${escapeHtml(p.password)}" ${canEdit ? "" : "readonly"}>`
+          : "********"}
+      </td>
+      <td class="text-nowrap">
+        ${canEdit ? `<button class="btn btn-primary btn-sm btn-save-cred" data-name="${escapeHtml(p.name)}" title="Сохранить"><i class="fas fa-save"></i></button>` : ""}
+        ${canEdit ? `<button class="btn btn-danger btn-sm btn-delete-cred" data-name="${escapeHtml(p.name)}" title="Удалить"><i class="fas fa-trash"></i></button>` : ""}
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".btn-save-cred").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const row = btn.closest("tr");
+      const name = btn.dataset.name;
+      try {
+        inventory = await api(`/inventory/credentials/${encodeURIComponent(name)}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            username: row.querySelector(".cred-username").value,
+            password: row.querySelector(".cred-password").value,
+            group_name: row.querySelector(".cred-group").value.trim(),
+          }),
+        });
+        showAlert("settings-alert", `Профиль ${name} сохранён`, "success");
+        loadSettings();
+        loadInventory();
+      } catch (e) {
+        showAlert("settings-alert", e.message, "error");
+      }
+    });
+  });
+
+  tbody.querySelectorAll(".btn-delete-cred").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const name = btn.dataset.name;
+      if (!confirm(`Удалить профиль «${name}»?`)) return;
+      try {
+        inventory = await api(`/inventory/credentials/${encodeURIComponent(name)}`, {
+          method: "DELETE",
+        });
+        showAlert("settings-alert", `Профиль ${name} удалён`, "success");
+        loadSettings();
+        loadInventory();
+      } catch (e) {
+        showAlert("settings-alert", e.message, "error");
+      }
+    });
+  });
+}
+
+function navigateToPage(page) {
+  const link = qs(`.nav-page[data-page="${page}"]`);
+  if (link) link.click();
+}
+
+function updateDeviceGroupHint() {
+  const hint = qs("#device-group-hint");
+  const groupSel = qs("#device-group");
+  if (!hint || !groupSel) return;
+
+  const group = groupSel.value;
+  const profile = (inventory?.credential_profiles || []).find(p => p.group_name === group);
+  const canSeePass = can("credentials:read") || can("credentials:write");
+
+  if (!group) {
+    hint.innerHTML = '<span class="text-muted">Выберите группу — SSH-креды берутся из профиля Oxidized</span>';
+    return;
+  }
+  if (!profile) {
+    hint.innerHTML = `
+      <span class="text-warning">
+        <i class="fas fa-exclamation-triangle mr-1"></i>
+        Нет профиля для группы «${group}».
+        <a href="#" class="device-goto-settings">Добавить в настройках</a>
+      </span>`;
+    hint.querySelector(".device-goto-settings")?.addEventListener("click", e => {
+      e.preventDefault();
+      $("#device-modal").modal("hide");
+      navigateToPage("settings");
+    });
+    return;
+  }
+
+  const pass = canSeePass ? profile.password : "********";
+  hint.innerHTML = `
+    <span class="cred-preview text-muted">
+      <i class="fas fa-key mr-1"></i>
+      Профиль <strong>${profile.name}</strong>:
+      <code>${profile.username}</code> / <code>${pass}</code>
+    </span>`;
+}
+
+function syncDeviceEnabledLabel() {
+  const chk = qs("#device-enabled");
+  const lbl = qs("#device-enabled-label");
+  if (chk && lbl) {
+    lbl.textContent = chk.checked ? "Устройство включено" : "Устройство отключено";
+  }
+}
+
 function openDeviceModal(name = null) {
   editingDeviceName = name;
-  const device = name ? inventory.devices.find(d => d.name === name) : null;
+  const device = name ? inventory?.devices?.find(d => d.name === name) : null;
 
-  qs("#device-modal-title").textContent = name ? "Изменить устройство" : "Добавить устройство";
+  const titleEl = qs("#device-modal-title");
+  if (titleEl) {
+    titleEl.innerHTML = name
+      ? '<i class="fas fa-edit mr-2 text-muted"></i>Изменить устройство'
+      : '<i class="fas fa-plus mr-2 text-muted"></i>Добавить устройство';
+  }
+
+  updateGroupSelects(device?.group || getGroupNames()[0]);
+
   qs("#device-name").value = device?.name || "";
   qs("#device-name").disabled = !!name;
   qs("#device-ip").value = device?.ip || "";
   qs("#device-model").value = device?.model || "routeros";
-  qs("#device-group").value = device?.group || "hex";
+  if (device?.group) qs("#device-group").value = device.group;
   qs("#device-ports").value = (device?.ports || [44333]).join(", ");
-  qs("#device-enabled").value = device?.enabled ? "true" : "false";
+  qs("#device-enabled").checked = device ? device.enabled : true;
+  syncDeviceEnabledLabel();
+  updateDeviceGroupHint();
   $("#device-modal").modal("show");
 }
 
@@ -474,7 +783,7 @@ async function saveDevice() {
     ip: qs("#device-ip").value.trim(),
     model: qs("#device-model").value,
     group: qs("#device-group").value.trim() || "default",
-    enabled: qs("#device-enabled").value === "true",
+    enabled: qs("#device-enabled").checked,
     ports: ports.length ? ports : [44333],
   };
 
@@ -503,24 +812,101 @@ function setScanButtonsDisabled(disabled) {
   });
 }
 
-function showScanProgress(status) {
-  const wrap = qs("#scan-progress-wrap");
-  const bar = qs("#scan-progress-bar");
-  const msg = qs("#scan-progress-msg");
-  const pct = qs("#scan-progress-pct");
-  if (!wrap || !bar) return;
-
-  wrap.style.display = "block";
-  const value = status.progress_pct || 0;
-  bar.style.width = `${value}%`;
-  bar.setAttribute("aria-valuenow", String(value));
-  if (msg) msg.textContent = status.message || "Выполняется…";
-  if (pct) pct.textContent = status.progress_total > 0 ? `${value}%` : "…";
+function formatLogTime(ts) {
+  if (!ts) return "";
+  try {
+    return new Date(ts).toLocaleTimeString("ru-RU");
+  } catch {
+    return "";
+  }
 }
 
-function hideScanProgress() {
-  const wrap = qs("#scan-progress-wrap");
-  if (wrap) wrap.style.display = "none";
+function renderScanLogLines(logEl, logs, fromIndex = 0) {
+  if (!logEl) return;
+  if (!logs?.length) {
+    if (fromIndex === 0) {
+      logEl.innerHTML = '<div class="scan-log-empty">Ожидание событий…</div>';
+    }
+    return;
+  }
+  if (fromIndex === 0) {
+    logEl.innerHTML = "";
+  }
+  for (let i = fromIndex; i < logs.length; i++) {
+    const entry = logs[i];
+    const line = document.createElement("div");
+    line.className = `scan-log-line log-${entry.level || "info"}`;
+    line.textContent = `[${formatLogTime(entry.ts)}] ${entry.message}`;
+    logEl.appendChild(line);
+  }
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function updateScanActivityPanel(panel, status, { running }) {
+  if (!panel) return;
+  panel.style.display = running || status.status === "completed" || status.status === "failed" ? "block" : "none";
+
+  const phaseBadge = panel.querySelector(".scan-phase-badge");
+  const msgEl = panel.querySelector(".scan-progress-msg");
+  const counterEl = panel.querySelector(".scan-progress-counter");
+  const bar = panel.querySelector(".scan-progress-bar");
+  const logEl = panel.querySelector(".scan-log-viewer");
+  const runningIcon = panel.querySelector(".scan-running-icon");
+
+  const phase = status.phase || "idle";
+  if (phaseBadge) {
+    phaseBadge.textContent = SCAN_PHASE_LABELS[phase] || phase;
+    phaseBadge.className = `badge scan-phase-badge ${
+      status.status === "failed" ? "badge-danger"
+        : status.status === "completed" ? "badge-success"
+          : "badge-info"
+    }`;
+  }
+
+  if (msgEl) msgEl.textContent = status.message || "—";
+
+  const pct = status.progress_pct || 0;
+  const current = status.progress_current || 0;
+  const total = status.progress_total || 0;
+  if (counterEl) {
+    counterEl.textContent = total > 0 ? `${current} / ${total} (${pct}%)` : (running ? "…" : "—");
+  }
+  if (bar) {
+    bar.style.width = `${pct}%`;
+    bar.textContent = total > 0 ? `${pct}%` : "";
+    bar.classList.toggle("progress-bar-animated", running);
+    bar.classList.toggle("progress-bar-striped", running);
+  }
+  if (runningIcon) {
+    runningIcon.classList.toggle("fa-spin", running);
+    runningIcon.classList.toggle("fa-spinner", running);
+    runningIcon.classList.toggle("fa-check", !running && status.status === "completed");
+    runningIcon.classList.toggle("fa-times", !running && status.status === "failed");
+  }
+
+  if (logEl && Array.isArray(status.logs)) {
+    renderScanLogLines(logEl, status.logs, 0);
+  } else if (logEl && running) {
+    logEl.innerHTML = '<div class="scan-log-empty">Ожидание событий…</div>';
+  }
+}
+
+function updateScanUI(status, { running = false } = {}) {
+  qsa(".scan-activity-panel").forEach(panel => {
+    updateScanActivityPanel(panel, status, { running });
+  });
+}
+
+function hideScanActivity() {
+  qsa(".scan-activity-panel").forEach(panel => {
+    panel.style.display = "none";
+  });
+}
+
+function resetScanLogState() {
+  qsa(".scan-activity-panel .scan-log-viewer").forEach(el => {
+    el.innerHTML = "";
+  });
 }
 
 function stopScanPolling() {
@@ -534,13 +920,13 @@ async function pollScanStatus(onComplete) {
   try {
     const status = await api("/scan/status");
     if (status.status === "running") {
-      showScanProgress(status);
+      updateScanUI(status, { running: true });
       return;
     }
 
     stopScanPolling();
     setScanButtonsDisabled(false);
-    hideScanProgress();
+    updateScanUI(status, { running: false });
 
     if (status.status === "completed" && status.summary) {
       renderScanResults(status.summary);
@@ -549,13 +935,15 @@ async function pollScanStatus(onComplete) {
       loadInventory();
     } else if (status.status === "failed") {
       showAlert("scan-alert", status.error || status.message || "Ошибка сканирования", "error");
+    } else if (status.status === "idle") {
+      hideScanActivity();
     }
 
     if (onComplete) onComplete(status);
   } catch (e) {
     stopScanPolling();
     setScanButtonsDisabled(false);
-    hideScanProgress();
+    hideScanActivity();
     showAlert("scan-alert", e.message, "error");
   }
 }
@@ -571,6 +959,8 @@ async function resumeScanIfRunning() {
     const status = await api("/scan/status");
     if (status.status === "running") {
       setScanButtonsDisabled(true);
+      resetScanLogState();
+      updateScanUI(status, { running: true });
       showAlert("scan-alert", status.message || "Сканирование выполняется…", "info");
       startScanPolling();
     }
@@ -578,10 +968,13 @@ async function resumeScanIfRunning() {
 }
 
 function renderScanResults(summary) {
+  lastScanSummary = summary;
+
   if (!summary) {
     qs("#scan-empty").style.display = "block";
     qs("#scan-stats").innerHTML = "";
     qs("#scan-results-table").innerHTML = "";
+    updateSearchCountBadge(0, 0, "scan-results-count-badge");
     return;
   }
 
@@ -597,18 +990,35 @@ function renderScanResults(summary) {
     </div>
   `;
 
-  qs("#scan-results-table").innerHTML = (summary.results || []).map(r => {
+  const query = globalSearchQuery;
+  const allResults = summary.results || [];
+  const filtered = allResults.filter(r =>
+    matchesSearch([
+      r.name, r.ip, r.model, r.group, r.status,
+      r.ping_ok ? "ping ok" : "ping fail",
+      (r.ports || []).map(p => `${p.port} ${p.open ? "open" : "closed"}`).join(" "),
+    ], query)
+  );
+
+  updateSearchCountBadge(filtered.length, allResults.length, "scan-results-count-badge");
+
+  if (!filtered.length) {
+    qs("#scan-results-table").innerHTML = searchEmptyRow(7, query);
+    return;
+  }
+
+  qs("#scan-results-table").innerHTML = filtered.map(r => {
     const ports = (r.ports || []).map(p =>
       `<span class="mr-2"><span class="port-dot ${p.open ? "port-open" : "port-closed"}"></span>${p.port}</span>`
     ).join("");
     return `
       <tr>
         <td>${badge(r.status)}</td>
-        <td>${r.name}</td>
-        <td>${r.ip}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.ip)}</td>
         <td>${r.ping_ok ? "✓" : "✗"}</td>
         <td>${ports}</td>
-        <td>${r.model}</td>
+        <td>${escapeHtml(r.model)}</td>
         <td>${formatDate(r.scanned_at)}</td>
       </tr>
     `;
@@ -617,14 +1027,17 @@ function renderScanResults(summary) {
 
 async function runScan(discover = false) {
   setScanButtonsDisabled(true);
+  resetScanLogState();
 
   try {
     showAlert("scan-alert", discover ? "Запуск discovery и сканирования…" : "Запуск сканирования…", "info");
     await api(`/scan?discover=${discover}`, { method: "POST" });
+    const status = await api("/scan/status");
+    updateScanUI(status, { running: true });
     startScanPolling();
   } catch (e) {
     setScanButtonsDisabled(false);
-    hideScanProgress();
+    hideScanActivity();
     showAlert("scan-alert", e.message, "error");
   }
 }
@@ -656,41 +1069,141 @@ async function loadOxidizedNodes() {
 
     if (!health.reachable) {
       showAlert("oxidized-alert", health.error || "Oxidized недоступен", "error");
+      oxidizedNodesCache = [];
       qs("#oxidized-empty").style.display = "block";
       qs("#oxidized-nodes-table").innerHTML = "";
+      updateSearchCountBadge(0, 0, "oxidized-count-badge");
       return;
     }
 
     const nodes = await api("/api/oxidized/nodes");
-    qs("#oxidized-empty").style.display = nodes.length ? "none" : "block";
-
-    qs("#oxidized-nodes-table").innerHTML = nodes.map(n => {
-      const last = n.last || {};
-      const status = last.status || "unknown";
-      return `
-        <tr>
-          <td><strong>${n.name}</strong></td>
-          <td>${n.ip || "—"}</td>
-          <td>${n.model || "—"}</td>
-          <td>${n.group || "—"}</td>
-          <td>${formatDate(last.time)}</td>
-          <td>${badge(status === "success" ? "success" : status)}</td>
-          <td>
-            <button class="btn btn-info btn-sm btn-show-config" data-name="${n.name}"><i class="fas fa-file-alt"></i></button>
-            ${can("oxidized:write") ? `<button class="btn btn-primary btn-sm btn-fetch-config" data-name="${n.name}"><i class="fas fa-download"></i></button>` : ""}
-          </td>
-        </tr>
-      `;
-    }).join("");
-
-    qs("#oxidized-nodes-table").querySelectorAll(".btn-show-config").forEach(btn => {
-      btn.addEventListener("click", () => showNodeConfig(btn.dataset.name));
-    });
-    qs("#oxidized-nodes-table").querySelectorAll(".btn-fetch-config").forEach(btn => {
-      btn.addEventListener("click", () => fetchNodeConfig(btn.dataset.name));
-    });
+    oxidizedNodesCache = nodes;
+    renderOxidizedNodesTable(nodes);
   } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
+  }
+}
+
+function renderOxidizedNodesTable(nodes) {
+  qs("#oxidized-empty").style.display = nodes.length ? "none" : "block";
+
+  const query = globalSearchQuery;
+  const filtered = (nodes || []).filter(n => {
+    const last = n.last || {};
+    return matchesSearch([
+      n.name, n.ip, n.model, n.group,
+      last.status, last.time,
+    ], query);
+  });
+
+  updateSearchCountBadge(filtered.length, nodes.length, "oxidized-count-badge");
+
+  if (!nodes.length) {
+    qs("#oxidized-nodes-table").innerHTML = "";
+    return;
+  }
+  if (!filtered.length) {
+    qs("#oxidized-nodes-table").innerHTML = searchEmptyRow(7, query);
+    return;
+  }
+
+  qs("#oxidized-nodes-table").innerHTML = filtered.map(n => {
+    const last = n.last || {};
+    const status = last.status || "unknown";
+    return `
+      <tr>
+        <td><strong>${escapeHtml(n.name)}</strong></td>
+        <td>${escapeHtml(n.ip || "—")}</td>
+        <td>${escapeHtml(n.model || "—")}</td>
+        <td>${escapeHtml(n.group || "—")}</td>
+        <td>${formatDate(last.time)}</td>
+        <td>${badge(status === "success" ? "success" : status)}</td>
+        <td>
+          <button class="btn btn-info btn-sm btn-show-config" data-name="${escapeHtml(n.name)}"><i class="fas fa-file-alt"></i></button>
+          ${can("oxidized:write") ? `<button class="btn btn-primary btn-sm btn-fetch-config" data-name="${escapeHtml(n.name)}"><i class="fas fa-download"></i></button>` : ""}
+        </td>
+      </tr>
+    `;
+  }).join("");
+
+  qs("#oxidized-nodes-table").querySelectorAll(".btn-show-config").forEach(btn => {
+    btn.addEventListener("click", () => showNodeConfig(btn.dataset.name));
+  });
+  qs("#oxidized-nodes-table").querySelectorAll(".btn-fetch-config").forEach(btn => {
+    btn.addEventListener("click", () => fetchNodeConfig(btn.dataset.name));
+  });
+}
+
+function classifyOxidizedLogLine(line) {
+  const lower = line.toLowerCase();
+  if (/error|fail|exception|fatal|unable/.test(lower)) return "log-error";
+  if (/warn|warning/.test(lower)) return "log-warn";
+  if (/success|stored|updated|finished/.test(lower)) return "log-ok";
+  return "";
+}
+
+function renderOxidizedLogs(data) {
+  const viewer = qs("#oxidized-log-viewer");
+  const badge = qs("#oxidized-logs-count");
+  if (!viewer) return;
+
+  if (!data.available) {
+    viewer.textContent = data.error || "Лог недоступен";
+    if (badge) badge.style.display = "none";
+    return;
+  }
+
+  const lines = data.lines || [];
+  if (!lines.length) {
+    viewer.textContent = globalSearchQuery.trim()
+      ? "Нет строк, подходящих под фильтр поиска"
+      : "Лог пуст";
+    if (badge) badge.style.display = "none";
+    return;
+  }
+
+  viewer.innerHTML = lines
+    .map(line => {
+      const cls = classifyOxidizedLogLine(line);
+      return cls ? `<span class="${cls}">${escapeHtml(line)}</span>` : escapeHtml(line);
+    })
+    .join("\n");
+
+  if (badge) {
+    badge.style.display = "inline";
+    badge.textContent = data.truncated ? `${data.returned}+` : String(data.returned);
+  }
+
+  if (oxidizedLogsStickToBottom) {
+    viewer.scrollTop = viewer.scrollHeight;
+  }
+}
+
+async function loadOxidizedLogs() {
+  const params = new URLSearchParams({ lines: "500" });
+  if (globalSearchQuery.trim()) params.set("q", globalSearchQuery.trim());
+  try {
+    const data = await api(`/api/oxidized/logs?${params}`);
+    renderOxidizedLogs(data);
+  } catch (e) {
+    const viewer = qs("#oxidized-log-viewer");
+    if (viewer) viewer.textContent = e.message;
+  }
+}
+
+function startOxidizedLogsPolling() {
+  stopOxidizedLogsPolling();
+  oxidizedLogsStickToBottom = true;
+  loadOxidizedLogs();
+  if (qs("#oxidized-logs-autorefresh")?.checked) {
+    oxidizedLogsTimer = setInterval(loadOxidizedLogs, 3000);
+  }
+}
+
+function stopOxidizedLogsPolling() {
+  if (oxidizedLogsTimer) {
+    clearInterval(oxidizedLogsTimer);
+    oxidizedLogsTimer = null;
   }
 }
 
@@ -722,6 +1235,13 @@ function bindEvents() {
   const addDeviceBtn = qs("#btn-add-device");
   if (addDeviceBtn) addDeviceBtn.addEventListener("click", () => openDeviceModal());
 
+  qs("#device-group")?.addEventListener("change", updateDeviceGroupHint);
+  qs("#device-enabled")?.addEventListener("change", syncDeviceEnabledLabel);
+  qs("#btn-device-goto-settings")?.addEventListener("click", () => {
+    $("#device-modal").modal("hide");
+    navigateToPage("settings");
+  });
+
   qs("#device-form").addEventListener("submit", e => {
     e.preventDefault();
     saveDevice();
@@ -729,12 +1249,38 @@ function bindEvents() {
 
   qs("#btn-import-network")?.addEventListener("click", async () => {
     try {
-      await api("/inventory/import-network", { method: "POST" });
-      showAlert("dashboard-alert", "network_inventory.yml импортирован", "success");
+      inventory = await api("/inventory/import-network", { method: "POST" });
+      showAlert("settings-alert", "network_inventory.yml импортирован", "success");
+      loadSettings();
       loadInventory();
       loadHealth();
     } catch (e) {
-      showAlert("dashboard-alert", e.message, "error");
+      showAlert("settings-alert", e.message, "error");
+    }
+  });
+
+  qs("#credential-create-form")?.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (!can("credentials:write")) return;
+    try {
+      inventory = await api("/inventory/credentials", {
+        method: "POST",
+        body: JSON.stringify({
+          name: qs("#new-cred-name").value.trim(),
+          group_name: qs("#new-cred-group").value.trim(),
+          username: qs("#new-cred-username").value,
+          password: qs("#new-cred-password").value,
+        }),
+      });
+      qs("#new-cred-name").value = "";
+      qs("#new-cred-group").value = "";
+      qs("#new-cred-username").value = "";
+      qs("#new-cred-password").value = "";
+      showAlert("settings-alert", "Группа добавлена", "success");
+      loadSettings();
+      loadInventory();
+    } catch (err) {
+      showAlert("settings-alert", err.message, "error");
     }
   });
 
@@ -761,9 +1307,27 @@ function bindEvents() {
   qs("#btn-scan-discover")?.addEventListener("click", () => runScan(true));
   qs("#btn-quick-scan")?.addEventListener("click", () => runScan(false));
   qs("#btn-quick-discover")?.addEventListener("click", () => runScan(true));
+
+  qsa(".scan-log-clear").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".scan-activity-panel");
+      const logEl = panel?.querySelector(".scan-log-viewer");
+      if (logEl) logEl.innerHTML = '<div class="scan-log-empty">Лог очищен (новые строки появятся при опросе)</div>';
+    });
+  });
   qs("#btn-quick-sync")?.addEventListener("click", syncOxidized);
   qs("#btn-sync-oxidized")?.addEventListener("click", syncOxidized);
   qs("#btn-refresh-oxidized")?.addEventListener("click", loadOxidizedNodes);
+  qs("#btn-refresh-oxidized-logs")?.addEventListener("click", loadOxidizedLogs);
+  qs("#oxidized-logs-autorefresh")?.addEventListener("change", () => {
+    if (!qs("#page-oxidized")?.classList.contains("d-none")) {
+      startOxidizedLogsPolling();
+    }
+  });
+  qs("#oxidized-log-viewer")?.addEventListener("scroll", e => {
+    const el = e.target;
+    oxidizedLogsStickToBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
+  });
   qs("#btn-logout").addEventListener("click", e => {
     e.preventDefault();
     logout();
@@ -821,6 +1385,7 @@ async function bootstrapApp() {
 async function init() {
   initNavigation();
   bindEvents();
+  bindGlobalSearch();
 
   try {
     const uiConfig = await api("/api/ui/config").catch(() => ({}));

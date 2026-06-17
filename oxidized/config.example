@@ -1,5 +1,10 @@
-username: satcoadm
-password: PQ@6WnZyS3
+# Скопируйте в config и заполните перед развёртыванием:
+#   cp oxidized/config.example oxidized/config
+#
+# Пароли групп синхронизируются из scanner (UI → Настройки / import network_inventory).
+
+username: admin
+password: changeme
 model: routeros
 resolve_dns: true
 interval: 3600
@@ -30,22 +35,18 @@ source:
       Accept: application/json
 groups:
   hex:
-    username: satcoadm
-    password: PQ@6WnZyS3
+    username: CHANGE_ME
+    password: CHANGE_ME
     model: routeros
   us:
-    username: satcoadm
-    password: QJq7w8RN%q
-    model: routeros
-  int:
-    username: mehanizator
-    password: pEKHX6R@Dn3fK2
+    username: CHANGE_ME
+    password: CHANGE_ME
     model: routeros
 output:
   default: git
   git:
     user: Oxidized
-    email: oxidized@satory.kz
+    email: oxidized@example.com
     repo: /var/lib/oxidized
     single_repo: true
     single_branch: true
@@ -55,7 +56,7 @@ hooks:
   push_to_git:
     type: githubrepo
     events:
-    - post_store
-    remote_repo: http://10.216.40.65:3000/Oxidized/sat_backup.git
+      - post_store
+    remote_repo: http://gitea.example.com/Oxidized/backups.git
     username: oauth2
     password: ''

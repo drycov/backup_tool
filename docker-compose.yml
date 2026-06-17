@@ -1,33 +1,47 @@
+# Backup Tools — стек для Docker / Portainer
+# Документация: deploy/PORTAINER.md
+
+name: backup-tools
+
 services:
   db:
     image: postgres:16-alpine
-    container_name: ${DB_CONTAINER_NAME}
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-backup}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-backup}
+      POSTGRES_DB: ${POSTGRES_DB:-inventory}
     volumes:
       - pg-data:/var/lib/postgresql/data
     networks:
       - backup-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backup} -d ${POSTGRES_DB:-inventory}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    labels:
+      - com.backup-tools.service=db
 
   scanner:
     build:
       context: ./scanner
       dockerfile: Dockerfile
-    container_name: ${SCANNER_CONTAINER_NAME}
+    image: backup-tools-scanner:${SCANNER_IMAGE_TAG:-latest}
     restart: unless-stopped
     ports:
-      - "${SCANNER_PORT}:8000"
+      - "${SCANNER_PORT:-8000}:8000"
     env_file:
       - .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
     volumes:
-      - ./inventory:/data/inventory
-      - ./oxidized:/data/oxidized
+      - ${STACK_PATH:-.}/inventory:/data/inventory
+      - ${STACK_PATH:-.}/oxidized:/data/oxidized
+      - oxidized-data:/var/lib/oxidized:ro
     depends_on:
       db:
         condition: service_healthy
@@ -38,10 +52,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 30s
+    labels:
+      - com.backup-tools.service=scanner
 
   oxidized:
     image: oxidized/oxidized:latest
-    container_name: ${OXIDIZED_CONTAINER_NAME}
     restart: unless-stopped
     env_file:
       - .env
@@ -50,18 +66,29 @@ services:
       OXIDIZED_SSH_PASSPHRASE: ${OXIDIZED_SSH_PASSPHRASE:-}
       HOME: /home/oxidized
     ports:
-      - "${OXIDIZED_PORT}:8888"
+      - "${OXIDIZED_PORT:-8888}:8888"
     volumes:
-      - ./oxidized:/home/oxidized/.config/oxidized
+      - ${STACK_PATH:-.}/oxidized:/home/oxidized/.config/oxidized
       - oxidized-data:/var/lib/oxidized
-      - ./oxidized-ssh:/home/oxidized/.ssh
-      - ./oxidized/entrypoint.sh:/entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+      - ${STACK_PATH:-.}/oxidized-ssh:/home/oxidized/.ssh
+      - ${STACK_PATH:-.}/oxidized/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - tr -d '\r' < /entrypoint.sh > /tmp/entrypoint.sh && exec /bin/sh /tmp/entrypoint.sh
     depends_on:
       scanner:
         condition: service_healthy
     networks:
       - backup-net
+    healthcheck:
+      test: ["CMD-SHELL", "ruby -e \"require 'net/http'; Net::HTTP.get(URI('http://127.0.0.1:8888/nodes.json'))\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - com.backup-tools.service=oxidized
 
 networks:
   backup-net:

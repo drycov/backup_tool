@@ -39,6 +39,14 @@ class CredentialProfile(BaseModel):
 class CredentialProfileUpdate(BaseModel):
     username: str
     password: str
+    group_name: Optional[str] = None
+
+
+class CredentialProfileCreate(BaseModel):
+    name: str
+    group_name: str
+    username: str
+    password: str
 
 
 class NetworkEntry(BaseModel):
@@ -100,6 +108,13 @@ class ScanJobStatus(BaseModel):
     finished_at: Optional[datetime] = None
     summary: Optional[ScanSummary] = None
     error: Optional[str] = None
+    logs: list["ScanLogEntry"] = Field(default_factory=list)
+
+
+class ScanLogEntry(BaseModel):
+    ts: datetime
+    level: str = "info"
+    message: str
 
 
 class HealthResponse(BaseModel):

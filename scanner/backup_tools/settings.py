@@ -113,6 +113,9 @@ NETWORK_INVENTORY_PATH = os.environ.get(
 )
 ROUTER_DB_PATH = os.environ.get("ROUTER_DB_PATH", "/data/oxidized/router.db")
 OXIDIZED_CONFIG_PATH = os.environ.get("OXIDIZED_CONFIG_PATH", "/data/oxidized/config")
+OXIDIZED_LOG_PATH = os.environ.get(
+    "OXIDIZED_LOG_PATH", "/var/lib/oxidized/oxidized.log"
+)
 ROUTEROS_SSH_PORT = int(os.environ.get("ROUTEROS_SSH_PORT", "44333"))
 
 GIT_REMOTE_URL = os.environ.get("GIT_REMOTE_URL", "")

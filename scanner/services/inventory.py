@@ -244,10 +244,58 @@ def update_credential_profile(name: str, creds: CredentialProfileUpdate) -> Inve
     profile = CredentialProfileModel.objects.filter(name=name).first()
     if not profile:
         raise ValueError(f"Profile '{name}' not found")
+    if creds.group_name and creds.group_name != profile.group_name:
+        if CredentialProfileModel.objects.filter(group_name=creds.group_name).exclude(name=name).exists():
+            raise ValueError(f"Группа '{creds.group_name}' уже используется")
+        profile.group_name = creds.group_name
     profile.username = creds.username
     profile.password = creds.password
-    profile.save(update_fields=["username", "password"])
+    profile.save()
     return load_inventory()
+
+
+def add_credential_profile(profile: CredentialProfile) -> Inventory:
+    name = profile.name.strip()
+    group_name = profile.group_name.strip()
+    if not name or not group_name:
+        raise ValueError("Имя профиля и группа обязательны")
+    if CredentialProfileModel.objects.filter(name=name).exists():
+        raise ValueError(f"Профиль '{name}' уже существует")
+    if CredentialProfileModel.objects.filter(group_name=group_name).exists():
+        raise ValueError(f"Группа '{group_name}' уже существует")
+    _model_from_profile(
+        CredentialProfile(
+            name=name,
+            group_name=group_name,
+            username=profile.username,
+            password=profile.password,
+        )
+    ).save()
+    return load_inventory()
+
+
+def delete_credential_profile(name: str) -> Inventory:
+    profile = CredentialProfileModel.objects.filter(name=name).first()
+    if not profile:
+        raise ValueError(f"Profile '{name}' not found")
+    devices_count = DeviceModel.objects.filter(group=profile.group_name).count()
+    networks_count = NetworkModel.objects.filter(group_name=profile.group_name).count()
+    if devices_count or networks_count:
+        raise ValueError(
+            f"Группа '{profile.group_name}' используется: "
+            f"{devices_count} устройств, {networks_count} подсетей"
+        )
+    profile.delete()
+    return load_inventory()
+
+
+def list_group_names() -> list[str]:
+    groups = set(
+        CredentialProfileModel.objects.values_list("group_name", flat=True)
+    )
+    groups.update(DeviceModel.objects.values_list("group", flat=True))
+    groups.update(NetworkModel.objects.values_list("group_name", flat=True))
+    return sorted(g for g in groups if g)
 
 
 def reimport_network_inventory() -> Inventory:
@@ -365,3 +413,10 @@ def update_oxidized_credentials(inventory: Inventory) -> None:
         yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
+
+
+from asgiref.sync import sync_to_async
+
+load_inventory_async = sync_to_async(load_inventory, thread_sensitive=True)
+add_device_async = sync_to_async(add_device, thread_sensitive=True)
+rename_device_async = sync_to_async(rename_device, thread_sensitive=True)

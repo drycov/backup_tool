@@ -27,17 +27,22 @@ from services.inventory import (
     reimport_network_inventory,
     remove_device,
     save_inventory,
+    add_credential_profile,
+    delete_credential_profile,
     update_credential_profile,
     update_oxidized_credentials,
 )
 from services.ldap_auth import auth_methods
 from services.oxidized_client import check_health, fetch_node, get_node_config, get_nodes
 from services.schemas import (
+    CredentialProfile,
+    CredentialProfileCreate,
     CredentialProfileUpdate,
     Device,
     DeviceCreate,
     Inventory,
     ScanJobStatus,
+    ScanLogEntry,
     ScanStartResponse,
 )
 
@@ -123,13 +128,14 @@ def _job_to_status(job: scan_job.ScanJob | None) -> ScanJobStatus:
         finished_at=job.finished_at,
         summary=job.summary,
         error=job.error,
+        logs=[
+            ScanLogEntry(ts=e.ts, level=e.level, message=e.message) for e in job.logs
+        ],
     )
 
 
 def ui_page(request: HttpRequest) -> FileResponse:
-    from pathlib import Path
-
-    index_path = Path(settings.BASE_DIR) / "static" / "index.html"
+    index_path = settings.BASE_DIR / "static" / "index.html"
     return FileResponse(index_path.open("rb"), content_type="text/html")
 
 
@@ -281,6 +287,18 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
 
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
+def oxidized_logs(request: HttpRequest) -> JsonResponse:
+    try:
+        max_lines = int(request.GET.get("lines", "500"))
+    except ValueError:
+        max_lines = 500
+    search = request.GET.get("q", "")
+    from services.oxidized_logs import tail_oxidized_log
+
+    return json_response(tail_oxidized_log(max_lines=max_lines, search=search))
+
+
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_health(request: HttpRequest) -> JsonResponse:
     return json_response(check_health())
 
@@ -426,18 +444,44 @@ def delete_device_view(request: HttpRequest, name: str) -> JsonResponse:
 
 
 @csrf_exempt
-@require_http_methods(["PUT"])
+@require_http_methods(["POST"])
 @require_permission(auth.PERMISSION_EDIT_CREDENTIALS)
-def set_credential_profile_view(request: HttpRequest, name: str) -> JsonResponse:
+def create_credential_profile_view(request: HttpRequest) -> JsonResponse:
     user: User = request.api_user
     body = parse_json_body(request)
-    creds = CredentialProfileUpdate.model_validate(body)
+    profile = CredentialProfileCreate.model_validate(body)
     try:
-        inventory = update_credential_profile(name, creds)
+        inventory = add_credential_profile(
+            CredentialProfile(**profile.model_dump())
+        )
     except ValueError as exc:
-        return error_response(str(exc), status=404)
+        return error_response(str(exc))
     update_oxidized_credentials(inventory)
-    return json_response(mask_inventory_for_role(inventory, user.role))
+    return json_response(mask_inventory_for_role(inventory, user.role), status=201)
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_EDIT_CREDENTIALS)
+def credential_profile_detail_view(request: HttpRequest, name: str) -> JsonResponse:
+    user: User = request.api_user
+    if request.method == "PUT":
+        body = parse_json_body(request)
+        creds = CredentialProfileUpdate.model_validate(body)
+        try:
+            inventory = update_credential_profile(name, creds)
+        except ValueError as exc:
+            return error_response(str(exc), status=404)
+        update_oxidized_credentials(inventory)
+        return json_response(mask_inventory_for_role(inventory, user.role))
+    if request.method == "DELETE":
+        try:
+            inventory = delete_credential_profile(name)
+        except ValueError as exc:
+            status = 404 if "не найден" in str(exc).lower() or "not found" in str(exc).lower() else 400
+            return error_response(str(exc), status=status)
+        update_oxidized_credentials(inventory)
+        return json_response(mask_inventory_for_role(inventory, user.role))
+    return error_response("Method not allowed", status=405)
 
 
 @csrf_exempt

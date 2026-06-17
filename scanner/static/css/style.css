@@ -121,6 +121,23 @@ body.login-page .login-logo {
   border-radius: 0 0 0.25rem 0.25rem;
 }
 
+.oxidized-log-viewer {
+  background: #1e1e1e;
+  color: #c9d1d9;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 0 0 0.25rem 0.25rem;
+}
+
+.oxidized-log-viewer .log-warn { color: #d29922; }
+.oxidized-log-viewer .log-error { color: #f85149; }
+.oxidized-log-viewer .log-ok { color: #3fb950; }
+
 /* ── Oxidized iframe ───────────────────────────────── */
 .iframe-wrap {
   min-height: calc(100vh - 12rem);
@@ -133,6 +150,100 @@ body.login-page .login-logo {
   min-height: 480px;
   border: none;
   display: block;
+}
+
+#settings-credentials-table input.form-control-sm {
+  min-width: 7rem;
+}
+
+#settings-credentials-table td {
+  vertical-align: middle !important;
+}
+
+#device-modal .modal-body h6 {
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+#device-group-hint {
+  min-height: 1.25rem;
+}
+
+#device-group-hint .cred-preview {
+  background: #f4f6f9;
+  border-radius: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  display: inline-block;
+}
+
+#device-enabled-label {
+  cursor: pointer;
+  user-select: none;
+}
+
+.global-search-wrap {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+#global-search-count {
+  min-width: 4.5rem;
+  justify-content: center;
+}
+
+.table tr.search-hidden {
+  display: none;
+}
+
+.search-empty-row td {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 1.25rem !important;
+}
+
+mark.search-hit {
+  background: #fff3cd;
+  padding: 0 0.1em;
+  border-radius: 0.15em;
+}
+
+/* ── Scan activity (progress + log) ─────────────── */
+.scan-activity-panel .scan-log-viewer {
+  background: #1e1e1e;
+  color: #c9d1d9;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 0.25rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.scan-activity-panel .scan-log-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 0.15rem;
+}
+
+.scan-activity-panel .scan-log-line.log-info { color: #c9d1d9; }
+.scan-activity-panel .scan-log-line.log-success { color: #3fb950; }
+.scan-activity-panel .scan-log-line.log-error { color: #f85149; }
+.scan-activity-panel .scan-log-line.log-warn { color: #d29922; }
+
+.scan-activity-panel .scan-log-empty {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.scan-activity-panel .scan-progress-bar {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+#dashboard-scan-activity .scan-log-viewer {
+  max-height: 160px;
 }
 
 /* ── Scan ports ────────────────────────────────────── */

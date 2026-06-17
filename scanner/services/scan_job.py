@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Callable, Optional
 
-from services.inventory import load_inventory
+from services.inventory import load_inventory_async
 from services.schemas import ScanSummary
 from services.scanner import apply_device_names, discover_and_enrich, scan_devices
 
@@ -28,6 +28,13 @@ class ScanPhase(str, Enum):
 
 
 @dataclass
+class ScanLogEntry:
+    ts: datetime
+    level: str
+    message: str
+
+
+@dataclass
 class ScanJob:
     id: str
     discover: bool
@@ -40,6 +47,7 @@ class ScanJob:
     finished_at: Optional[datetime] = None
     summary: Optional[ScanSummary] = None
     error: Optional[str] = None
+    logs: list[ScanLogEntry] = field(default_factory=list)
 
     @property
     def progress_pct(self) -> int:
@@ -62,24 +70,47 @@ def get_current_job() -> Optional[ScanJob]:
     return _current_job
 
 
+def append_job_log(job: ScanJob, message: str, level: str = "info") -> None:
+    job.logs.append(
+        ScanLogEntry(
+            ts=datetime.now(timezone.utc),
+            level=level,
+            message=message,
+        )
+    )
+    if len(job.logs) > 500:
+        job.logs = job.logs[-500:]
+
+
 def _set_progress(
     job: ScanJob,
     phase: ScanPhase,
     message: str,
     current: int = 0,
     total: int = 0,
+    *,
+    log: bool = False,
 ) -> None:
+    phase_changed = job.phase != phase
     job.phase = phase
     job.message = message
     job.progress_current = current
     job.progress_total = total
+    if log or phase_changed:
+        append_job_log(job, message)
 
 
 async def _run_scan_job(job: ScanJob) -> None:
     global _last_scan, _last_scan_at
 
     try:
-        inventory = load_inventory()
+        mode = "discovery + scan" if job.discover else "scan"
+        append_job_log(job, f"Запуск: {mode}", "info")
+        inventory = await load_inventory_async()
+        append_job_log(
+            job,
+            f"Инвентарь: {len(inventory.devices)} устройств, {len(inventory.networks)} подсетей",
+        )
 
         if job.discover and inventory.networks:
             subnet_count = len(inventory.networks)
@@ -89,6 +120,7 @@ async def _run_scan_job(job: ScanJob) -> None:
                 f"Discovery: ping sweep {subnet_count} подсетей…",
                 0,
                 subnet_count,
+                log=True,
             )
 
             def on_discovery_progress(done: int, total: int, subnet: str) -> None:
@@ -99,6 +131,8 @@ async def _run_scan_job(job: ScanJob) -> None:
                     done,
                     total,
                 )
+                if done > 0:
+                    append_job_log(job, f"Discovery: подсеть {subnet} ({done}/{total})")
 
             saved_count = 0
 
@@ -112,6 +146,11 @@ async def _run_scan_job(job: ScanJob) -> None:
                     job.progress_current,
                     job.progress_total,
                 )
+                append_job_log(
+                    job,
+                    f"Discovery: + {device.name} ({device.ip})",
+                    "success",
+                )
 
             await discover_and_enrich(
                 inventory.networks,
@@ -121,7 +160,8 @@ async def _run_scan_job(job: ScanJob) -> None:
                 on_device_saved=on_device_saved,
             )
 
-            inventory = load_inventory()
+            inventory = await load_inventory_async()
+            append_job_log(job, f"Discovery завершён, устройств: {len(inventory.devices)}")
 
         enabled_count = sum(1 for d in inventory.devices if d.enabled)
         _set_progress(
@@ -130,9 +170,10 @@ async def _run_scan_job(job: ScanJob) -> None:
             f"Сканирование {enabled_count} устройств…",
             0,
             enabled_count,
+            log=True,
         )
 
-        def on_scan_progress(done: int, total: int, _result) -> None:
+        def on_scan_progress(done: int, total: int, result) -> None:
             _set_progress(
                 job,
                 ScanPhase.SCAN,
@@ -140,20 +181,24 @@ async def _run_scan_job(job: ScanJob) -> None:
                 done,
                 total,
             )
+            append_job_log(
+                job,
+                f"scan | {result.status.value:8} | {result.name} ({result.ip})",
+            )
 
         summary = await scan_devices(
             inventory.devices,
             on_progress=on_scan_progress,
         )
 
-        _set_progress(job, ScanPhase.RENAME, "Обновление имён устройств…", 0, 0)
+        _set_progress(job, ScanPhase.RENAME, "Обновление имён устройств…", 0, 0, log=True)
         updated_devices, names_changed = await apply_device_names(
             inventory.devices,
             summary.results,
             inventory.credential_profiles,
         )
         if names_changed:
-            inventory = load_inventory()
+            inventory = await load_inventory_async()
             name_by_ip = {d.ip: d.name for d in inventory.devices}
             for result in summary.results:
                 if result.ip in name_by_ip:
@@ -171,6 +216,7 @@ async def _run_scan_job(job: ScanJob) -> None:
         job.progress_current = summary.total
         job.progress_total = summary.total
         job.finished_at = datetime.now(timezone.utc)
+        append_job_log(job, job.message, "success")
         logger.info("scan_job | completed | job_id=%s", job.id)
 
     except Exception as exc:
@@ -180,6 +226,7 @@ async def _run_scan_job(job: ScanJob) -> None:
         job.error = str(exc)
         job.message = f"Ошибка: {exc}"
         job.finished_at = datetime.now(timezone.utc)
+        append_job_log(job, job.message, "error")
 
 
 def _thread_runner(job: ScanJob) -> None:
@@ -199,6 +246,7 @@ def start_scan(discover: bool = False) -> ScanJob:
             phase=ScanPhase.DISCOVERY if discover else ScanPhase.SCAN,
             message="Запуск…" if discover else "Подготовка к сканированию…",
         )
+        append_job_log(job, job.message)
         _current_job = job
         thread = threading.Thread(
             target=_thread_runner,
