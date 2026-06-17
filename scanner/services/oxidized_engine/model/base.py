@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
-from services.oxidized_engine.node import Node
 from services.oxidized_engine.outputs import ModelOutputs
+
+if TYPE_CHECKING:
+    from services.oxidized_engine.node import Node
 
 
 class Model(ABC):

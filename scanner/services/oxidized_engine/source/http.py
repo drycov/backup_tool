@@ -20,7 +20,7 @@ class HttpSource(Source):
                 {
                     "name": item["hostname"],
                     "ip": item["ip"],
-                    "model": item.get("os") or self.config.default_model,
+                    "model": self.config.resolve_model(item.get("os") or self.config.default_model),
                     "group": item.get("group") or "default",
                     "vars": {"ssh_port": item.get("ssh_port", self.config.default_ssh_port)},
                 }

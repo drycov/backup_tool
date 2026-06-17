@@ -4,6 +4,7 @@ let editingDeviceName = null;
 let oxidizedPublicUrl = "http://localhost:8888";
 let oxidizedProxyUrl = "/oxidized-proxy/nodes";
 let oxidizedEngine = "python";
+let oxidizedModels = ["routeros"];
 const OXIDIZED_PROXY_PREFIX = "/oxidized-proxy";
 let currentUser = null;
 let scanPollTimer = null;
@@ -919,6 +920,52 @@ function syncDeviceEnabledLabel() {
   }
 }
 
+const OXIDIZED_MODEL_LABELS = {
+  routeros: "RouterOS (MikroTik)",
+  ios: "Cisco IOS",
+  junos: "Juniper JunOS",
+  iosxr: "Cisco IOS-XR",
+  nxos: "Cisco NX-OS",
+  eos: "Arista EOS",
+  ironware: "Brocade IronWare",
+  procurve: "HP ProCurve",
+  openwrt: "OpenWrt",
+  vyos: "VyOS",
+  fortios: "FortiOS",
+  panos: "Palo Alto PAN-OS",
+};
+
+function formatOxidizedModelLabel(model) {
+  return OXIDIZED_MODEL_LABELS[model] || model;
+}
+
+function populateDeviceModelSelect(selectedModel) {
+  const sel = qs("#device-model");
+  if (!sel) return;
+  const models = oxidizedModels.length ? oxidizedModels : ["routeros"];
+  sel.innerHTML = models
+    .map(m => `<option value="${escapeHtml(m)}">${escapeHtml(formatOxidizedModelLabel(m))}</option>`)
+    .join("");
+  const preferred = selectedModel || "routeros";
+  if (models.includes(preferred)) {
+    sel.value = preferred;
+  } else if (models.length) {
+    sel.value = models[0];
+  }
+}
+
+async function loadOxidizedModels() {
+  try {
+    const data = await api("/api/oxidized/models");
+    if (Array.isArray(data.models) && data.models.length) {
+      oxidizedModels = data.models;
+    }
+  } catch {
+    oxidizedModels = ["routeros"];
+  }
+  populateDeviceModelSelect();
+}
+
 function openDeviceModal(name = null) {
   editingDeviceName = name;
   const device = name ? inventory?.devices?.find(d => d.name === name) : null;
@@ -935,7 +982,7 @@ function openDeviceModal(name = null) {
   qs("#device-name").value = device?.name || "";
   qs("#device-name").disabled = !!name;
   qs("#device-ip").value = device?.ip || "";
-  qs("#device-model").value = device?.model || "routeros";
+  populateDeviceModelSelect(device?.model || "routeros");
   if (device?.group) qs("#device-group").value = device.group;
   qs("#device-ports").value = (device?.ports || [44333]).join(", ");
   qs("#device-enabled").checked = device ? device.enabled : true;
@@ -1656,6 +1703,7 @@ async function bootstrapApp() {
     updateLoginAuthHint(uiConfig.auth || {});
   } catch {}
 
+  await loadOxidizedModels();
   setPageTitle("dashboard");
   await loadHealth();
   await loadInventory();

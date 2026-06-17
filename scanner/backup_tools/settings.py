@@ -119,6 +119,7 @@ NETWORK_INVENTORY_PATH = os.environ.get(
 )
 ROUTER_DB_PATH = os.environ.get("ROUTER_DB_PATH", "/data/oxidized/router.db")
 OXIDIZED_CONFIG_PATH = os.environ.get("OXIDIZED_CONFIG_PATH", "/data/oxidized/config")
+OXIDIZED_HOME = os.environ.get("OXIDIZED_HOME", "/data/oxidized")
 OXIDIZED_LOG_PATH = os.environ.get(
     "OXIDIZED_LOG_PATH", "/var/lib/oxidized/oxidized.log"
 )

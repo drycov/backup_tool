@@ -15,6 +15,7 @@ urlpatterns = [
     path("api/oxidized/health", views.oxidized_health, name="oxidized-health"),
     path("api/oxidized/logs", views.oxidized_logs, name="oxidized-logs"),
     path("api/oxidized/source", views.oxidized_source, name="oxidized-source"),
+    path("api/oxidized/models", views.oxidized_models, name="oxidized-models"),
     path("oxidized-proxy", views.oxidized_proxy, name="oxidized-proxy-root"),
     path("oxidized-proxy/<path:path>", views.oxidized_proxy, name="oxidized-proxy"),
     path("api/oxidized/nodes", views.oxidized_nodes, name="oxidized-nodes"),

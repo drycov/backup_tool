@@ -258,6 +258,13 @@ def oxidized_logs(request: HttpRequest) -> JsonResponse:
     return json_response(tail_oxidized_log(max_lines=max_lines, search=search))
 
 
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def oxidized_models(request: HttpRequest) -> JsonResponse:
+    from services.oxidized_config_loader import list_available_models
+
+    return json_response({"models": list_available_models()})
+
+
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_health(request: HttpRequest) -> JsonResponse:
     return json_response(check_health())

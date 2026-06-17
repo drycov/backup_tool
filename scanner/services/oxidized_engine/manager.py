@@ -129,6 +129,8 @@ class OxidizedManager:
         return self.output.get_diff(self.nodes.find(name), oid1, oid2)
 
     def health(self) -> dict[str, Any]:
+        from services.oxidized_engine.collector.ruby_bridge import ruby_available
+
         try:
             nodes = self.list_nodes()
             return {
@@ -136,6 +138,7 @@ class OxidizedManager:
                 "error": None,
                 "nodes_count": len(nodes),
                 "engine": "python",
+                "models": "oxidized-gem" if ruby_available() else "python-fallback",
             }
         except Exception as exc:
             return {

@@ -3,7 +3,15 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     iputils-ping \
     git \
+    ruby \
+    ruby-dev \
+    build-essential \
+    libssl-dev \
+    libssh2-1-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+RUN gem install oxidized --no-document
 
 WORKDIR /app
 
@@ -16,6 +24,7 @@ COPY core ./core
 COPY api ./api
 COPY services ./services
 COPY static ./static
+COPY scripts ./scripts
 
 RUN python manage.py collectstatic --noinput
 

@@ -353,12 +353,6 @@ def devices_for_oxidized_source() -> list[dict]:
 def update_oxidized_credentials(inventory: Inventory) -> None:
     from django.conf import settings
 
-    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
-        from services.oxidized_engine import reload_engine
-
-        reload_engine()
-        return
-
     config_path = Path(settings.OXIDIZED_CONFIG_PATH)
     if not config_path.exists():
         return
@@ -398,12 +392,15 @@ def update_oxidized_credentials(inventory: Inventory) -> None:
 
     config["source"] = {"default": "http", "debug": False, "http": http_source}
 
+    existing_groups = config.get("groups") or {}
+    default_model = config.get("model", "routeros")
     groups: dict = {}
     for profile in inventory.credential_profiles:
+        prev = existing_groups.get(profile.group_name) or {}
         groups[profile.group_name] = {
             "username": profile.username,
             "password": profile.password,
-            "model": "routeros",
+            "model": prev.get("model") or default_model,
         }
     if groups:
         config["groups"] = groups
@@ -436,10 +433,16 @@ def update_oxidized_credentials(inventory: Inventory) -> None:
     else:
         config.pop("hooks", None)
 
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
+
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
+        from services.oxidized_engine import reload_engine
+
+        reload_engine()
 
 
 from asgiref.sync import sync_to_async
