@@ -32,6 +32,7 @@ from .models import (
     UserPublic,
     UserCreate,
     UserUpdate,
+    RbacMatrixResponse,
 )
 from .inventory import (
     load_inventory,
@@ -46,6 +47,7 @@ from .inventory import (
     mask_inventory_for_role,
     OXIDIZED_SOURCE_URL,
 )
+from .ldap_auth import auth_methods
 from .auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     AUTH_COOKIE_NAME,
@@ -57,7 +59,9 @@ from .auth import (
     list_users,
     permissions_for_role,
     require_permission,
+    require_any_permission,
     update_user,
+    rbac_matrix as get_rbac_matrix,
     PERMISSION_EDIT_CREDENTIALS,
     PERMISSION_EDIT_DEVICES,
     PERMISSION_EDIT_INVENTORY,
@@ -65,6 +69,7 @@ from .auth import (
     PERMISSION_OXIDIZED_READ,
     PERMISSION_OXIDIZED_WRITE,
     PERMISSION_RUN_SCAN,
+    PERMISSION_SCAN_READ,
     PERMISSION_VIEW_INVENTORY,
 )
 from .db import User, get_session
@@ -234,6 +239,8 @@ async def ui_config():
 
         "auth_required": True,
 
+        "auth": auth_methods(),
+
     }
 
 
@@ -253,6 +260,8 @@ async def login(body: LoginRequest):
             "username": user.username,
             "role": user.role,
             "permissions": permissions_for_role(user.role),
+            "auth_source": getattr(user, "auth_source", "local") or "local",
+            "role_locked": bool(getattr(user, "role_locked", False)),
         },
     }
     response = JSONResponse(payload)
@@ -281,7 +290,16 @@ async def auth_me(user: User = Depends(get_current_user)):
         username=user.username,
         role=user.role,
         permissions=permissions_for_role(user.role),
+        auth_source=getattr(user, "auth_source", "local") or "local",
+        role_locked=bool(getattr(user, "role_locked", False)),
     )
+
+
+@app.get("/api/auth/rbac", response_model=RbacMatrixResponse)
+async def auth_rbac(
+    user: User = Depends(require_permission(PERMISSION_MANAGE_USERS)),
+):
+    return get_rbac_matrix()
 
 
 @app.get("/api/auth/users", response_model=list[UserPublic])
@@ -294,6 +312,8 @@ async def auth_users_list(
             username=u.username,
             role=u.role,
             is_active=u.is_active,
+            auth_source=getattr(u, "auth_source", "local") or "local",
+            role_locked=bool(getattr(u, "role_locked", False)),
         )
         for u in list_users()
     ]
@@ -313,6 +333,8 @@ async def auth_users_create(
         username=created.username,
         role=created.role,
         is_active=created.is_active,
+        auth_source=getattr(created, "auth_source", "local") or "local",
+        role_locked=bool(getattr(created, "role_locked", False)),
     )
 
 
@@ -328,6 +350,7 @@ async def auth_users_update(
             role=body.role,
             is_active=body.is_active,
             password=body.password,
+            role_locked=body.role_locked,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -336,6 +359,8 @@ async def auth_users_update(
         username=updated.username,
         role=updated.role,
         is_active=updated.is_active,
+        auth_source=getattr(updated, "auth_source", "local") or "local",
+        role_locked=bool(getattr(updated, "role_locked", False)),
     )
 
 
@@ -647,14 +672,14 @@ async def scan_inventory(
 
 @app.get("/scan/status", response_model=ScanJobStatus)
 async def scan_status(
-    user: User = Depends(require_permission(PERMISSION_VIEW_INVENTORY)),
+    user: User = Depends(require_any_permission(PERMISSION_SCAN_READ, PERMISSION_RUN_SCAN)),
 ):
     return _job_to_status(scan_job.get_current_job())
 
 
 @app.get("/scan/latest", response_model=Optional[ScanSummary])
 async def get_latest_scan(
-    user: User = Depends(require_permission(PERMISSION_VIEW_INVENTORY)),
+    user: User = Depends(require_permission(PERMISSION_SCAN_READ)),
 ):
     summary, _ = scan_job.get_last_scan()
     return summary

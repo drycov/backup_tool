@@ -41,6 +41,8 @@ OXIDIZED_SOURCE_TOKEN = os.environ.get(
     "OXIDIZED_SOURCE_TOKEN", os.environ.get("LIBRENMS_API_TOKEN", "")
 )
 GIT_REMOTE_URL = os.environ.get("GIT_REMOTE_URL", "")
+GITEA_TOKEN = os.environ.get("GITEA_TOKEN", "")
+GITEA_HTTP_USER = os.environ.get("GITEA_HTTP_USER", "oauth2")
 GIT_SSH_PRIVATE_KEY = os.environ.get(
     "GIT_SSH_PRIVATE_KEY", "/home/oxidized/.ssh/id_rsa"
 )
@@ -255,7 +257,7 @@ def load_inventory() -> Inventory:
 
 
 def mask_inventory_for_role(inventory: Inventory, role: str) -> Inventory:
-    from .auth import PERMISSION_VIEW_CREDENTIALS, has_permission
+    from .rbac import PERMISSION_VIEW_CREDENTIALS, has_permission
 
     if has_permission(role, PERMISSION_VIEW_CREDENTIALS):
         return inventory
@@ -492,15 +494,18 @@ def update_oxidized_credentials(inventory: Inventory) -> None:
     }
 
     if GIT_REMOTE_URL:
-        config["hooks"] = {
-            "push_to_git": {
-                "type": "githubrepo",
-                "events": ["post_store"],
-                "remote_repo": GIT_REMOTE_URL,
-                "privatekey": GIT_SSH_PRIVATE_KEY,
-                "publickey": GIT_SSH_PUBLIC_KEY,
-            }
+        push_hook: dict = {
+            "type": "githubrepo",
+            "events": ["post_store"],
+            "remote_repo": GIT_REMOTE_URL,
         }
+        if GITEA_TOKEN:
+            push_hook["username"] = GITEA_HTTP_USER
+            push_hook["password"] = ""
+        else:
+            push_hook["privatekey"] = GIT_SSH_PRIVATE_KEY
+            push_hook["publickey"] = GIT_SSH_PUBLIC_KEY
+        config["hooks"] = {"push_to_git": push_hook}
     else:
         config.pop("hooks", None)
 

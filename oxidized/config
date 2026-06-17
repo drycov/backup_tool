@@ -52,6 +52,6 @@ hooks:
     type: githubrepo
     events:
     - post_store
-    remote_repo: git@10.216.40.65:Oxidized/sat_backup.git
-    privatekey: /home/oxidized/.ssh/id_rsa
-    publickey: /home/oxidized/.ssh/id_rsa.pub
+    remote_repo: http://10.216.40.65:3000/Oxidized/sat_backup.git
+    username: oauth2
+    password: ''

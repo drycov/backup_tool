@@ -33,4 +33,9 @@ fi
 
 export HOME=/home/oxidized
 
+CONFIG=/home/oxidized/.config/oxidized/config
+if [ -n "$GITEA_TOKEN" ] && [ -f "$CONFIG" ]; then
+  sed -i "/username: oauth2/{n;s/^    password: .*/    password: ${GITEA_TOKEN}/;}" "$CONFIG"
+fi
+
 exec /usr/bin/dumb-init -- runsvdir -P /etc/service

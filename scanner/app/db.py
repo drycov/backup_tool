@@ -56,6 +56,8 @@ class User(Base):
     password_hash = Column(String(256), nullable=False)
     role = Column(String(32), nullable=False, default="viewer")
     is_active = Column(Boolean, nullable=False, default=True)
+    auth_source = Column(String(16), nullable=False, default="local")
+    role_locked = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=True)
 
 
