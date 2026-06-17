@@ -55,7 +55,9 @@ class Nodes(list[Node]):
             if prev:
                 node.stats = prev.stats
                 node.last = prev.last
-        self.sort(key=lambda n: n.last.end if n.last else n.stats.mtime)
+        self.sort(
+            key=lambda n: n.last.end.timestamp() if n.last and n.last.end else n.stats.mtime
+        )
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
