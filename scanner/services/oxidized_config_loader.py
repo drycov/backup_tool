@@ -45,13 +45,26 @@ def _map_value(model_map: dict[Any, Any], original: str) -> str:
     return original
 
 
+def _normalize_model_id(name: str) -> str:
+    """Oxidized gem model ids are lowercase file names (e.g. routeros)."""
+    key = name.strip().lower().replace(" ", "").replace("_", "-")
+    aliases = {
+        "routeros": "routeros",
+        "mikrotik": "routeros",
+        "mikrotik-routeros": "routeros",
+        "ros": "routeros",
+    }
+    return aliases.get(key, key.lower())
+
+
 def resolve_model_name(raw: str | None, yaml_cfg: dict[str, Any] | None = None) -> str:
     cfg = yaml_cfg if yaml_cfg is not None else load_oxidized_yaml()
-    default = str(cfg.get("model") or "routeros")
+    default = _normalize_model_id(str(cfg.get("model") or "routeros"))
     if not raw:
         return default
     model_map = cfg.get("model_map") or {}
-    return _map_value(model_map, str(raw))
+    mapped = _map_value(model_map, str(raw))
+    return _normalize_model_id(mapped)
 
 
 def groups_from_yaml(

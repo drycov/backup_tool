@@ -41,6 +41,16 @@ def load_bridge_config(source_home, config_file)
   bridge_home
 end
 
+def normalize_model(name)
+  raw = name.to_s.strip
+  return 'routeros' if raw.empty?
+
+  key = raw.downcase.gsub(/\s+/, '').tr('_', '-')
+  return 'routeros' if %w[routeros mikrotik mikrotik-routeros ros].include?(key)
+
+  key
+end
+
 case command
 when 'list_models'
   require 'oxidized'
@@ -61,7 +71,7 @@ when 'collect'
       name: payload['name'],
       ip: payload['ip'],
       group: payload['group'],
-      model: payload['model'],
+      model: normalize_model(payload['model']),
       vars: payload['vars'] || {},
     }
     opt[:username] = payload['username'] if payload['username']

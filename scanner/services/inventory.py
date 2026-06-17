@@ -330,12 +330,17 @@ def reimport_network_inventory() -> Inventory:
     return inventory
 
 
+DISCOVERED_NAME_PREFIX = "discovered-"
+
+
 def devices_for_oxidized_source() -> list[dict]:
     inventory = load_inventory()
     default_port = _default_ssh_port()
     nodes: list[dict] = []
     for device in inventory.devices:
         if not device.enabled:
+            continue
+        if device.name.startswith(DISCOVERED_NAME_PREFIX):
             continue
         port = device.ports[0] if device.ports else default_port
         nodes.append(

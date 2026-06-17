@@ -94,6 +94,15 @@ class Node:
     def repo(self) -> str:
         return str(self.config.git.repo)
 
+    def _ruby_model_error(self) -> bool:
+        reason = (self.err_reason or "").lower()
+        err_type = (self.err_type or "").lower()
+        return (
+            "modelnotfound" in err_type
+            or "modelnotfound" in reason
+            or " not found for node " in reason
+        )
+
     def run(self) -> tuple[str, ModelOutputs | None]:
         from services.oxidized_engine.collector.ruby_bridge import (
             collect_via_ruby,
@@ -101,7 +110,16 @@ class Node:
         )
 
         if ruby_available():
-            return collect_via_ruby(self)
+            status, outputs = collect_via_ruby(self)
+            if status == "success":
+                return status, outputs
+            if not self._ruby_model_error():
+                return status, outputs
+            logger.info(
+                "oxidized | ruby | model error, fallback python | %s",
+                self.name,
+            )
+            self.err_type = self.err_reason = None
 
         from services.oxidized_engine.input.ssh import SSHInput
         from services.oxidized_engine.model.registry import get_model
