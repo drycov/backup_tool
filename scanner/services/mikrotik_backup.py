@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import shutil
 from dataclasses import dataclass
@@ -12,10 +11,12 @@ from typing import TYPE_CHECKING
 
 import paramiko
 
+from services.oxidized_logging import get_engine_logger
+
 if TYPE_CHECKING:
     from services.oxidized_engine.node import Node
 
-logger = logging.getLogger(__name__)
+logger = get_engine_logger("mikrotik")
 
 
 @dataclass
@@ -87,8 +88,12 @@ class MikrotikBackup:
         try:
             if self.config.binary_enabled:
                 results["binary"] = self._backup_binary(client, node)
+            else:
+                logger.info("mikrotik | binary backup | %s | skipped (disabled)", node.name)
             if self.config.export_enabled:
                 results["export"] = self._backup_export(client, node)
+            else:
+                logger.info("mikrotik | export backup | %s | skipped (disabled)", node.name)
         finally:
             client.close()
         return results
@@ -179,6 +184,7 @@ class MikrotikBackup:
         local_stamp = self.config.bin_dir / f"{prefix}_{stamp}.backup"
         local_last = self.config.bin_dir / f"{prefix}_last.backup"
 
+        logger.info("mikrotik | binary backup | %s | start", node.name)
         cmd = backup_save_command(prefix, encrypt_password=self.config.encrypt_password)
         self._exec(client, cmd)
         self._sftp_get(client, remote_base, local_stamp)
@@ -188,7 +194,13 @@ class MikrotikBackup:
         if self.config.purge_enabled:
             self._purge_old(self.config.bin_dir, prefix)
 
-        logger.info("mikrotik | binary backup | %s -> %s", node.name, local_stamp.name)
+        size = local_stamp.stat().st_size
+        logger.info(
+            "mikrotik | binary backup | %s -> %s (%d bytes)",
+            node.name,
+            local_stamp.name,
+            size,
+        )
         return True
 
     def _backup_export(self, client: paramiko.SSHClient, node: Node) -> bool:
@@ -203,13 +215,26 @@ class MikrotikBackup:
         else:
             hide = str(hide).lower() in ("1", "true", "yes")
 
-        cmd = export_command(remote_base, hide_sensitive=bool(hide), ros7=self._ros7(client))
+        ros7 = self._ros7(client)
+        cmd = export_command(remote_base, hide_sensitive=bool(hide), ros7=ros7)
+        logger.info(
+            "mikrotik | export backup | %s | start (ros%d, hide_sensitive=%s)",
+            node.name,
+            7 if ros7 else 6,
+            hide,
+        )
         self._exec(client, cmd)
         self._sftp_get(client, remote_file, local_file)
         self._exec(client, f'/file remove "{remote_file}"')
         self._clean_export_header(local_file)
 
-        logger.info("mikrotik | export backup | %s -> %s", node.name, local_file.name)
+        size = local_file.stat().st_size
+        logger.info(
+            "mikrotik | export backup | %s -> %s (%d bytes)",
+            node.name,
+            local_file.name,
+            size,
+        )
         return True
 
     def _clean_export_header(self, path: Path) -> None:
@@ -236,6 +261,7 @@ class MikrotikBackup:
 def run_mikrotik_backups(node: Node) -> bool:
     cfg = MikrotikBackupConfig.from_django()
     if not cfg.binary_enabled and not cfg.export_enabled:
+        logger.info("mikrotik | backup | %s | skipped (binary and export disabled)", node.name)
         return True
     try:
         MikrotikBackup(cfg).run_for_node(node)

@@ -1774,7 +1774,7 @@ function classifyOxidizedLogLine(line) {
     return "log-error";
   }
   if (/warn|warning|retry/.test(lower)) return "log-warn";
-  if (/success|stored|updated|configuration updated|finished|pushed/.test(lower)) {
+  if (/success|stored|updated|configuration updated|finished|pushed|mikrotik \| (binary|export) backup/.test(lower)) {
     return "log-ok";
   }
   return "";
