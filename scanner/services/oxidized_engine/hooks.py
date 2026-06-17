@@ -4,10 +4,15 @@ import logging
 import os
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import quote, urlparse, urlunparse
 
+from services.git_helpers import git_env
 from services.oxidized_engine.config import OxidizedConfig
 from services.oxidized_engine.job import Job
+
+if TYPE_CHECKING:
+    from services.oxidized_engine.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +42,7 @@ class HookRunner:
         if not remote_url:
             return
 
-        env = os.environ.copy()
+        env = git_env(repo)
         if self.config.gitea_token and remote_url.startswith("http"):
             parsed = urlparse(remote_url)
             user = quote(self.config.gitea_http_user, safe="")
@@ -63,12 +68,14 @@ class HookRunner:
                     ["git", "-C", str(repo), "remote", "add", "origin", remote_url],
                     check=True,
                     capture_output=True,
+                    env=env,
                 )
             else:
                 subprocess.run(
                     ["git", "-C", str(repo), "remote", "set-url", "origin", remote_url],
                     check=True,
                     capture_output=True,
+                    env=env,
                 )
 
             branch = self.config.git.branch
@@ -78,7 +85,7 @@ class HookRunner:
                 text=True,
                 env=env,
             )
-            subprocess.run(
+            push = subprocess.run(
                 [
                     "git",
                     "-C",
@@ -88,12 +95,16 @@ class HookRunner:
                     "origin",
                     f"HEAD:{branch}",
                 ],
-                check=True,
                 capture_output=True,
                 text=True,
                 env=env,
             )
-            logger.info("oxidized | hook | pushed to %s", self.config.git_remote_url)
+            if push.returncode == 0:
+                logger.info("oxidized | hook | pushed to %s", self.config.git_remote_url)
+            else:
+                raise subprocess.CalledProcessError(
+                    push.returncode, push.args, push.stdout, push.stderr
+                )
         except subprocess.CalledProcessError as exc:
             logger.warning(
                 "oxidized | hook | push failed: %s",

@@ -3,10 +3,14 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from services.git_helpers import git_env
 from services.oxidized_engine.config import OxidizedConfig
 from services.oxidized_engine.outputs import ModelOutputs
+
+if TYPE_CHECKING:
+    from services.oxidized_engine.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -22,22 +26,27 @@ class GitOutput:
     def _repo_path(self) -> Path:
         path = self.git_cfg.repo
         path.mkdir(parents=True, exist_ok=True)
+        env = git_env(path)
         if not (path / ".git").exists():
             subprocess.run(
-                ["git", "init", "-b", self.git_cfg.branch, str(path)],
+                ["git", "init", str(path)],
                 check=True,
                 capture_output=True,
+                text=True,
+                env=env,
             )
             self._git("config", "user.name", self.git_cfg.user)
             self._git("config", "user.email", self.git_cfg.email)
         return path
 
     def _git(self, *args: str) -> subprocess.CompletedProcess[str]:
+        repo = self._repo_path()
         return subprocess.run(
-            ["git", "-C", str(self._repo_path()), *args],
+            ["git", "-C", str(repo), *args],
             check=True,
             capture_output=True,
             text=True,
+            env=git_env(repo),
         )
 
     def _file_path(self, name: str, group: str | None) -> str:
@@ -93,10 +102,18 @@ class GitOutput:
             ],
             capture_output=True,
             text=True,
+            env=git_env(repo),
         )
         if commit.returncode != 0 and "nothing to commit" not in (commit.stdout + commit.stderr):
             logger.warning("oxidized | git | commit failed: %s", commit.stderr)
             return False
+
+        subprocess.run(
+            ["git", "-C", str(repo), "branch", "-M", self.git_cfg.branch],
+            capture_output=True,
+            text=True,
+            env=git_env(repo),
+        )
 
         rev = self._git("rev-parse", "HEAD")
         self.last_commit = rev.stdout.strip()
@@ -126,6 +143,7 @@ class GitOutput:
             ],
             capture_output=True,
             text=True,
+            env=git_env(repo),
         )
         if log.returncode != 0:
             return []
@@ -147,10 +165,12 @@ class GitOutput:
 
     def get_version(self, node: Node, oid: str) -> str:
         rel_path = self._file_path(node.name, node.group)
+        repo = self._repo_path()
         show = subprocess.run(
-            ["git", "-C", str(self._repo_path()), "show", f"{oid}:{rel_path}"],
+            ["git", "-C", str(repo), "show", f"{oid}:{rel_path}"],
             capture_output=True,
             text=True,
+            env=git_env(repo),
         )
         if show.returncode != 0:
             return "version not found"
@@ -158,18 +178,21 @@ class GitOutput:
 
     def get_diff(self, node: Node, oid1: str, oid2: str | None = None) -> dict[str, Any]:
         rel_path = self._file_path(node.name, node.group)
-        repo = str(self._repo_path())
+        repo = self._repo_path()
+        env = git_env(repo)
         if oid2:
             diff = subprocess.run(
-                ["git", "-C", repo, "diff", oid2, oid1, "--", rel_path],
+                ["git", "-C", str(repo), "diff", oid2, oid1, "--", rel_path],
                 capture_output=True,
                 text=True,
+                env=env,
             )
         else:
             diff = subprocess.run(
-                ["git", "-C", repo, "show", oid1, "--", rel_path],
+                ["git", "-C", str(repo), "show", oid1, "--", rel_path],
                 capture_output=True,
                 text=True,
+                env=env,
             )
         patch = diff.stdout or "no diffs"
         added = patch.count("\n+") - patch.count("\n+++")

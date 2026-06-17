@@ -9,6 +9,7 @@ from pathlib import Path
 
 from django.conf import settings
 
+from services.git_helpers import git_env
 from services.oxidized_config_loader import oxidized_home
 from services.oxidized_engine.outputs import ModelOutputs
 
@@ -28,6 +29,11 @@ def _bridge_env() -> dict[str, str]:
     elif config_path.exists():
         env["OXIDIZED_CONFIG_FILE"] = config_path.name
         env["OXIDIZED_HOME"] = str(config_path.parent)
+    env["OXIDIZED_BRIDGE_LOG"] = os.environ.get(
+        "OXIDIZED_BRIDGE_LOG", "/tmp/oxidized-bridge.log"
+    )
+    repo = os.environ.get("OXIDIZED_GIT_REPO", "/var/lib/oxidized")
+    env.update(git_env(repo))
     return env
 
 
