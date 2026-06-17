@@ -1311,6 +1311,10 @@ function renderOxidizedNodesTable(nodes) {
 function navigateOxidizedIframe(path) {
   const iframe = qs("#oxidized-iframe");
   if (!iframe || !currentUser) return;
+  if (path.startsWith(OXIDIZED_PROXY_PREFIX)) {
+    iframe.setAttribute("src", path);
+    return;
+  }
   const suffix = path.startsWith("/") ? path : `/${path}`;
   iframe.setAttribute("src", `${OXIDIZED_PROXY_PREFIX}${suffix}`);
 }

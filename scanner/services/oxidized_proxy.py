@@ -30,24 +30,42 @@ _EMBED_BLOCK_HEADERS = frozenset(
 )
 
 _ROOT_ATTR_RE = re.compile(
-    r"(?P<attr>href|src|action)\s*=\s*(?P<q>['\"])/"
-    r"(?!oxidized-proxy(?:/|$))(?P<rest>[^'\"]*)"
+    r"(?P<attr>href|src|action)\s*=\s*(?P<q>['\"])/(?P<rest>[^'\"]*)"
 )
-_CSS_URL_RE = re.compile(
-    r"url\(\s*(['\"]?)/(?!oxidized-proxy(?:/|$))"
-)
-_QUOTED_ABS_PATH_RE = re.compile(
-    r"""(?P<q>["'])/(?!oxidized-proxy(?:/|$))(?P<path>[^"']*)"""
-)
+_CSS_URL_RE = re.compile(r"url\(\s*(['\"]?)/(?P<rest>[^)'\"\s]*)")
+_QUOTED_ABS_PATH_RE = re.compile(r"""(?P<q>["'])/(?P<path>[^"']*)""")
+
+
+def oxidized_base_url() -> str:
+    """Upstream Oxidized root URL without accidental /oxidized-proxy suffix."""
+    base = settings.OXIDIZED_URL.rstrip("/")
+    if base.endswith(OXIDIZED_PROXY_PREFIX):
+        base = base[: -len(OXIDIZED_PROXY_PREFIX)]
+    return base
+
+
+def _strip_proxy_slug(path: str) -> str:
+    """Remove repeated oxidized-proxy/ prefixes from a relative path."""
+    clean = (path or "").lstrip("/")
+    while clean == _PROXY_PREFIX_SLUG or clean.startswith(f"{_PROXY_PREFIX_SLUG}/"):
+        if clean == _PROXY_PREFIX_SLUG:
+            return ""
+        clean = clean[len(_PROXY_PREFIX_SLUG) + 1 :]
+    return clean
+
+
+def _path_needs_proxy(path: str) -> bool:
+    clean = path.lstrip("/")
+    if not clean:
+        return False
+    return not (
+        clean == _PROXY_PREFIX_SLUG or clean.startswith(f"{_PROXY_PREFIX_SLUG}/")
+    )
 
 
 def upstream_target(path: str = "", query_string: str = "") -> str:
     """Map incoming /oxidized-proxy/... request to Oxidized upstream path."""
-    clean = (path or "").lstrip("/")
-    if clean == _PROXY_PREFIX_SLUG:
-        clean = ""
-    elif clean.startswith(f"{_PROXY_PREFIX_SLUG}/"):
-        clean = clean[len(_PROXY_PREFIX_SLUG) + 1 :]
+    clean = _strip_proxy_slug(path or "")
     target = f"/{clean}" if clean else "/"
     if query_string:
         target = f"{target}?{query_string}"
@@ -55,28 +73,24 @@ def upstream_target(path: str = "", query_string: str = "") -> str:
 
 
 def _to_proxy_path(path: str) -> str:
-    path = path.lstrip("/")
-    if not path or path == _PROXY_PREFIX_SLUG:
+    clean = _strip_proxy_slug(path)
+    if not clean:
         return f"{OXIDIZED_PROXY_PREFIX}/"
-    if path.startswith(f"{_PROXY_PREFIX_SLUG}/"):
-        return f"{OXIDIZED_PROXY_PREFIX}/{path[len(_PROXY_PREFIX_SLUG) + 1:]}"
-    return f"{OXIDIZED_PROXY_PREFIX}/{path}"
+    return f"{OXIDIZED_PROXY_PREFIX}/{clean}"
 
 
 def rewrite_proxy_location(location: str) -> str:
     location = location.strip()
-    for base in (settings.OXIDIZED_URL, settings.OXIDIZED_PUBLIC_URL):
+    for base in (oxidized_base_url(), settings.OXIDIZED_PUBLIC_URL.rstrip("/")):
         if location.startswith(base):
             suffix = location[len(base) :] or "/"
             if not suffix.startswith("/"):
                 suffix = f"/{suffix}"
-            if suffix.startswith(OXIDIZED_PROXY_PREFIX):
-                return suffix
-            return f"{OXIDIZED_PROXY_PREFIX}{suffix}"
+            return _to_proxy_path(suffix.lstrip("/"))
     if location.startswith(OXIDIZED_PROXY_PREFIX):
-        return location
+        return _to_proxy_path(location[len(OXIDIZED_PROXY_PREFIX) :].lstrip("/"))
     if location.startswith("/"):
-        return f"{OXIDIZED_PROXY_PREFIX}{location}"
+        return _to_proxy_path(location.lstrip("/"))
     return location
 
 
@@ -84,6 +98,8 @@ def _rewrite_quoted_paths(text: str) -> str:
     def repl(match: re.Match[str]) -> str:
         path = match.group("path")
         if path.startswith(("http://", "https://", "//")):
+            return match.group(0)
+        if not _path_needs_proxy(path):
             return match.group(0)
         return f'{match.group("q")}{_to_proxy_path(path)}'
 
@@ -101,24 +117,31 @@ def rewrite_proxy_body(content: bytes, content_type: str) -> bytes:
     except UnicodeDecodeError:
         return content
 
-    text = text.replace(f"{settings.OXIDIZED_URL}/", f"{OXIDIZED_PROXY_PREFIX}/")
-    text = text.replace(
-        f"{settings.OXIDIZED_PUBLIC_URL}/", f"{OXIDIZED_PROXY_PREFIX}/"
-    )
+    for base in (oxidized_base_url(), settings.OXIDIZED_PUBLIC_URL.rstrip("/")):
+        text = text.replace(f"{base}/", f"{OXIDIZED_PROXY_PREFIX}/")
+
     text = _rewrite_quoted_paths(text)
 
     if "html" in ct or "javascript" in ct or "json" in ct:
         text = _ROOT_ATTR_RE.sub(
             lambda m: (
-                f"{m.group('attr')}={m.group('q')}"
-                f"{_to_proxy_path(m.group('rest'))}"
+                m.group(0)
+                if not _path_needs_proxy(m.group("rest"))
+                else (
+                    f"{m.group('attr')}={m.group('q')}"
+                    f"{_to_proxy_path(m.group('rest'))}"
+                )
             ),
             text,
         )
 
     if "css" in ct:
         text = _CSS_URL_RE.sub(
-            lambda m: f"url({m.group(1)}{OXIDIZED_PROXY_PREFIX}/",
+            lambda m: (
+                m.group(0)
+                if not _path_needs_proxy(m.group("rest"))
+                else f"url({m.group(1)}{_to_proxy_path(m.group('rest'))}"
+            ),
             text,
         )
 

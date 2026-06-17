@@ -47,6 +47,7 @@ from services.oxidized_proxy import (
     OXIDIZED_PROXY_PREFIX,
     embed_block_headers,
     hop_headers,
+    oxidized_base_url,
     rewrite_proxy_body,
     rewrite_proxy_location,
     upstream_target,
@@ -283,7 +284,7 @@ def oxidized_proxy(request: HttpRequest, path: str = "") -> HttpResponse:
         with httpx.Client(timeout=30.0) as client:
             upstream = client.request(
                 request.method,
-                f"{settings.OXIDIZED_URL}{target}",
+                f"{oxidized_base_url()}{target}",
                 headers=forward_headers,
                 content=request.body,
             )
