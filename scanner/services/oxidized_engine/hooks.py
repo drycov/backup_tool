@@ -17,6 +17,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _repo_has_commits(repo: Path, env: dict[str, str]) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--verify", "HEAD"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    return result.returncode == 0
+
+
 class HookRunner:
     """Hooks runner — post_store githubrepo push."""
 
@@ -62,6 +72,7 @@ class HookRunner:
                 ["git", "-C", str(repo), "remote", "get-url", "origin"],
                 capture_output=True,
                 text=True,
+                env=env,
             )
             if origin.returncode != 0:
                 subprocess.run(
@@ -79,26 +90,39 @@ class HookRunner:
                 )
 
             branch = self.config.git.branch
-            subprocess.run(
-                ["git", "-C", str(repo), "fetch", "origin", branch],
-                capture_output=True,
-                text=True,
-                env=env,
-            )
+            if _repo_has_commits(repo, env):
+                fetch = subprocess.run(
+                    ["git", "-C", str(repo), "fetch", "origin", branch],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
+                if fetch.returncode != 0:
+                    err = (fetch.stderr or fetch.stdout or "").strip()
+                    if err and "not found" not in err.lower():
+                        logger.debug("oxidized | hook | fetch: %s", err)
+
             push = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(repo),
-                    "push",
-                    "-u",
-                    "origin",
-                    f"HEAD:{branch}",
-                ],
+                ["git", "-C", str(repo), "push", "-u", "origin", branch],
                 capture_output=True,
                 text=True,
                 env=env,
             )
+            if push.returncode != 0:
+                push = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repo),
+                        "push",
+                        "-u",
+                        "origin",
+                        f"HEAD:{branch}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                )
             if push.returncode == 0:
                 logger.info("oxidized | hook | pushed to %s", self.config.git_remote_url)
             else:

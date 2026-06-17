@@ -388,11 +388,8 @@ def update_oxidized_credentials(inventory: Inventory) -> dict[str, str]:
     )
     engine = getattr(settings, "OXIDIZED_ENGINE", "python").lower()
     if engine == "python":
-        config["log"] = getattr(
-            settings,
-            "OXIDIZED_PYTHON_LOG_PATH",
-            "/var/lib/oxidized/oxidized-python.log",
-        )
+        # Python engine logs via oxidized_logging.py; keep Ruby/config readers off the volume log.
+        config["log"] = "/dev/null"
     else:
         config["log"] = getattr(
             settings, "OXIDIZED_LOG_PATH", "/var/lib/oxidized/oxidized.log"

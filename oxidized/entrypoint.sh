@@ -9,6 +9,17 @@ if [ -d /var/lib/oxidized/logs ] && [ ! -f /var/lib/oxidized/logs ]; then
   rm -rf /var/lib/oxidized/logs
 fi
 chown -R oxidized:oxidized /var/lib/oxidized
+chmod -R a+rwX /var/lib/oxidized 2>/dev/null || true
+git config --global --add safe.directory /var/lib/oxidized 2>/dev/null || true
+
+# log: paths must be files, not directories
+for logfile in /var/lib/oxidized/oxidized.log /var/lib/oxidized/oxidized-python.log; do
+  if [ -d "$logfile" ]; then
+    rm -rf "$logfile"
+  fi
+  touch "$logfile" 2>/dev/null || true
+  chmod a+rw "$logfile" 2>/dev/null || true
+done
 
 # SSH keys for git push (githubrepo hook)
 if [ -d /home/oxidized/.ssh ]; then

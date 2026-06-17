@@ -13,10 +13,16 @@ WORKERS="${GUNICORN_WORKERS:-2}"
 if [ "${OXIDIZED_ENGINE:-python}" = "python" ]; then
   WORKERS=1
   PYTHON_LOG="${OXIDIZED_PYTHON_LOG_PATH:-/var/lib/oxidized/oxidized-python.log}"
+  if [ -d "$PYTHON_LOG" ]; then
+    rm -rf "$PYTHON_LOG"
+  fi
   touch "$PYTHON_LOG" 2>/dev/null || true
   chmod a+rw "$PYTHON_LOG" 2>/dev/null || true
 else
   RUBY_LOG="${OXIDIZED_LOG_PATH:-/var/lib/oxidized/oxidized.log}"
+  if [ -d "$RUBY_LOG" ]; then
+    rm -rf "$RUBY_LOG"
+  fi
   touch "$RUBY_LOG" 2>/dev/null || true
   chmod a+rw "$RUBY_LOG" 2>/dev/null || true
 fi

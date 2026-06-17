@@ -27,8 +27,16 @@ end
 def load_bridge_config(source_home, config_file)
   source_path = File.join(source_home, config_file)
   cfg = File.exist?(source_path) ? (YAML.load_file(source_path) || {}) : {}
-  cfg['log'] = prepare_bridge_log
   bridge_home = Dir.mktmpdir('oxidized-bridge-')
+  out_dir = File.join(bridge_home, 'configs')
+  FileUtils.mkdir_p(out_dir)
+  # Collect only — Python engine stores to git; avoid touching shared /var/lib/oxidized.
+  cfg['log'] = prepare_bridge_log
+  cfg.delete('hooks')
+  cfg['output'] = {
+    'default' => 'file',
+    'file' => { 'directory' => out_dir },
+  }
   File.write(File.join(bridge_home, 'config'), cfg.to_yaml)
   bridge_home
 end

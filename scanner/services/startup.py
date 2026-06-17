@@ -28,6 +28,10 @@ def initialize() -> None:
 
         start_engine()
         logger.info("oxidized | python engine started")
+        logger.info(
+            "oxidized | python mode — stop external oxidized container "
+            "(docker compose --profile external stop oxidized) to avoid conflicts"
+        )
     else:
         logger.info("oxidized | ruby engine mode — config synced, worker in oxidized container")
 
