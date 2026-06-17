@@ -80,3 +80,40 @@ class LdapConfig(models.Model):
 
     class Meta:
         db_table = "ldap_config"
+
+
+class BackupConfig(models.Model):
+    """Singleton: настройки MikroTik backup и уведомлений (pk=1)."""
+
+    binary_enabled = models.BooleanField(default=True)
+    export_enabled = models.BooleanField(default=True)
+    hide_sensitive = models.BooleanField(default=False)
+    encrypt_password = models.CharField(max_length=256, blank=True, default="")
+    purge_enabled = models.BooleanField(default=True)
+    purge_keep = models.PositiveIntegerField(default=10)
+    bin_dir = models.CharField(max_length=512, default="/var/lib/oxidized/bin")
+    rsc_dir = models.CharField(max_length=512, default="/var/lib/oxidized/rsc")
+    backup_timeout = models.PositiveIntegerField(default=300)
+
+    error_notify_telegram = models.BooleanField(default=False)
+    error_notify_email = models.BooleanField(default=False)
+    report_send_telegram = models.BooleanField(default=False)
+    report_send_email = models.BooleanField(default=False)
+
+    telegram_token = models.CharField(max_length=256, blank=True, default="")
+    telegram_chat_notify = models.CharField(max_length=64, blank=True, default="")
+    telegram_chat_report = models.CharField(max_length=64, blank=True, default="")
+
+    smtp_server = models.CharField(max_length=256, blank=True, default="")
+    smtp_port = models.PositiveIntegerField(default=465)
+    smtp_user = models.CharField(max_length=256, blank=True, default="")
+    smtp_password = models.CharField(max_length=256, blank=True, default="")
+    smtp_ssl = models.BooleanField(default=True)
+    smtp_from = models.CharField(max_length=256, blank=True, default="")
+    smtp_to_notify = models.CharField(max_length=256, blank=True, default="")
+    smtp_to_report = models.CharField(max_length=256, blank=True, default="")
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "backup_config"

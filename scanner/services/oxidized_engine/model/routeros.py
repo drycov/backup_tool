@@ -61,7 +61,18 @@ class RouterOSModel(Model):
         )
 
     def _export_command(self, node: Node) -> str:
-        if node.vars.get("remove_secret"):
+        from services.backup_settings import get_config
+
+        cfg = get_config()
+        hide = node.vars.get("remove_secret")
+        if hide is None:
+            hide = cfg.hide_sensitive
+        elif str(hide).lower() in ("0", "false", "no"):
+            hide = False
+        else:
+            hide = True
+
+        if hide:
             return "/export hide-sensitive"
         if self._ros_version is not None and self._ros_version >= 7:
             return "/export show-sensitive"

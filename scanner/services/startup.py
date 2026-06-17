@@ -17,6 +17,9 @@ def initialize() -> None:
     from services.ldap_settings import ensure_initialized
 
     ensure_initialized()
+    from services.backup_settings import ensure_initialized as ensure_backup_initialized
+
+    ensure_backup_initialized()
 
     from django.conf import settings
 

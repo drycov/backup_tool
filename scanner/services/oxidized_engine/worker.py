@@ -90,6 +90,18 @@ class Worker:
                 node.group,
                 node.name,
             )
+        from services.mikrotik_backup import run_mikrotik_backups
+
+        binary_ok = run_mikrotik_backups(node)
+        if stored or not binary_ok:
+            from services.backup_notifications import notify_backup_report
+
+            notify_backup_report(
+                node.name,
+                node.ip,
+                config_changed=bool(stored),
+                binary_ok=binary_ok,
+            )
         node.reset()
         self._jobs_done += 1
 
@@ -116,6 +128,14 @@ class Worker:
             )
             node.retry = 0
             self.hooks.node_fail(node, job)
+            from services.backup_notifications import notify_backup_error
+
+            notify_backup_error(
+                node.name,
+                node.ip,
+                job.status,
+                node.err_reason or "",
+            )
             self._jobs_done += 1
         node.reset()
 

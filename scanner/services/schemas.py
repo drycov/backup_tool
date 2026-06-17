@@ -223,6 +223,37 @@ class OxidizedSettingsUpdate(BaseModel):
     group_models: dict[str, str] = Field(default_factory=dict)
 
 
+class BackupSettingsUpdate(BaseModel):
+    binary_enabled: bool = True
+    export_enabled: bool = True
+    hide_sensitive: bool = False
+    encrypt_password: Optional[str] = None
+    purge_enabled: bool = True
+    purge_keep: int = 10
+    bin_dir: str = "/var/lib/oxidized/bin"
+    rsc_dir: str = "/var/lib/oxidized/rsc"
+    backup_timeout: int = 300
+    error_notify_telegram: bool = False
+    error_notify_email: bool = False
+    report_send_telegram: bool = False
+    report_send_email: bool = False
+    telegram_token: Optional[str] = None
+    telegram_chat_notify: str = ""
+    telegram_chat_report: str = ""
+    smtp_server: str = ""
+    smtp_port: int = 465
+    smtp_user: str = ""
+    smtp_password: Optional[str] = None
+    smtp_ssl: bool = True
+    smtp_from: str = ""
+    smtp_to_notify: str = ""
+    smtp_to_report: str = ""
+
+
+class BackupNotifyTestRequest(BaseModel):
+    kind: str = "report"
+
+
 class LdapTestResponse(BaseModel):
     ok: bool
     message: str

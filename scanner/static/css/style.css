@@ -144,7 +144,16 @@ body.login-page .login-logo {
   border-radius: 0 0 0.25rem 0.25rem;
 }
 
-.oxidized-log-viewer {
+.settings-tab-nav .nav-link {
+  font-size: 0.9rem;
+  padding: 0.45rem 0.85rem;
+}
+.settings-tab-content {
+  padding-top: 0.25rem;
+}
+.settings-page-card > .card-header {
+  background: #f8f9fa;
+}
   background: #1e1e1e;
   color: #c9d1d9;
   font-family: Consolas, "Courier New", monospace;

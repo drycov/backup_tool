@@ -176,20 +176,16 @@ function applyPermissions() {
   if (credCard) {
     credCard.style.display = can("credentials:read") || can("credentials:write") ? "" : "none";
   }
-  qsa("#settings-add-cred-card, #settings-import-card").forEach(el => {
+  qsa("#settings-add-cred-card").forEach(el => {
     if (!el) return;
     const perm = el.dataset.permission;
     if (perm) {
       el.style.display = can(perm) ? "" : "none";
     }
   });
-  const oxCard = qs("#settings-oxidized-card");
-  if (oxCard) {
-    oxCard.style.display = canAny("oxidized:read,oxidized:write") ? "" : "none";
-  }
-  const ldapCard = qs("#settings-ldap-card");
-  if (ldapCard) {
-    ldapCard.style.display = can("users:manage") ? "" : "none";
+  const ldapTab = qs("#settings-ldap-tab-li");
+  if (ldapTab) {
+    ldapTab.style.display = can("users:manage") ? "" : "none";
   }
   const netsCard = qs("#networks-card");
   if (netsCard) {
@@ -641,6 +637,7 @@ async function loadSettings() {
   updateDiscoveredCountBadge();
   if (can("oxidized:read") || can("oxidized:write")) {
     await loadOxidizedSettings();
+    await loadBackupSettings();
   }
   renderSettingsCredentials();
   if (can("users:manage")) {
@@ -751,6 +748,150 @@ async function syncOxidizedFromSettings() {
     showAlert("settings-alert", res.message || "Конфиг Oxidized синхронизирован", "success");
     await loadOxidizedSettings();
   } catch (e) {
+    showAlert("settings-alert", e.message, "error");
+  }
+}
+
+const SETTINGS_PASSWORD_MASK = "********";
+let backupSettingsCache = null;
+
+function fillBackupSettingsForm(cfg) {
+  backupSettingsCache = cfg;
+  if (qs("#bk-binary")) qs("#bk-binary").checked = cfg.binary_enabled !== false;
+  if (qs("#bk-export")) qs("#bk-export").checked = cfg.export_enabled !== false;
+  if (qs("#bk-hide-sensitive")) qs("#bk-hide-sensitive").checked = !!cfg.hide_sensitive;
+  if (qs("#bk-purge")) qs("#bk-purge").checked = cfg.purge_enabled !== false;
+  if (qs("#bk-purge-keep")) qs("#bk-purge-keep").value = cfg.purge_keep ?? 10;
+  if (qs("#bk-timeout")) qs("#bk-timeout").value = cfg.backup_timeout ?? 300;
+  if (qs("#bk-bin-dir")) qs("#bk-bin-dir").value = cfg.bin_dir || "/var/lib/oxidized/bin";
+  if (qs("#bk-rsc-dir")) qs("#bk-rsc-dir").value = cfg.rsc_dir || "/var/lib/oxidized/rsc";
+  const encEl = qs("#bk-encrypt-password");
+  if (encEl) {
+    encEl.value = "";
+    encEl.placeholder = cfg.encrypt_password_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "Пусто = без шифрования";
+  }
+  if (qs("#nt-error-telegram")) qs("#nt-error-telegram").checked = !!cfg.error_notify_telegram;
+  if (qs("#nt-error-email")) qs("#nt-error-email").checked = !!cfg.error_notify_email;
+  if (qs("#nt-report-telegram")) qs("#nt-report-telegram").checked = !!cfg.report_send_telegram;
+  if (qs("#nt-report-email")) qs("#nt-report-email").checked = !!cfg.report_send_email;
+  if (qs("#nt-telegram-chat-notify")) qs("#nt-telegram-chat-notify").value = cfg.telegram_chat_notify || "";
+  if (qs("#nt-telegram-chat-report")) qs("#nt-telegram-chat-report").value = cfg.telegram_chat_report || "";
+  if (qs("#nt-smtp-server")) qs("#nt-smtp-server").value = cfg.smtp_server || "";
+  if (qs("#nt-smtp-port")) qs("#nt-smtp-port").value = cfg.smtp_port ?? 465;
+  if (qs("#nt-smtp-user")) qs("#nt-smtp-user").value = cfg.smtp_user || "";
+  if (qs("#nt-smtp-from")) qs("#nt-smtp-from").value = cfg.smtp_from || "";
+  if (qs("#nt-smtp-to-notify")) qs("#nt-smtp-to-notify").value = cfg.smtp_to_notify || "";
+  if (qs("#nt-smtp-to-report")) qs("#nt-smtp-to-report").value = cfg.smtp_to_report || "";
+  if (qs("#nt-smtp-ssl")) qs("#nt-smtp-ssl").checked = cfg.smtp_ssl !== false;
+  const tokEl = qs("#nt-telegram-token");
+  if (tokEl) {
+    tokEl.value = "";
+    tokEl.placeholder = cfg.telegram_token_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "Bot token";
+  }
+  const smtpPass = qs("#nt-smtp-password");
+  if (smtpPass) {
+    smtpPass.value = "";
+    smtpPass.placeholder = cfg.smtp_password_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "Оставьте пустым, чтобы не менять";
+  }
+}
+
+function collectBackupSettingsForm() {
+  const encVal = qs("#bk-encrypt-password")?.value.trim();
+  const tokVal = qs("#nt-telegram-token")?.value.trim();
+  const smtpVal = qs("#nt-smtp-password")?.value.trim();
+  return {
+    binary_enabled: qs("#bk-binary")?.checked !== false,
+    export_enabled: qs("#bk-export")?.checked !== false,
+    hide_sensitive: qs("#bk-hide-sensitive")?.checked === true,
+    encrypt_password: encVal || (backupSettingsCache?.encrypt_password_set ? SETTINGS_PASSWORD_MASK : ""),
+    purge_enabled: qs("#bk-purge")?.checked !== false,
+    purge_keep: parseInt(qs("#bk-purge-keep")?.value, 10) || 10,
+    bin_dir: qs("#bk-bin-dir")?.value.trim() || "/var/lib/oxidized/bin",
+    rsc_dir: qs("#bk-rsc-dir")?.value.trim() || "/var/lib/oxidized/rsc",
+    backup_timeout: parseInt(qs("#bk-timeout")?.value, 10) || 300,
+    error_notify_telegram: qs("#nt-error-telegram")?.checked === true,
+    error_notify_email: qs("#nt-error-email")?.checked === true,
+    report_send_telegram: qs("#nt-report-telegram")?.checked === true,
+    report_send_email: qs("#nt-report-email")?.checked === true,
+    telegram_token: tokVal || (backupSettingsCache?.telegram_token_set ? SETTINGS_PASSWORD_MASK : ""),
+    telegram_chat_notify: qs("#nt-telegram-chat-notify")?.value.trim() || "",
+    telegram_chat_report: qs("#nt-telegram-chat-report")?.value.trim() || "",
+    smtp_server: qs("#nt-smtp-server")?.value.trim() || "",
+    smtp_port: parseInt(qs("#nt-smtp-port")?.value, 10) || 465,
+    smtp_user: qs("#nt-smtp-user")?.value.trim() || "",
+    smtp_password: smtpVal || (backupSettingsCache?.smtp_password_set ? SETTINGS_PASSWORD_MASK : ""),
+    smtp_ssl: qs("#nt-smtp-ssl")?.checked !== false,
+    smtp_from: qs("#nt-smtp-from")?.value.trim() || "",
+    smtp_to_notify: qs("#nt-smtp-to-notify")?.value.trim() || "",
+    smtp_to_report: qs("#nt-smtp-to-report")?.value.trim() || "",
+  };
+}
+
+async function loadBackupSettings() {
+  try {
+    const cfg = await api("/api/settings/backup");
+    fillBackupSettingsForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `Backup: ${e.message}`, "error");
+  }
+}
+
+async function saveBackupSettings(e) {
+  e.preventDefault();
+  if (!can("oxidized:write")) return;
+  try {
+    const saved = await api("/api/settings/backup", {
+      method: "PUT",
+      body: JSON.stringify(collectBackupSettingsForm()),
+    });
+    fillBackupSettingsForm(saved);
+    showAlert("settings-alert", "Настройки MikroTik backup сохранены", "success");
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+async function saveNotifySettings(e) {
+  e.preventDefault();
+  if (!can("oxidized:write")) return;
+  try {
+    const saved = await api("/api/settings/backup", {
+      method: "PUT",
+      body: JSON.stringify(collectBackupSettingsForm()),
+    });
+    fillBackupSettingsForm(saved);
+    showAlert("settings-alert", "Настройки уведомлений сохранены", "success");
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+async function testBackupNotify(kind) {
+  if (!can("oxidized:write")) return;
+  const resultEl = qs("#notify-test-result");
+  try {
+    if (resultEl) resultEl.textContent = "Отправка…";
+    const res = await api("/api/settings/backup/test-notify", {
+      method: "POST",
+      body: JSON.stringify({ kind }),
+    });
+    const text = (res.messages || []).join("; ");
+    if (resultEl) {
+      resultEl.textContent = text;
+      resultEl.className = `small mt-2 ${res.ok ? "text-success" : "text-danger"}`;
+    }
+    showAlert("settings-alert", text || (res.ok ? "Отправлено" : "Ошибка"), res.ok ? "success" : "error");
+  } catch (e) {
+    if (resultEl) {
+      resultEl.textContent = e.message;
+      resultEl.className = "small mt-2 text-danger";
+    }
     showAlert("settings-alert", e.message, "error");
   }
 }
@@ -1518,6 +1659,9 @@ function renderOxidizedNodesTable(nodes) {
             <i class="fas fa-file-alt"></i>
           </button>
           ${can("oxidized:write") ? `<button class="btn btn-primary btn-sm btn-fetch-config" data-name="${escapeHtml(n.name)}" title="Fetch"><i class="fas fa-download"></i></button>` : ""}
+          <button class="btn btn-outline-secondary btn-sm btn-show-backups" data-name="${escapeHtml(n.name)}" title="Файлы бэкапа">
+            <i class="fas fa-archive"></i>
+          </button>
         </td>
       </tr>
     `;
@@ -1531,6 +1675,9 @@ function renderOxidizedNodesTable(nodes) {
   });
   qs("#oxidized-nodes-table").querySelectorAll(".btn-fetch-config").forEach(btn => {
     btn.addEventListener("click", () => fetchNodeConfig(btn.dataset.name));
+  });
+  qs("#oxidized-nodes-table").querySelectorAll(".btn-show-backups").forEach(btn => {
+    btn.addEventListener("click", () => showNodeBackups(btn.dataset.name));
   });
 }
 
@@ -1755,6 +1902,61 @@ async function fetchNodeConfig(name) {
   }
 }
 
+function backupDownloadUrl(name, type, file) {
+  const q = new URLSearchParams({ type, file });
+  return `${API}/api/oxidized/nodes/${encodeURIComponent(name)}/backups/download?${q}`;
+}
+
+function renderBackupFileList(name, type, files) {
+  if (!files.length) {
+    return '<p class="text-muted small mb-0">Нет файлов</p>';
+  }
+  return `<ul class="list-unstyled mb-0">${files.map(f => `
+    <li class="mb-1">
+      <a href="${backupDownloadUrl(name, type, f.name)}" class="btn btn-link btn-sm p-0" download>
+        <i class="fas fa-download mr-1"></i>${escapeHtml(f.name)}
+      </a>
+      <span class="text-muted small ml-2">${formatBytes(f.size)} · ${formatDate(f.mtime ? new Date(f.mtime * 1000).toISOString() : null)}</span>
+    </li>
+  `).join("")}</ul>`;
+}
+
+function formatBytes(bytes) {
+  if (!bytes && bytes !== 0) return "—";
+  const units = ["B", "KB", "MB", "GB"];
+  let n = Number(bytes);
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  return `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+async function showNodeBackups(name) {
+  try {
+    const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/backups`);
+    qs("#oxidized-backups-node").textContent = name;
+    qs("#oxidized-backups-bin").innerHTML = renderBackupFileList(name, "bin", data.backups?.binary || []);
+    qs("#oxidized-backups-rsc").innerHTML = renderBackupFileList(name, "rsc", data.backups?.export || []);
+    $("#oxidized-backups-modal").modal("show");
+  } catch (e) {
+    showAlert("oxidized-alert", e.message, "error");
+  }
+}
+
+async function backupAllNodes() {
+  if (!can("oxidized:write")) return;
+  try {
+    showAlert("oxidized-alert", "Запуск backup для всех узлов…", "info");
+    const res = await api("/api/oxidized/backup/all", { method: "POST" });
+    showAlert("oxidized-alert", `В очереди: ${res.queued} узлов`, "success");
+    loadOxidizedNodes();
+  } catch (e) {
+    showAlert("oxidized-alert", e.message, "error");
+  }
+}
+
 function bindEvents() {
   const addDeviceBtn = qs("#btn-add-device");
   if (addDeviceBtn) addDeviceBtn.addEventListener("click", () => openDeviceModal());
@@ -1785,6 +1987,10 @@ function bindEvents() {
 
   qs("#ldap-settings-form")?.addEventListener("submit", saveLdapSettings);
   qs("#oxidized-settings-form")?.addEventListener("submit", saveOxidizedSettings);
+  qs("#backup-settings-form")?.addEventListener("submit", saveBackupSettings);
+  qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
+  qs("#btn-test-notify-report")?.addEventListener("click", () => testBackupNotify("report"));
+  qs("#btn-test-notify-error")?.addEventListener("click", () => testBackupNotify("error"));
   qs("#btn-settings-sync-oxidized")?.addEventListener("click", syncOxidizedFromSettings);
   qs("#btn-cleanup-discovered")?.addEventListener("click", cleanupDiscoveredDevices);
   qs("#btn-ldap-apply-preset")?.addEventListener("click", () => applyLdapPreset(true));
@@ -1858,6 +2064,7 @@ function bindEvents() {
   });
   qs("#btn-quick-sync")?.addEventListener("click", syncOxidized);
   qs("#btn-sync-oxidized")?.addEventListener("click", syncOxidized);
+  qs("#btn-backup-all")?.addEventListener("click", backupAllNodes);
   qs("#btn-refresh-oxidized")?.addEventListener("click", loadOxidizedNodes);
   qs("#btn-refresh-oxidized-logs")?.addEventListener("click", loadOxidizedLogs);
   qs("#btn-oxidized-iframe-reload")?.addEventListener("click", () => loadOxidizedIframe(true));

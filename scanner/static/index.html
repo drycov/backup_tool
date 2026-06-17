@@ -309,6 +309,9 @@
               <button class="btn btn-primary mr-1" id="btn-sync-oxidized" data-permission="oxidized:write">
                 <i class="fas fa-sync mr-1"></i> Sync конфиг
               </button>
+              <button class="btn btn-warning mr-1" id="btn-backup-all" data-permission="oxidized:write">
+                <i class="fas fa-database mr-1"></i> Backup все
+              </button>
               <a class="btn btn-outline-secondary" id="link-oxidized-2" href="#" target="_blank">
                 <i class="fas fa-external-link-alt mr-1"></i> Oxidized Web ↗
               </a>
@@ -392,172 +395,325 @@
           <div id="page-settings" class="page d-none">
             <div id="settings-alert" class="page-alert"></div>
 
-            <div class="card card-outline card-warning" id="settings-oxidized-card" data-permission-any="oxidized:read,oxidized:write">
-              <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-cogs mr-2"></i>Oxidized — бэкап конфигов</h3>
-                <div class="card-tools">
-                  <span class="badge badge-secondary" id="ox-settings-engine-badge">—</span>
-                  <span class="badge badge-info ml-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
-                </div>
+            <div class="card card-outline card-secondary settings-page-card">
+              <div class="card-header p-2">
+                <ul class="nav nav-pills settings-tab-nav" id="settings-tab-nav" role="tablist">
+                  <li class="nav-item" id="settings-tab-backup-li" data-permission-any="oxidized:read,oxidized:write">
+                    <a class="nav-link active" data-toggle="tab" href="#settings-tab-backup" role="tab">
+                      <i class="fas fa-database mr-1"></i> Бэкап
+                    </a>
+                  </li>
+                  <li class="nav-item" id="settings-tab-notify-li" data-permission-any="oxidized:read,oxidized:write">
+                    <a class="nav-link" data-toggle="tab" href="#settings-tab-notify" role="tab">
+                      <i class="fas fa-bell mr-1"></i> Уведомления
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" data-toggle="tab" href="#settings-tab-groups" role="tab">
+                      <i class="fas fa-key mr-1"></i> Группы
+                    </a>
+                  </li>
+                  <li class="nav-item" id="settings-ldap-tab-li" data-permission="users:manage">
+                    <a class="nav-link" data-toggle="tab" href="#settings-tab-ldap" role="tab">
+                      <i class="fas fa-network-wired mr-1"></i> LDAP
+                    </a>
+                  </li>
+                  <li class="nav-item" data-permission="inventory:write">
+                    <a class="nav-link" data-toggle="tab" href="#settings-tab-service" role="tab">
+                      <i class="fas fa-tools mr-1"></i> Сервис
+                    </a>
+                  </li>
+                </ul>
               </div>
-              <div class="card-body">
-                <p class="text-muted small mb-3" id="ox-settings-env-note"></p>
-                <form id="oxidized-settings-form">
-                  <div class="form-row">
-                    <div class="form-group col-md-2">
-                      <label for="ox-interval">Интервал, сек</label>
-                      <input type="number" id="ox-interval" class="form-control" min="60" step="60">
+              <div class="card-body tab-content settings-tab-content">
+
+                <!-- Tab: Backup -->
+                <div class="tab-pane fade show active" id="settings-tab-backup" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
+                  <div id="settings-oxidized-card">
+                    <div class="d-flex flex-wrap align-items-center mb-3">
+                      <h5 class="mb-0 mr-2"><i class="fas fa-cogs text-warning mr-1"></i> Oxidized worker</h5>
+                      <span class="badge badge-secondary" id="ox-settings-engine-badge">—</span>
+                      <span class="badge badge-info ml-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
                     </div>
-                    <div class="form-group col-md-2">
-                      <label for="ox-threads">Потоки</label>
-                      <input type="number" id="ox-threads" class="form-control" min="1" max="64">
-                    </div>
-                    <div class="form-group col-md-2">
-                      <label for="ox-timeout">Timeout SSH</label>
-                      <input type="number" id="ox-timeout" class="form-control" min="5">
-                    </div>
-                    <div class="form-group col-md-2">
-                      <label for="ox-retries">Повторы</label>
-                      <input type="number" id="ox-retries" class="form-control" min="0" max="10">
-                    </div>
-                    <div class="form-group col-md-2">
-                      <label for="ox-ssh-port">SSH порт</label>
-                      <input type="number" id="ox-ssh-port" class="form-control" min="1" max="65535">
-                    </div>
-                    <div class="form-group col-md-2">
-                      <label for="ox-default-model">Модель по умолчанию</label>
-                      <select id="ox-default-model" class="form-control"></select>
-                    </div>
+                    <p class="text-muted small" id="ox-settings-env-note"></p>
+                    <form id="oxidized-settings-form">
+                      <div class="form-row">
+                        <div class="form-group col-md-2 col-sm-4">
+                          <label for="ox-interval">Интервал, сек</label>
+                          <input type="number" id="ox-interval" class="form-control form-control-sm" min="60" step="60">
+                        </div>
+                        <div class="form-group col-md-2 col-sm-4">
+                          <label for="ox-threads">Потоки</label>
+                          <input type="number" id="ox-threads" class="form-control form-control-sm" min="1" max="64">
+                        </div>
+                        <div class="form-group col-md-2 col-sm-4">
+                          <label for="ox-timeout">Timeout SSH</label>
+                          <input type="number" id="ox-timeout" class="form-control form-control-sm" min="5">
+                        </div>
+                        <div class="form-group col-md-2 col-sm-4">
+                          <label for="ox-retries">Повторы</label>
+                          <input type="number" id="ox-retries" class="form-control form-control-sm" min="0" max="10">
+                        </div>
+                        <div class="form-group col-md-2 col-sm-4">
+                          <label for="ox-ssh-port">SSH порт</label>
+                          <input type="number" id="ox-ssh-port" class="form-control form-control-sm" min="1" max="65535">
+                        </div>
+                        <div class="form-group col-md-2 col-sm-4">
+                          <label for="ox-default-model">Модель</label>
+                          <select id="ox-default-model" class="form-control form-control-sm"></select>
+                        </div>
+                      </div>
+                      <div class="form-row align-items-center mb-3">
+                        <div class="col-md-4">
+                          <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="ox-resolve-dns">
+                            <label class="custom-control-label" for="ox-resolve-dns">Resolve DNS</label>
+                          </div>
+                        </div>
+                        <div class="col-md-8">
+                          <span class="text-muted small">Git remote (.env): </span><code id="ox-git-remote" class="small">—</code>
+                          <span class="text-muted small ml-2" id="ox-settings-log-path"></span>
+                        </div>
+                      </div>
+                      <div class="d-flex flex-wrap mb-4">
+                        <button type="submit" class="btn btn-primary btn-sm mr-2 mb-1" data-permission="oxidized:write">
+                          <i class="fas fa-save mr-1"></i> Сохранить Oxidized
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm mr-2 mb-1" id="btn-settings-sync-oxidized" data-permission="oxidized:write">
+                          <i class="fas fa-sync mr-1"></i> Sync конфиг
+                        </button>
+                        <a class="btn btn-outline-secondary btn-sm mb-1" id="btn-settings-oxidized-ui" href="#" data-permission="oxidized:read">
+                          <i class="fas fa-external-link-alt mr-1"></i> Oxidized UI
+                        </a>
+                      </div>
+                    </form>
+
+                    <hr>
+                    <h5 class="mb-2"><i class="fas fa-hdd text-info mr-1"></i> MikroTik backup</h5>
+                    <p class="text-muted small mb-3">Binary <code>.backup</code> и export <code>.rsc</code>. Настройки в БД, применяются без перезапуска.</p>
+                    <form id="backup-settings-form">
+                      <div class="form-row mb-2">
+                        <div class="col-md-3 col-6">
+                          <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="bk-binary">
+                            <label class="custom-control-label" for="bk-binary">Binary backup</label>
+                          </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                          <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="bk-export">
+                            <label class="custom-control-label" for="bk-export">Export .rsc</label>
+                          </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                          <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="bk-hide-sensitive">
+                            <label class="custom-control-label" for="bk-hide-sensitive">Hide sensitive</label>
+                          </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                          <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="bk-purge">
+                            <label class="custom-control-label" for="bk-purge">Purge old binary</label>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="form-row">
+                        <div class="form-group col-md-2 col-sm-6">
+                          <label for="bk-purge-keep">Хранить, шт.</label>
+                          <input type="number" id="bk-purge-keep" class="form-control form-control-sm" min="1" max="100">
+                        </div>
+                        <div class="form-group col-md-2 col-sm-6">
+                          <label for="bk-timeout">Timeout, сек</label>
+                          <input type="number" id="bk-timeout" class="form-control form-control-sm" min="30" max="3600">
+                        </div>
+                        <div class="form-group col-md-4 col-sm-12">
+                          <label for="bk-bin-dir">Каталог binary</label>
+                          <input type="text" id="bk-bin-dir" class="form-control form-control-sm">
+                        </div>
+                        <div class="form-group col-md-4 col-sm-12">
+                          <label for="bk-rsc-dir">Каталог export</label>
+                          <input type="text" id="bk-rsc-dir" class="form-control form-control-sm">
+                        </div>
+                      </div>
+                      <div class="form-row">
+                        <div class="form-group col-md-4">
+                          <label for="bk-encrypt-password">Пароль шифрования binary</label>
+                          <input type="password" id="bk-encrypt-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Пусто = без шифрования">
+                        </div>
+                      </div>
+                      <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
+                        <i class="fas fa-save mr-1"></i> Сохранить MikroTik backup
+                      </button>
+                    </form>
                   </div>
-                  <div class="form-row align-items-center mb-2">
-                    <div class="form-group col-md-4 mb-md-0">
-                      <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input" id="ox-resolve-dns">
-                        <label class="custom-control-label" for="ox-resolve-dns">Resolve DNS</label>
+                </div>
+
+                <!-- Tab: Notifications -->
+                <div class="tab-pane fade" id="settings-tab-notify" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
+                  <p class="text-muted small mb-3">Email и Telegram при ошибках бэкапа и успешных отчётах (как в RealMikrotikBackup).</p>
+                  <form id="notify-settings-form">
+                    <div class="row mb-3">
+                      <div class="col-md-6">
+                        <h6 class="text-muted text-uppercase small">При ошибках</h6>
+                        <div class="custom-control custom-checkbox mb-1">
+                          <input type="checkbox" class="custom-control-input" id="nt-error-telegram">
+                          <label class="custom-control-label" for="nt-error-telegram">Telegram</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="nt-error-email">
+                          <label class="custom-control-label" for="nt-error-email">Email</label>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <h6 class="text-muted text-uppercase small">Отчёты об успехе</h6>
+                        <div class="custom-control custom-checkbox mb-1">
+                          <input type="checkbox" class="custom-control-input" id="nt-report-telegram">
+                          <label class="custom-control-label" for="nt-report-telegram">Telegram</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="nt-report-email">
+                          <label class="custom-control-label" for="nt-report-email">Email</label>
+                        </div>
                       </div>
                     </div>
-                    <div class="form-group col-md-8 mb-md-0">
-                      <label class="d-block small text-muted mb-0">Git remote (.env)</label>
-                      <code id="ox-git-remote" class="small">—</code>
+                    <h6 class="text-muted text-uppercase small mb-2">Telegram</h6>
+                    <div class="form-row">
+                      <div class="form-group col-md-6">
+                        <label for="nt-telegram-token">Bot token</label>
+                        <input type="password" id="nt-telegram-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                      </div>
+                      <div class="form-group col-md-3">
+                        <label for="nt-telegram-chat-notify">Chat ID (ошибки)</label>
+                        <input type="text" id="nt-telegram-chat-notify" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-3">
+                        <label for="nt-telegram-chat-report">Chat ID (отчёты)</label>
+                        <input type="text" id="nt-telegram-chat-report" class="form-control form-control-sm">
+                      </div>
                     </div>
-                  </div>
-                  <div class="d-flex flex-wrap align-items-center">
-                    <button type="submit" class="btn btn-primary mr-2 mb-1" data-permission="oxidized:write">
-                      <i class="fas fa-save mr-1"></i> Сохранить
-                    </button>
-                    <button type="button" class="btn btn-outline-primary mr-2 mb-1" id="btn-settings-sync-oxidized" data-permission="oxidized:write">
-                      <i class="fas fa-sync mr-1"></i> Sync конфиг
-                    </button>
-                    <a class="btn btn-outline-secondary mr-2 mb-1" id="btn-settings-oxidized-ui" href="#" data-permission="oxidized:read">
-                      <i class="fas fa-external-link-alt mr-1"></i> Oxidized UI
-                    </a>
-                    <span class="text-muted small mb-1" id="ox-settings-log-path"></span>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            <div class="card card-outline card-primary" id="settings-groups-card">
-              <div class="card-header">
-                <h3 class="card-title">Группы и учётные данные (Oxidized)</h3>
-              </div>
-              <div class="card-body">
-                <p class="text-muted small mb-3">
-                  Каждая группа соответствует секции <code>groups</code> в конфиге Oxidized.
-                  Устройства и подсети привязываются к группе для SSH-проверки и бэкапа.
-                </p>
-                <div class="table-responsive">
-                  <table class="table table-bordered table-striped table-sm">
-                    <thead>
-                      <tr>
-                        <th>Профиль</th>
-                        <th>Группа</th>
-                        <th>Model</th>
-                        <th>Username</th>
-                        <th>Password</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody id="settings-credentials-table"></tbody>
-                  </table>
-                </div>
-                <div id="settings-credentials-empty" class="text-muted text-center py-3" style="display:none;">
-                  Нет групп — добавьте первую ниже или импортируйте network_inventory.yml
-                </div>
-              </div>
-            </div>
-
-            <div class="card card-outline card-success" id="settings-add-cred-card" data-permission="credentials:write">
-              <div class="card-header"><h3 class="card-title">Добавить группу / профиль</h3></div>
-              <div class="card-body">
-                <form id="credential-create-form">
-                  <div class="form-row">
-                    <div class="form-group col-md-3">
-                      <label for="new-cred-name">Имя профиля</label>
-                      <input type="text" id="new-cred-name" class="form-control" placeholder="hex" required>
-                      <small class="text-muted">Уникальный идентификатор</small>
+                    <h6 class="text-muted text-uppercase small mb-2 mt-2">SMTP</h6>
+                    <div class="form-row">
+                      <div class="form-group col-md-4">
+                        <label for="nt-smtp-server">Сервер</label>
+                        <input type="text" id="nt-smtp-server" class="form-control form-control-sm" placeholder="smtp.example.com">
+                      </div>
+                      <div class="form-group col-md-2">
+                        <label for="nt-smtp-port">Порт</label>
+                        <input type="number" id="nt-smtp-port" class="form-control form-control-sm" min="1" max="65535">
+                      </div>
+                      <div class="form-group col-md-3">
+                        <label for="nt-smtp-user">User</label>
+                        <input type="text" id="nt-smtp-user" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-3">
+                        <label for="nt-smtp-password">Password</label>
+                        <input type="password" id="nt-smtp-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                      </div>
                     </div>
-                    <div class="form-group col-md-3">
-                      <label for="new-cred-group">Группа Oxidized</label>
-                      <input type="text" id="new-cred-group" class="form-control" placeholder="hex" required>
-                      <small class="text-muted">Имя группы для устройств</small>
+                    <div class="form-row">
+                      <div class="form-group col-md-4">
+                        <label for="nt-smtp-from">From</label>
+                        <input type="email" id="nt-smtp-from" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-4">
+                        <label for="nt-smtp-to-notify">To (ошибки)</label>
+                        <input type="email" id="nt-smtp-to-notify" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-4">
+                        <label for="nt-smtp-to-report">To (отчёты)</label>
+                        <input type="email" id="nt-smtp-to-report" class="form-control form-control-sm">
+                      </div>
                     </div>
-                    <div class="form-group col-md-2">
-                      <label for="new-cred-username">Username</label>
-                      <input type="text" id="new-cred-username" class="form-control" required>
+                    <div class="custom-control custom-checkbox mb-3">
+                      <input type="checkbox" class="custom-control-input" id="nt-smtp-ssl" checked>
+                      <label class="custom-control-label" for="nt-smtp-ssl">SSL (SMTPS)</label>
                     </div>
-                    <div class="form-group col-md-2">
-                      <label for="new-cred-model">Model</label>
-                      <select id="new-cred-model" class="form-control">
-                        <option value="routeros">routeros</option>
-                      </select>
-                    </div>
-                    <div class="form-group col-md-2">
-                      <label for="new-cred-password">Password</label>
-                      <input type="password" id="new-cred-password" class="form-control" required>
-                    </div>
-                    <div class="form-group col-md-1 d-flex align-items-end">
-                      <button type="submit" class="btn btn-primary btn-block">
-                        <i class="fas fa-plus mr-1"></i> Добавить
+                    <div class="d-flex flex-wrap align-items-center">
+                      <button type="submit" class="btn btn-primary btn-sm mr-2 mb-1" data-permission="oxidized:write">
+                        <i class="fas fa-save mr-1"></i> Сохранить уведомления
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm mr-2 mb-1" id="btn-test-notify-report" data-permission="oxidized:write">
+                        <i class="fas fa-paper-plane mr-1"></i> Тест отчёта
+                      </button>
+                      <button type="button" class="btn btn-outline-danger btn-sm mb-1" id="btn-test-notify-error" data-permission="oxidized:write">
+                        <i class="fas fa-exclamation-triangle mr-1"></i> Тест ошибки
                       </button>
                     </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            <div class="card card-outline card-secondary" id="settings-import-card" data-permission="inventory:write">
-              <div class="card-header"><h3 class="card-title">Импорт и обслуживание</h3></div>
-              <div class="card-body">
-                <p class="text-muted small mb-2">
-                  Импорт подсетей из <code>network_inventory.yml</code>.
-                  Креды по умолчанию — из <code>OVN_*</code> / <code>US_*</code> в .env.
-                </p>
-                <div class="d-flex flex-wrap align-items-center mb-2">
-                  <button class="btn btn-secondary btn-sm mr-2 mb-1" id="btn-import-network">
-                    <i class="fas fa-file-import mr-1"></i> Импорт network_inventory.yml
-                  </button>
-                  <button class="btn btn-outline-danger btn-sm mb-1" id="btn-cleanup-discovered">
-                    <i class="fas fa-broom mr-1"></i> Удалить discovered-*
-                  </button>
-                  <span class="text-muted small ml-2 mb-1" id="settings-discovered-count"></span>
+                    <div id="notify-test-result" class="small mt-2 text-muted"></div>
+                  </form>
                 </div>
-                <p class="text-muted small mb-0">
-                  Scan concurrency: <code id="settings-scan-concurrency">—</code> (из .env <code>SCAN_CONCURRENCY</code>)
-                </p>
-              </div>
-            </div>
 
-            <div class="card card-outline card-info" id="settings-ldap-card" data-permission="users:manage">
-              <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-network-wired mr-2"></i>LDAP / Active Directory</h3>
-              </div>
-              <div class="card-body">
-                <p class="text-muted small mb-3">
-                  Настройки хранятся в базе данных и применяются без перезапуска контейнера.
-                  При первом запуске значения из <code>.env</code> импортируются автоматически.
-                </p>
-                <form id="ldap-settings-form">
+                <!-- Tab: Groups -->
+                <div class="tab-pane fade" id="settings-tab-groups" role="tabpanel">
+                  <div id="settings-groups-card">
+                    <p class="text-muted small mb-3">
+                      Группы → секция <code>groups</code> в Oxidized. Устройства привязаны к группе для SSH и бэкапа.
+                    </p>
+                    <div class="table-responsive">
+                      <table class="table table-bordered table-striped table-sm">
+                        <thead>
+                          <tr>
+                            <th>Профиль</th>
+                            <th>Группа</th>
+                            <th>Model</th>
+                            <th>Username</th>
+                            <th>Password</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody id="settings-credentials-table"></tbody>
+                      </table>
+                    </div>
+                    <div id="settings-credentials-empty" class="text-muted text-center py-3" style="display:none;">
+                      Нет групп — добавьте ниже или импортируйте network_inventory.yml
+                    </div>
+                  </div>
+                  <div class="card card-outline card-success mt-3" id="settings-add-cred-card" data-permission="credentials:write">
+                    <div class="card-header py-2"><h3 class="card-title h6 mb-0">Добавить группу</h3></div>
+                    <div class="card-body py-3">
+                      <form id="credential-create-form">
+                        <div class="form-row">
+                          <div class="form-group col-md-3 col-sm-6">
+                            <label for="new-cred-name">Имя профиля</label>
+                            <input type="text" id="new-cred-name" class="form-control form-control-sm" placeholder="hex" required>
+                          </div>
+                          <div class="form-group col-md-3 col-sm-6">
+                            <label for="new-cred-group">Группа</label>
+                            <input type="text" id="new-cred-group" class="form-control form-control-sm" placeholder="hex" required>
+                          </div>
+                          <div class="form-group col-md-2 col-sm-4">
+                            <label for="new-cred-username">Username</label>
+                            <input type="text" id="new-cred-username" class="form-control form-control-sm" required>
+                          </div>
+                          <div class="form-group col-md-2 col-sm-4">
+                            <label for="new-cred-model">Model</label>
+                            <select id="new-cred-model" class="form-control form-control-sm">
+                              <option value="routeros">routeros</option>
+                            </select>
+                          </div>
+                          <div class="form-group col-md-2 col-sm-4">
+                            <label for="new-cred-password">Password</label>
+                            <input type="password" id="new-cred-password" class="form-control form-control-sm" required>
+                          </div>
+                          <div class="form-group col-md-12 col-lg-auto d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                              <i class="fas fa-plus mr-1"></i> Добавить
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tab: LDAP -->
+                <div class="tab-pane fade" id="settings-tab-ldap" role="tabpanel" data-permission="users:manage">
+                  <div id="settings-ldap-card">
+                    <p class="text-muted small mb-3">
+                      Настройки в БД, без перезапуска. При первом запуске — импорт из <code>.env</code>.
+                    </p>
+                    <form id="ldap-settings-form">
                   <div class="form-row align-items-center mb-3">
                     <div class="form-group col-md-3 mb-md-0">
                       <div class="custom-control custom-switch">
@@ -690,10 +846,35 @@
                     <div id="ldap-test-result" class="small"></div>
                   </div>
 
-                  <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save mr-1"></i> Сохранить настройки LDAP
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fas fa-save mr-1"></i> Сохранить LDAP
                   </button>
                 </form>
+                  </div>
+                </div>
+
+                <!-- Tab: Service -->
+                <div class="tab-pane fade" id="settings-tab-service" role="tabpanel" data-permission="inventory:write">
+                  <div id="settings-import-card">
+                  <p class="text-muted small mb-3">
+                    Импорт подсетей из <code>network_inventory.yml</code>.
+                    Креды по умолчанию — из <code>OVN_*</code> / <code>US_*</code> в .env.
+                  </p>
+                  <div class="d-flex flex-wrap align-items-center mb-3">
+                    <button class="btn btn-secondary btn-sm mr-2 mb-1" id="btn-import-network">
+                      <i class="fas fa-file-import mr-1"></i> Импорт network_inventory.yml
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm mb-1" id="btn-cleanup-discovered">
+                      <i class="fas fa-broom mr-1"></i> Удалить discovered-*
+                    </button>
+                    <span class="text-muted small ml-2 mb-1" id="settings-discovered-count"></span>
+                  </div>
+                  <p class="text-muted small mb-0">
+                    Scan concurrency: <code id="settings-scan-concurrency">—</code> (из .env <code>SCAN_CONCURRENCY</code>)
+                  </p>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -872,6 +1053,30 @@
             <i class="fas fa-globe mr-1"></i> Oxidized Web
           </a>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MikroTik file backups (binary / rsc) -->
+  <div class="modal fade" id="oxidized-backups-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-archive mr-2 text-muted"></i>
+            Файлы бэкапа: <span id="oxidized-backups-node"></span>
+          </h5>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <h6 class="text-muted">Binary (.backup)</h6>
+          <div id="oxidized-backups-bin" class="mb-3"></div>
+          <h6 class="text-muted">Export (.rsc)</h6>
+          <div id="oxidized-backups-rsc"></div>
+        </div>
+        <div class="modal-footer bg-light py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
         </div>
       </div>
     </div>

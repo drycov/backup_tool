@@ -54,6 +54,8 @@ from services.oxidized_proxy import (
     upstream_target,
 )
 from services.schemas import (
+    BackupNotifyTestRequest,
+    BackupSettingsUpdate,
     CredentialProfile,
     CredentialProfileCreate,
     CredentialProfileUpdate,
@@ -427,6 +429,49 @@ def oxidized_node_fetch(request: HttpRequest, name: str) -> JsonResponse:
     return json_response({"status": "ok", "name": name, "result": data})
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+def oxidized_backup_all(request: HttpRequest) -> JsonResponse:
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
+        return error_response("Доступно только для python engine", status=501)
+    from services.oxidized_engine import get_manager
+
+    result = get_manager().backup_all()
+    return json_response({"status": "ok", **result})
+
+
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
+def oxidized_node_backups(request: HttpRequest, name: str) -> JsonResponse:
+    from services.mikrotik_backup import MikrotikBackup, MikrotikBackupError
+
+    try:
+        files = MikrotikBackup().list_files(name)
+    except MikrotikBackupError as exc:
+        return error_response(str(exc), status=400)
+    return json_response({"name": name, "backups": files})
+
+
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
+def oxidized_node_backup_download(request: HttpRequest, name: str) -> HttpResponse:
+    from services.mikrotik_backup import MikrotikBackup, MikrotikBackupError
+
+    backup_type = (request.GET.get("type") or "bin").lower()
+    filename = request.GET.get("file", "")
+    if backup_type not in ("bin", "rsc"):
+        return error_response("type must be bin or rsc", status=400)
+    if not filename:
+        return error_response("file required", status=400)
+    try:
+        path = MikrotikBackup().resolve_download(name, backup_type, filename)
+    except MikrotikBackupError as exc:
+        return error_response(str(exc), status=404)
+    content_type = "application/octet-stream"
+    if filename.endswith(".rsc"):
+        content_type = "text/plain; charset=utf-8"
+    return FileResponse(path.open("rb"), as_attachment=True, filename=path.name, content_type=content_type)
+
+
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_version_view(request: HttpRequest, name: str, oid: str) -> HttpResponse:
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
@@ -689,6 +734,52 @@ def cleanup_discovered_devices_view(request: HttpRequest) -> JsonResponse:
             "inventory": mask_inventory_for_role(inventory, user.role),
         }
     )
+
+
+@csrf_exempt
+def backup_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import backup_settings
+
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    if request.method == "GET":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_READ):
+            return error_response("Недостаточно прав", status=403)
+        return json_response(backup_settings.get_config_public())
+    if request.method == "PUT":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_WRITE):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            body = parse_json_body(request)
+            payload = BackupSettingsUpdate.model_validate(body)
+            saved = backup_settings.save_config(payload.model_dump())
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+def backup_settings_test_notify(request: HttpRequest) -> JsonResponse:
+    from services.backup_notifications import send_test_notification
+
+    try:
+        body = parse_json_body(request)
+        payload = BackupNotifyTestRequest.model_validate(body)
+    except ValidationError as exc:
+        return error_response(str(exc))
+    kind = payload.kind.strip().lower()
+    if kind not in ("error", "report"):
+        return error_response("kind must be error or report", status=400)
+    result = send_test_notification(kind)
+    return json_response(result)
 
 
 @csrf_exempt

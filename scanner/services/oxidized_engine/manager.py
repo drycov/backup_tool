@@ -104,6 +104,14 @@ class OxidizedManager:
         status, config = self.worker.fetch_node(name)
         return {"status": status, "config": config}
 
+    def backup_all(self) -> dict[str, int]:
+        self.worker.reload()
+        count = 0
+        for node in list(self.nodes):
+            self.nodes.next(node.name)
+            count += 1
+        return {"queued": count}
+
     def node_versions(self, name: str) -> dict[str, Any]:
         node = self.nodes.find(name)
         group = node.group or ""
