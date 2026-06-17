@@ -34,8 +34,11 @@ if [ ! -f inventory/network_inventory.yml ]; then
 fi
 
 if [ -f oxidized/entrypoint.sh ]; then
-  sed -i 's/\r$//' oxidized/entrypoint.sh 2>/dev/null || tr -d '\r' < oxidized/entrypoint.sh > /tmp/ep && mv /tmp/ep oxidized/entrypoint.sh
+  tmp=$(mktemp)
+  tr -d '\r' < oxidized/entrypoint.sh > "$tmp"
+  mv "$tmp" oxidized/entrypoint.sh
   chmod +x oxidized/entrypoint.sh
+  echo "==> oxidized/entrypoint.sh: CRLF убран, chmod +x"
 fi
 
 if [ ! -f oxidized-ssh/known_hosts ] && [ -f oxidized-ssh/known_hosts.example ]; then
