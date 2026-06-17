@@ -1,5 +1,7 @@
 # SSH-ключи для push бэкапов Oxidized → Gitea
 
+> Подробнее о бэкапах и Git push: [docs/oxidized.md](../docs/oxidized.md)
+
 1. Сгенерировать ключ в формате **PEM** (Rugged/libssh2 не принимает OpenSSH-формат):
 
 ```bash

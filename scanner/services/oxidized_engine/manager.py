@@ -45,16 +45,9 @@ class OxidizedManager:
         self._thread.start()
 
     def _setup_file_logging(self) -> None:
-        log_path = self.config.log_path
-        try:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            handler = logging.FileHandler(log_path, encoding="utf-8")
-            handler.setFormatter(
-                logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-            )
-            logging.getLogger("services.oxidized_engine").addHandler(handler)
-        except OSError as exc:
-            logger.warning("oxidized | log file unavailable: %s", exc)
+        from services.oxidized_logging import configure_oxidized_file_logging
+
+        configure_oxidized_file_logging()
 
     def stop(self) -> None:
         self._stop.set()
@@ -130,22 +123,32 @@ class OxidizedManager:
 
     def health(self) -> dict[str, Any]:
         from services.oxidized_engine.collector.ruby_bridge import ruby_available
+        from services.oxidized_logging import engine_title, is_python_engine, oxidized_log_path
 
+        engine = "python" if is_python_engine() else "external"
         try:
             nodes = self.list_nodes()
-            return {
+            payload: dict[str, Any] = {
                 "reachable": True,
                 "error": None,
                 "nodes_count": len(nodes),
-                "engine": "python",
-                "models": "oxidized-gem" if ruby_available() else "python-fallback",
+                "engine": engine,
+                "engine_title": engine_title(),
+                "log_path": str(oxidized_log_path()),
             }
+            if is_python_engine():
+                payload["models"] = (
+                    "oxidized-gem" if ruby_available() else "python-fallback"
+                )
+            return payload
         except Exception as exc:
             return {
                 "reachable": False,
                 "error": str(exc),
                 "nodes_count": 0,
-                "engine": "python",
+                "engine": engine,
+                "engine_title": engine_title(),
+                "log_path": str(oxidized_log_path()),
             }
 
 

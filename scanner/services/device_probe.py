@@ -1,11 +1,20 @@
 """Получение имени устройства по SSH (RouterOS system identity)."""
 
+from __future__ import annotations
+
 import re
+from dataclasses import dataclass
 from typing import Optional
 
 import paramiko
 
 IDENTITY_TIMEOUT_SEC = 8
+
+
+@dataclass(frozen=True)
+class DeviceProbeResult:
+    authenticated: bool
+    identity: str | None = None
 
 
 def _parse_routeros_identity(output: str) -> Optional[str]:
@@ -18,12 +27,12 @@ def _parse_routeros_identity(output: str) -> Optional[str]:
     return None
 
 
-def fetch_routeros_identity(
+def _ssh_session(
     ip: str,
     port: int,
     username: str,
     password: str,
-) -> Optional[str]:
+) -> paramiko.SSHClient | None:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -38,16 +47,68 @@ def fetch_routeros_identity(
             look_for_keys=False,
             allow_agent=False,
         )
-        _, stdout, _ = client.exec_command(
-            "/system identity print without-paging",
-            timeout=IDENTITY_TIMEOUT_SEC,
-        )
-        output = stdout.read().decode("utf-8", errors="replace")
-        return _parse_routeros_identity(output)
+        return client
     except Exception:
+        client.close()
         return None
+
+
+def probe_device_access(
+    ip: str,
+    port: int,
+    username: str,
+    password: str,
+    model: str,
+) -> DeviceProbeResult:
+    """One SSH session: auth check + optional identity for supported models."""
+    client = _ssh_session(ip, port, username, password)
+    if client is None:
+        return DeviceProbeResult(authenticated=False)
+
+    try:
+        model_lower = (model or "").lower()
+        if model_lower == "routeros":
+            _, stdout, _ = client.exec_command(
+                "/system identity print without-paging",
+                timeout=IDENTITY_TIMEOUT_SEC,
+            )
+            output = stdout.read().decode("utf-8", errors="replace")
+            return DeviceProbeResult(
+                authenticated=True,
+                identity=_parse_routeros_identity(output),
+            )
+
+        if model_lower == "ios":
+            _, stdout, _ = client.exec_command(
+                "show running-config | include hostname",
+                timeout=IDENTITY_TIMEOUT_SEC,
+            )
+            output = stdout.read().decode("utf-8", errors="replace")
+            for line in output.splitlines():
+                line = line.strip()
+                if line.lower().startswith("hostname"):
+                    parts = re.split(r"\s+", line, maxsplit=1)
+                    if len(parts) > 1 and parts[1]:
+                        return DeviceProbeResult(authenticated=True, identity=parts[1].strip())
+            return DeviceProbeResult(authenticated=True)
+
+        return DeviceProbeResult(authenticated=True)
+    except Exception:
+        return DeviceProbeResult(authenticated=False)
     finally:
         client.close()
+
+
+def fetch_routeros_identity(
+    ip: str,
+    port: int,
+    username: str,
+    password: str,
+) -> Optional[str]:
+    result = probe_device_access(ip, port, username, password, "routeros")
+    if not result.authenticated:
+        return None
+    return result.identity
 
 
 def fetch_device_hostname(
@@ -57,47 +118,7 @@ def fetch_device_hostname(
     password: str,
     model: str,
 ) -> Optional[str]:
-    model_lower = (model or "").lower()
-    if model_lower == "routeros":
-        return fetch_routeros_identity(ip, port, username, password)
-    if model_lower == "ios":
-        return _fetch_ssh_command(
-            ip, port, username, password, "show running-config | include hostname"
-        )
-    return None
-
-
-def _fetch_ssh_command(
-    ip: str,
-    port: int,
-    username: str,
-    password: str,
-    command: str,
-) -> Optional[str]:
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        client.connect(
-            hostname=ip,
-            port=port,
-            username=username,
-            password=password,
-            timeout=IDENTITY_TIMEOUT_SEC,
-            banner_timeout=IDENTITY_TIMEOUT_SEC,
-            auth_timeout=IDENTITY_TIMEOUT_SEC,
-            look_for_keys=False,
-            allow_agent=False,
-        )
-        _, stdout, _ = client.exec_command(command, timeout=IDENTITY_TIMEOUT_SEC)
-        output = stdout.read().decode("utf-8", errors="replace")
-        for line in output.splitlines():
-            line = line.strip()
-            if line.lower().startswith("hostname"):
-                parts = re.split(r"\s+", line, maxsplit=1)
-                if len(parts) > 1 and parts[1]:
-                    return parts[1].strip()
+    result = probe_device_access(ip, port, username, password, model)
+    if not result.authenticated:
         return None
-    except Exception:
-        return None
-    finally:
-        client.close()
+    return result.identity

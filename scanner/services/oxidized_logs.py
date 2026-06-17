@@ -1,21 +1,24 @@
-from pathlib import Path
-
-from django.conf import settings
-
-
-def _log_path() -> Path:
-    return Path(settings.OXIDIZED_LOG_PATH)
+from services.oxidized_logging import engine_title, is_python_engine, oxidized_log_path
 
 
 def tail_oxidized_log(max_lines: int = 500, search: str = "") -> dict:
-    path = _log_path()
+    path = oxidized_log_path()
+    engine = "python" if is_python_engine() else "external"
+
     if not path.exists():
+        hint = (
+            "запустите scanner и дождитесь первого цикла worker"
+            if is_python_engine()
+            else "запустите контейнер oxidized (profile external)"
+        )
         return {
             "available": False,
             "path": str(path),
+            "engine": engine,
+            "engine_title": engine_title(),
             "lines": [],
             "returned": 0,
-            "error": "Файл лога не найден — проверьте volume oxidized-data",
+            "error": f"Файл лога не найден ({engine_title()}): {path}. {hint}",
         }
 
     max_lines = max(1, min(max_lines, 2000))
@@ -31,6 +34,8 @@ def tail_oxidized_log(max_lines: int = 500, search: str = "") -> dict:
         return {
             "available": False,
             "path": str(path),
+            "engine": engine,
+            "engine_title": engine_title(),
             "lines": [],
             "returned": 0,
             "error": str(exc),
@@ -51,6 +56,8 @@ def tail_oxidized_log(max_lines: int = 500, search: str = "") -> dict:
     return {
         "available": True,
         "path": str(path),
+        "engine": engine,
+        "engine_title": engine_title(),
         "lines": lines,
         "returned": len(lines),
         "truncated": size > chunk_size,

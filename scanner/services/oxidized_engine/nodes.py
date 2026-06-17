@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime
 from typing import Any
 
 from services.oxidized_engine.config import OxidizedConfig
@@ -10,6 +11,17 @@ from services.oxidized_engine.node import Node
 from services.oxidized_engine.source.http import HttpSource
 
 logger = logging.getLogger(__name__)
+
+
+def _node_sort_key(node: Node) -> float:
+    """Comparable sort key — always float (mtime or last job end)."""
+    if node.last and node.last.end:
+        end = node.last.end
+        if isinstance(end, datetime):
+            return end.timestamp()
+        if isinstance(end, (int, float)):
+            return float(end)
+    return float(node.stats.mtime or 0)
 
 
 class Nodes(list[Node]):
@@ -55,9 +67,7 @@ class Nodes(list[Node]):
             if prev:
                 node.stats = prev.stats
                 node.last = prev.last
-        self.sort(
-            key=lambda n: n.last.end.timestamp() if n.last and n.last.end else n.stats.mtime
-        )
+        self.sort(key=_node_sort_key)
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:

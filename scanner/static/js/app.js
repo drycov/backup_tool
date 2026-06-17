@@ -314,15 +314,18 @@ function loadOxidizedIframe(force = false) {
 function setOxidizedLinks(url, proxyUrl, engine) {
   oxidizedPublicUrl = url || oxidizedPublicUrl;
   if (engine) oxidizedEngine = engine;
-  if (proxyUrl) oxidizedProxyUrl = proxyUrl;
+  if (proxyUrl !== undefined) oxidizedProxyUrl = proxyUrl;
   const card = qs(".oxidized-ui-card");
   if (card) card.style.display = oxidizedEngine === "python" || !oxidizedProxyUrl ? "none" : "";
   const proxyHref = oxidizedProxyUrl
     ? `${window.location.origin}${oxidizedProxyUrl}`
     : `${window.location.origin}/#oxidized`;
+  const showExternal = oxidizedEngine !== "python" && oxidizedPublicUrl;
   ["link-oxidized", "link-oxidized-2"].forEach(id => {
     const a = qs(`#${id}`);
-    if (a) a.href = oxidizedPublicUrl;
+    if (!a) return;
+    a.style.display = showExternal ? "" : "none";
+    if (showExternal) a.href = oxidizedPublicUrl;
   });
   const embedLink = qs("#link-oxidized-3");
   if (embedLink) embedLink.href = proxyHref;
@@ -1270,7 +1273,11 @@ async function runScan(discover = false) {
 async function syncOxidized() {
   try {
     const res = await api("/oxidized/sync", { method: "POST" });
-    showAlert("oxidized-alert", "Конфиг Oxidized обновлён", "success");
+    showAlert(
+      "oxidized-alert",
+      res.message || `Конфиг обновлён (${res.engine_title || res.engine})`,
+      "success",
+    );
     showAlert("dashboard-alert", `HTTP source: ${res.source_url}`, "success");
     loadOxidizedNodes();
   } catch (e) {
@@ -1288,6 +1295,7 @@ async function loadOxidizedNodes() {
         <div class="row">
           ${smallBox(health.reachable ? "OK" : "OFF", "Статус", health.reachable ? "bg-success" : "bg-danger", "fa-heartbeat")}
           ${smallBox(health.nodes_count, "Узлов", "bg-info", "fa-server")}
+          ${smallBox(health.engine_title || (health.engine === "python" ? "Python" : "Ruby"), "Движок", "bg-secondary", "fa-cogs", "text-sm")}
         </div>
       </div>
     `;
@@ -1341,7 +1349,7 @@ function renderOxidizedNodesTable(nodes) {
         <td>${escapeHtml(n.ip || "—")}</td>
         <td>${escapeHtml(n.model || "—")}</td>
         <td>${escapeHtml(n.group || "—")}</td>
-        <td>${formatDate(last.time)}</td>
+        <td>${formatDate(last.end || last.start)}</td>
         <td>${badge(status === "success" ? "success" : status)}</td>
         <td>
           <button class="btn btn-secondary btn-sm btn-show-versions" data-name="${escapeHtml(n.name)}" title="Версии / diff">
@@ -1448,16 +1456,30 @@ function closeOxidizedDiffModal() {
 
 function classifyOxidizedLogLine(line) {
   const lower = line.toLowerCase();
-  if (/error|fail|exception|fatal|unable/.test(lower)) return "log-error";
-  if (/warn|warning/.test(lower)) return "log-warn";
-  if (/success|stored|updated|finished/.test(lower)) return "log-ok";
+  if (/error|fail|exception|fatal|unable|no_connection|authenticationfailed/.test(lower)) {
+    return "log-error";
+  }
+  if (/warn|warning|retry/.test(lower)) return "log-warn";
+  if (/success|stored|updated|configuration updated|finished|pushed/.test(lower)) {
+    return "log-ok";
+  }
   return "";
 }
 
 function renderOxidizedLogs(data) {
   const viewer = qs("#oxidized-log-viewer");
   const badge = qs("#oxidized-logs-count");
+  const engineBadge = qs("#oxidized-log-engine");
   if (!viewer) return;
+
+  if (engineBadge) {
+    if (data.engine_title) {
+      engineBadge.textContent = data.engine_title;
+      engineBadge.style.display = "inline";
+    } else {
+      engineBadge.style.display = "none";
+    }
+  }
 
   if (!data.available) {
     viewer.textContent = data.error || "Лог недоступен";

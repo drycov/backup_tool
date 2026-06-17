@@ -122,7 +122,13 @@ class OxidizedConfig:
             default_ssh_port=default_ssh_port,
             ssh_secure=bool(ssh_cfg.get("secure", False)),
             model_map=model_map,
-            log_path=Path(getattr(settings, "OXIDIZED_LOG_PATH", "/var/lib/oxidized/oxidized.log")),
+            log_path=Path(
+                getattr(
+                    settings,
+                    "OXIDIZED_PYTHON_LOG_PATH",
+                    "/var/lib/oxidized/oxidized-python.log",
+                )
+            ),
             git=GitOutputConfig(
                 user=str(git_cfg.get("user") or os.environ.get("GIT_COMMIT_USER", "Oxidized")),
                 email=str(

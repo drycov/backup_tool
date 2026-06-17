@@ -10,7 +10,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-from services.device_probe import fetch_device_hostname
+from services.device_probe import probe_device_access
 from services.schemas import (
     CredentialProfile,
     Device,
@@ -27,6 +27,8 @@ PING_TIMEOUT_SEC = 2
 PORT_TIMEOUT_SEC = 2
 DEFAULT_SCAN_PORTS = [DEFAULT_ROUTEROS_SSH_PORT]
 SCAN_CONCURRENCY = max(1, int(os.environ.get("SCAN_CONCURRENCY", "50")))
+DISCOVER_MAX_HOSTS = max(1, int(os.environ.get("DISCOVER_MAX_HOSTS", "4096")))
+DISCOVER_PING_WORKERS = max(1, int(os.environ.get("DISCOVER_PING_WORKERS", "100")))
 
 logger = logging.getLogger(__name__)
 
@@ -64,19 +66,24 @@ def _unique_device_name(candidate: str | None, ip: str, existing_names: set[str]
     return f"{fallback}-dup"
 
 
-def _probe_device_name_sync(
+def _probe_device_sync(
     ip: str,
     port: int,
     group: str,
     model: str,
     credentials_by_group: dict[str, tuple[str, str]],
     existing_names: set[str],
-) -> str:
+) -> tuple[str | None, bool]:
     creds = credentials_by_group.get(group)
-    if creds and port:
-        hostname = fetch_device_hostname(ip, port, creds[0], creds[1], model)
-        return _unique_device_name(hostname, ip, existing_names)
-    return _unique_device_name(None, ip, existing_names)
+    if not creds:
+        return None, False
+
+    probe = probe_device_access(ip, port, creds[0], creds[1], model)
+    if not probe.authenticated:
+        return None, False
+
+    name = _unique_device_name(probe.identity, ip, existing_names)
+    return name, True
 
 
 async def device_name_from_device(
@@ -87,13 +94,13 @@ async def device_name_from_device(
     credentials_by_group: dict[str, tuple[str, str]],
     existing_names: set[str],
 ) -> tuple[str, bool]:
-    """Имя устройства и флаг успешной проверки (SSH-порт доступен)."""
+    """Имя устройства и флаг успешной SSH-аутентификации."""
     port_result = await check_port(ip, port)
     if not port_result.open:
         return _unique_device_name(None, ip, existing_names), False
 
-    name = await asyncio.to_thread(
-        _probe_device_name_sync,
+    name, verified = await asyncio.to_thread(
+        _probe_device_sync,
         ip,
         port,
         group,
@@ -101,6 +108,8 @@ async def device_name_from_device(
         credentials_by_group,
         existing_names,
     )
+    if not verified or not name:
+        return _unique_device_name(None, ip, existing_names), False
     return name, True
 
 
@@ -112,12 +121,32 @@ async def probe_discovered_device(
     credentials_by_group: dict[str, tuple[str, str]],
     existing_names: set[str],
 ) -> Device | None:
-    """Проверить хост и вернуть устройство только при успешной проверке порта."""
-    name, verified = await device_name_from_device(
-        ip, group, port, model, credentials_by_group, existing_names
+    """Добавить устройство только при открытом SSH-порте и успешной аутентификации."""
+    if group not in credentials_by_group:
+        logger.info("discover | skip | %s — нет учётных данных для группы %s", ip, group)
+        return None
+
+    port_result = await check_port(ip, port)
+    if not port_result.open:
+        logger.debug("discover | skip | %s — порт %s закрыт", ip, port)
+        return None
+
+    name, verified = await asyncio.to_thread(
+        _probe_device_sync,
+        ip,
+        port,
+        group,
+        model,
+        credentials_by_group,
+        existing_names,
     )
-    if not verified:
-        logger.info("discover | skip | %s — SSH-порт %s недоступен", ip, port)
+    if not verified or not name:
+        logger.info(
+            "discover | skip | %s — SSH-порт %s открыт, но вход не удался (group=%s)",
+            ip,
+            port,
+            group,
+        )
         return None
 
     return Device(
@@ -153,7 +182,7 @@ async def apply_device_names(
     credential_profiles: list[CredentialProfile],
 ) -> tuple[list[Device], bool]:
     """Обновить имена online/partial устройств из system identity (SSH)."""
-    from services.inventory import load_inventory_async
+    from services.inventory import load_inventory_async, rename_device_async
 
     inventory = await load_inventory_async()
     devices = inventory.devices
@@ -176,28 +205,39 @@ async def apply_device_names(
     ]
 
     rename_map: dict[str, str] = {}
-    for device in to_rename:
-        port = device.ports[0] if device.ports else DEFAULT_ROUTEROS_SSH_PORT
-        new_name, verified = await device_name_from_device(
-            device.ip,
-            device.group,
-            port,
-            device.model,
-            credentials_by_group,
-            names_in_use - {device.name},
-        )
-        if not verified:
+    sem = asyncio.Semaphore(SCAN_CONCURRENCY)
+
+    async def resolve_name(device: Device) -> tuple[str, str | None]:
+        async with sem:
+            port = device.ports[0] if device.ports else DEFAULT_ROUTEROS_SSH_PORT
+            new_name, verified = await device_name_from_device(
+                device.ip,
+                device.group,
+                port,
+                device.model,
+                credentials_by_group,
+                names_in_use - {device.name},
+            )
+            if not verified:
+                return device.ip, None
+            return device.ip, new_name
+
+    resolved = await asyncio.gather(*(resolve_name(device) for device in to_rename))
+    for ip, new_name in resolved:
+        if not new_name:
             continue
-        rename_map[device.ip] = new_name
+        device = next(d for d in to_rename if d.ip == ip)
+        if new_name == device.name:
+            continue
+        rename_map[ip] = new_name
         names_in_use.discard(device.name)
         names_in_use.add(new_name)
-        if new_name != device.name:
-            logger.info(
-                "scan | rename | %s (%s) -> %s (SSH identity)",
-                device.name,
-                device.ip,
-                new_name,
-            )
+        logger.info(
+            "scan | rename | %s (%s) -> %s (SSH identity)",
+            device.name,
+            device.ip,
+            new_name,
+        )
 
     changed = False
     for device in devices:
@@ -219,16 +259,12 @@ async def apply_device_names(
                 occupied.ip,
             )
         updated_device = device.model_copy(update={"name": new_name})
-        from services.inventory import rename_device_async
-
         await rename_device_async(device.name, updated_device)
         names_in_use.discard(device.name)
         names_in_use.add(new_name)
         changed = True
 
     if changed:
-        from services.inventory import load_inventory_async
-
         inventory = await load_inventory_async()
         return inventory.devices, True
 
@@ -278,11 +314,9 @@ async def scan_device(device: Device) -> ScanResult:
 
     open_ports = [p for p in port_results if p.open]
 
-    if ping_ok and open_ports:
-        status = ScanStatus.ONLINE
-    elif ping_ok and not open_ports:
-        status = ScanStatus.PARTIAL
-    elif not ping_ok and open_ports:
+    if open_ports:
+        status = ScanStatus.ONLINE if ping_ok else ScanStatus.PARTIAL
+    elif ping_ok:
         status = ScanStatus.PARTIAL
     else:
         status = ScanStatus.OFFLINE
@@ -347,8 +381,8 @@ async def scan_devices(
         "scan | done | total=%d online=%d partial=%d offline=%d",
         len(results),
         online,
-        partial,
         offline,
+        partial,
     )
 
     return ScanSummary(
@@ -362,7 +396,7 @@ async def scan_devices(
 
 
 def discover_hosts_in_network(network: str) -> list[str]:
-    """Сканирование подсети: ping sweep (параллельно через subprocess)."""
+    """Ping sweep подсети (параллельно через subprocess)."""
     try:
         net = ipaddress.ip_network(network, strict=False)
     except ValueError:
@@ -370,8 +404,14 @@ def discover_hosts_in_network(network: str) -> list[str]:
         return []
 
     hosts = [str(ip) for ip in net.hosts()]
-    if len(hosts) > 254:
-        hosts = hosts[:254]
+    if len(hosts) > DISCOVER_MAX_HOSTS:
+        logger.warning(
+            "discover | network=%s hosts=%d exceeds DISCOVER_MAX_HOSTS=%d, truncating",
+            network,
+            len(hosts),
+            DISCOVER_MAX_HOSTS,
+        )
+        hosts = hosts[:DISCOVER_MAX_HOSTS]
 
     logger.info("discover | ping sweep | network=%s hosts=%d", network, len(hosts))
 
@@ -386,7 +426,8 @@ def discover_hosts_in_network(network: str) -> list[str]:
         result = subprocess.run(cmd, capture_output=True, timeout=3)
         return result.returncode == 0
 
-    with ThreadPoolExecutor(max_workers=50) as pool:
+    workers = min(DISCOVER_PING_WORKERS, len(hosts) or 1)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(ping_one, ip): ip for ip in hosts}
         for future in as_completed(futures):
             ip = futures[future]
@@ -414,19 +455,22 @@ async def discover_and_enrich(
     on_progress: Callable[[int, int, str], None] | None = None,
     on_device_saved: Callable[[Device], None] | None = None,
 ) -> list[Device]:
-    """Сканирует подсети; каждое проверенное устройство сразу сохраняется в БД."""
+    """Discovery: ping sweep подсетей, затем параллельная SSH-проверка новых хостов."""
     from services.inventory import add_device_async
 
     logger.info(
-        "discover | start | networks=%d existing_devices=%d",
+        "discover | start | networks=%d existing_devices=%d concurrency=%d",
         len(network_entries),
         len(existing_devices),
+        SCAN_CONCURRENCY,
     )
     known_ips = {d.ip for d in existing_devices}
     names_in_use = {d.name for d in existing_devices}
     credentials_by_group = build_group_credentials(credential_profiles)
     saved_devices: list[Device] = []
     port = DEFAULT_ROUTEROS_SSH_PORT
+    state_lock = asyncio.Lock()
+    sem = asyncio.Semaphore(SCAN_CONCURRENCY)
 
     for idx, entry in enumerate(network_entries, start=1):
         subnet = entry.network if hasattr(entry, "network") else str(entry)
@@ -437,26 +481,72 @@ async def discover_and_enrich(
         if on_progress:
             on_progress(idx - 1, len(network_entries), subnet)
 
-        alive_ips = await asyncio.to_thread(discover_hosts_in_network, subnet)
-        skipped = sum(1 for ip in alive_ips if ip in known_ips)
-        for ip in alive_ips:
-            if ip in known_ips:
-                continue
-
-            device = await probe_discovered_device(
-                ip,
+        if group_name not in credentials_by_group:
+            logger.warning(
+                "discover | skip subnet=%s — no credentials for group=%s",
+                subnet,
                 group_name,
-                port,
-                default_model,
-                credentials_by_group,
-                names_in_use,
             )
-            if not device:
+            if on_progress:
+                on_progress(idx, len(network_entries), subnet)
+            continue
+
+        alive_ips = await asyncio.to_thread(discover_hosts_in_network, subnet)
+        candidates = [ip for ip in alive_ips if ip not in known_ips]
+        skipped = len(alive_ips) - len(candidates)
+
+        if not candidates:
+            if skipped:
+                logger.info(
+                    "discover | subnet=%s alive=%d skipped_known=%d",
+                    subnet,
+                    len(alive_ips),
+                    skipped,
+                )
+            if on_progress:
+                on_progress(idx, len(network_entries), subnet)
+            continue
+
+        logger.info(
+            "discover | subnet=%s alive=%d probe=%d skipped_known=%d",
+            subnet,
+            len(alive_ips),
+            len(candidates),
+            skipped,
+        )
+
+        async def probe_one(ip: str) -> Device | None:
+            async with sem:
+                async with state_lock:
+                    if ip in known_ips:
+                        return None
+                    local_names = set(names_in_use)
+
+                device = await probe_discovered_device(
+                    ip,
+                    group_name,
+                    port,
+                    default_model,
+                    credentials_by_group,
+                    local_names,
+                )
+                if device is None:
+                    return None
+
+                async with state_lock:
+                    if ip in known_ips or device.name in names_in_use:
+                        return None
+                    names_in_use.add(device.name)
+                    known_ips.add(ip)
+                return device
+
+        probe_results = await asyncio.gather(*(probe_one(ip) for ip in candidates))
+
+        for device in probe_results:
+            if device is None:
                 continue
 
             await add_device_async(device)
-            names_in_use.add(device.name)
-            known_ips.add(ip)
             saved_devices.append(device)
 
             from_device = not device.name.startswith(DISCOVERED_NAME_PREFIX)
@@ -469,13 +559,6 @@ async def discover_and_enrich(
             )
             if on_device_saved:
                 on_device_saved(device)
-
-        if skipped:
-            logger.info(
-                "discover | subnet=%s skipped_known=%d",
-                subnet,
-                skipped,
-            )
 
         if on_progress:
             on_progress(idx, len(network_entries), subnet)

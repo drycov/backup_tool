@@ -48,8 +48,17 @@ class RouterOSModel(Model):
         export_cmd = self._export_command(node)
         export_raw = exec_cmd(export_cmd)
         export_cfg = self._clean_export(export_raw)
+        export_cfg = self._significant_changes(export_cfg)
         outputs.add(export_cfg)
         return outputs
+
+    def _significant_changes(self, cfg: str) -> str:
+        return re.sub(
+            r"^(#\s+installed-version: [^\n]+\n).*?^(?=# software id)",
+            r"\1",
+            cfg,
+            flags=re.MULTILINE | re.DOTALL,
+        )
 
     def _export_command(self, node: Node) -> str:
         if node.vars.get("remove_secret"):

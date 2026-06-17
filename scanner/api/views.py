@@ -104,6 +104,9 @@ def ui_config(request: HttpRequest) -> JsonResponse:
             "oxidized_public_url": settings.OXIDIZED_PUBLIC_URL,
             "oxidized_proxy_url": "/oxidized-proxy/nodes" if engine == "external" else None,
             "oxidized_engine": engine,
+            "oxidized_engine_title": (
+                "Python Oxidized" if engine == "python" else "Ruby Oxidized"
+            ),
             "scanner_version": "1.0.0",
             "auth_required": True,
             "auth": auth_methods(),
@@ -593,7 +596,7 @@ def get_latest_scan_view(request: HttpRequest) -> JsonResponse:
 @require_permission(auth.PERMISSION_OXIDIZED_WRITE)
 def sync_oxidized_view(request: HttpRequest) -> JsonResponse:
     inventory = load_inventory()
-    update_oxidized_credentials(inventory)
+    reload_info = update_oxidized_credentials(inventory)
     from django.conf import settings
 
     engine = getattr(settings, "OXIDIZED_ENGINE", "python")
@@ -601,10 +604,14 @@ def sync_oxidized_view(request: HttpRequest) -> JsonResponse:
         {
             "status": "ok",
             "engine": engine,
+            "engine_title": (
+                "Python Oxidized" if engine == "python" else "Ruby Oxidized"
+            ),
             "source": "inventory",
             "source_url": OXIDIZED_SOURCE_URL,
             "devices_count": len(inventory.devices),
             "enabled_count": sum(1 for d in inventory.devices if d.enabled),
+            **reload_info,
         }
     )
 

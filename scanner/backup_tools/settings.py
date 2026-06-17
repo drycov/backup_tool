@@ -123,6 +123,9 @@ OXIDIZED_HOME = os.environ.get("OXIDIZED_HOME", "/data/oxidized")
 OXIDIZED_LOG_PATH = os.environ.get(
     "OXIDIZED_LOG_PATH", "/var/lib/oxidized/oxidized.log"
 )
+OXIDIZED_PYTHON_LOG_PATH = os.environ.get(
+    "OXIDIZED_PYTHON_LOG_PATH", "/var/lib/oxidized/oxidized-python.log"
+)
 ROUTEROS_SSH_PORT = int(os.environ.get("ROUTEROS_SSH_PORT", "44333"))
 SCAN_CONCURRENCY = max(1, int(os.environ.get("SCAN_CONCURRENCY", "50")))
 

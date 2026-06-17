@@ -1,6 +1,8 @@
 # Развёртывание Backup Tools через Portainer
 
-Стек: **PostgreSQL** + **Scanner (Django UI)** + **Oxidized**.
+> Полная документация: [docs/README.md](../docs/README.md)
+
+Стек: **PostgreSQL** + **Scanner (Django UI)** + **Oxidized** (опционально, profile `external`).
 
 ## Требования
 

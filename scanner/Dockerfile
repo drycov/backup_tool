@@ -35,6 +35,9 @@ COPY scripts ./scripts
 
 RUN python manage.py collectstatic --noinput
 
+RUN sed -i 's/\r$//' scripts/docker-entrypoint.sh 2>/dev/null || true \
+    && chmod +x scripts/docker-entrypoint.sh
+
 EXPOSE 8000
 
-CMD ["gunicorn", "backup_tools.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "120"]
+CMD ["scripts/docker-entrypoint.sh"]

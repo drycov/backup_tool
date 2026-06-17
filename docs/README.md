@@ -1,0 +1,45 @@
+# Документация Backup Tools
+
+Backup Tools — платформа для **сканирования сети**, **ведения инвентаря** сетевых устройств и **автоматического резервного копирования конфигураций** через встроенный или внешний [Oxidized](https://github.com/ytti/oxidized).
+
+## Содержание
+
+| Документ | Описание |
+|----------|----------|
+| [Архитектура](architecture.md) | Компоненты, потоки данных, режимы Oxidized |
+| [Установка](installation.md) | Docker Compose, Portainer, первичная настройка |
+| [Конфигурация](configuration.md) | Переменные окружения (`.env`) |
+| [Инвентарь](inventory.md) | Форматы YAML, импорт подсетей, профили учётных данных |
+| [Сканирование](scanning.md) | Ping sweep, discovery, проверка портов и SSH |
+| [Oxidized и бэкапы](oxidized.md) | Python-движок vs Ruby, Git push, SSH-ключи |
+| [Аутентификация](authentication.md) | JWT, RBAC, LDAP / Active Directory |
+| [API](api.md) | REST-эндпоинты Scanner |
+| [Эксплуатация](operations.md) | Команды, мониторинг, резервное копирование, troubleshooting |
+
+## Дополнительные материалы
+
+- [Развёртывание через Portainer](../deploy/PORTAINER.md)
+- [SSH-ключи для Git push](../oxidized-ssh/README.md)
+- [Шаблон переменных окружения](../.env.example)
+
+## Быстрый старт
+
+```bash
+cp .env.example .env
+# отредактируйте .env
+chmod +x deploy/init-stack.sh oxidized/entrypoint.sh
+./deploy/init-stack.sh .
+docker compose up -d --build
+```
+
+UI: **http://localhost:8000/ui**
+
+Первый вход — логин и пароль из `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+
+## Сервисы
+
+| Сервис | Порт | Описание |
+|--------|------|----------|
+| Scanner UI | 8000 | Web-интерфейс, REST API, scan/discovery, встроенный Oxidized |
+| Oxidized (external) | 8888 | Ruby Oxidized — только при `OXIDIZED_ENGINE=external` |
+| PostgreSQL | — | Инвентарь, пользователи, LDAP-настройки (внутренняя сеть Docker) |

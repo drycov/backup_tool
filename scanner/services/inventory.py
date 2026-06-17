@@ -350,17 +350,19 @@ def devices_for_oxidized_source() -> list[dict]:
     return nodes
 
 
-def update_oxidized_credentials(inventory: Inventory) -> None:
+def update_oxidized_credentials(inventory: Inventory) -> dict[str, str]:
     from django.conf import settings
 
     config_path = Path(settings.OXIDIZED_CONFIG_PATH)
-    if not config_path.exists():
-        return
+    config_path.parent.mkdir(parents=True, exist_ok=True)
 
-    raw = config_path.read_text(encoding="utf-8")
-    try:
-        config = yaml.safe_load(raw) or {}
-    except yaml.YAMLError:
+    if config_path.exists():
+        raw = config_path.read_text(encoding="utf-8")
+        try:
+            config = yaml.safe_load(raw) or {}
+        except yaml.YAMLError:
+            config = {}
+    else:
         config = {}
 
     ssh_port = _default_ssh_port()
@@ -371,6 +373,30 @@ def update_oxidized_credentials(inventory: Inventory) -> None:
         config["password"] = first.password
 
     config["model"] = config.get("model", "routeros")
+    config["resolve_dns"] = config.get("resolve_dns", True)
+    config["interval"] = int(
+        config.get("interval") or os.environ.get("OXIDIZED_INTERVAL", "3600")
+    )
+    config["threads"] = int(
+        config.get("threads") or os.environ.get("OXIDIZED_THREADS", "10")
+    )
+    config["timeout"] = int(
+        config.get("timeout") or os.environ.get("OXIDIZED_TIMEOUT", "20")
+    )
+    config["retries"] = int(
+        config.get("retries") or os.environ.get("OXIDIZED_RETRIES", "3")
+    )
+    engine = getattr(settings, "OXIDIZED_ENGINE", "python").lower()
+    if engine == "python":
+        config["log"] = getattr(
+            settings,
+            "OXIDIZED_PYTHON_LOG_PATH",
+            "/var/lib/oxidized/oxidized-python.log",
+        )
+    else:
+        config["log"] = getattr(
+            settings, "OXIDIZED_LOG_PATH", "/var/lib/oxidized/oxidized.log"
+        )
     config["input"] = {
         "default": "ssh",
         "ssh": {"secure": False, "port": ssh_port},
@@ -405,6 +431,16 @@ def update_oxidized_credentials(inventory: Inventory) -> None:
     if groups:
         config["groups"] = groups
 
+    if engine == "python":
+        config.pop("rest", None)
+        extensions = config.get("extensions")
+        if isinstance(extensions, dict):
+            extensions.pop("oxidized-web", None)
+            if not extensions:
+                config.pop("extensions", None)
+    else:
+        config.setdefault("rest", "0.0.0.0:8888")
+
     config["output"] = {
         "default": "git",
         "git": {
@@ -433,16 +469,14 @@ def update_oxidized_credentials(inventory: Inventory) -> None:
     else:
         config.pop("hooks", None)
 
-    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         yaml.dump(config, default_flow_style=False, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
 
-    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
-        from services.oxidized_engine import reload_engine
+    from services.oxidized_reload import apply_engine_reload
 
-        reload_engine()
+    return apply_engine_reload()
 
 
 from asgiref.sync import sync_to_async

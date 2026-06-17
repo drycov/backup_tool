@@ -178,7 +178,9 @@ def build_versions_proxy_path(name: str, group: str = "") -> str:
 
 
 def check_health() -> dict:
-    if _use_python_engine():
+    from services.oxidized_logging import engine_title, is_python_engine, oxidized_log_path
+
+    if is_python_engine():
         from services.oxidized_engine import get_manager
 
         payload = get_manager().health()
@@ -192,6 +194,8 @@ def check_health() -> dict:
         "error": err,
         "nodes_count": len(data) if data else 0,
         "engine": "external",
+        "engine_title": engine_title(),
+        "log_path": str(oxidized_log_path()),
         "public_url": settings.OXIDIZED_PUBLIC_URL,
         "internal_url": settings.OXIDIZED_URL,
     }

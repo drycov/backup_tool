@@ -12,7 +12,7 @@ from django.conf import settings
 from services.oxidized_config_loader import oxidized_home
 from services.oxidized_engine.outputs import ModelOutputs
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("services.oxidized_engine.collector.ruby_bridge")
 
 _BRIDGE_SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "oxidized_bridge.rb"
 _RUBY_BIN = os.environ.get("RUBY_BIN", "ruby")

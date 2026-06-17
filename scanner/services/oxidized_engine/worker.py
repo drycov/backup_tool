@@ -79,26 +79,40 @@ class Worker:
         if stored:
             node.modified()
             self.hooks.post_store(node, job, self.output.last_commit)
+            logger.info(
+                "oxidized | Configuration updated for %s/%s",
+                node.group,
+                node.name,
+            )
+        else:
+            logger.info(
+                "oxidized | no change for %s/%s",
+                node.group,
+                node.name,
+            )
         node.reset()
         self._jobs_done += 1
 
     def _process_failure(self, node, job) -> None:
+        detail = f": {node.err_reason}" if node.err_reason else ""
         if node.retry < self.config.retries:
             node.retry += 1
             logger.warning(
-                "oxidized | %s/%s status %s, retry %d",
+                "oxidized | %s/%s status %s, retry %d%s",
                 node.group,
                 node.name,
                 job.status,
                 node.retry,
+                detail,
             )
             self.nodes.next(node.name)
         else:
             logger.warning(
-                "oxidized | %s/%s status %s, retries exhausted",
+                "oxidized | %s/%s status %s, retries exhausted%s",
                 node.group,
                 node.name,
                 job.status,
+                detail,
             )
             node.retry = 0
             self.hooks.node_fail(node, job)

@@ -20,12 +20,15 @@ def initialize() -> None:
 
     from django.conf import settings
 
+    inventory = load_inventory()
+    update_oxidized_credentials(inventory)
+
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
         from services.oxidized_engine import start_engine
 
         start_engine()
         logger.info("oxidized | python engine started")
     else:
-        update_oxidized_credentials(load_inventory())
+        logger.info("oxidized | ruby engine mode — config synced, worker in oxidized container")
 
     _initialized = True
