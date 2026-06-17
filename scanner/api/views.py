@@ -49,6 +49,7 @@ from services.oxidized_proxy import (
     hop_headers,
     rewrite_proxy_body,
     rewrite_proxy_location,
+    upstream_target,
 )
 from services.schemas import (
     CredentialProfile,
@@ -270,9 +271,7 @@ def oxidized_source(request: HttpRequest) -> JsonResponse:
 @csrf_exempt
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_proxy(request: HttpRequest, path: str = "") -> HttpResponse:
-    target = f"/{path}" if path else "/"
-    if request.META.get("QUERY_STRING"):
-        target = f"{target}?{request.META['QUERY_STRING']}"
+    target = upstream_target(path, request.META.get("QUERY_STRING", ""))
 
     forward_headers = {
         key.replace("HTTP_", "").replace("_", "-").title(): value

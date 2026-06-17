@@ -7,6 +7,7 @@ import re
 from django.conf import settings
 
 OXIDIZED_PROXY_PREFIX = "/oxidized-proxy"
+_PROXY_PREFIX_SLUG = "oxidized-proxy"
 
 _HOP_HEADERS = frozenset(
     {
@@ -29,13 +30,37 @@ _EMBED_BLOCK_HEADERS = frozenset(
 )
 
 _ROOT_ATTR_RE = re.compile(
-    r"(?P<attr>href|src|action)\s*=\s*(?P<q>['\"])/(?P<rest>[^'\"]*)"
+    r"(?P<attr>href|src|action)\s*=\s*(?P<q>['\"])/"
+    r"(?!oxidized-proxy(?:/|$))(?P<rest>[^'\"]*)"
 )
-_CSS_URL_RE = re.compile(r"url\(\s*(['\"]?)/")
+_CSS_URL_RE = re.compile(
+    r"url\(\s*(['\"]?)/(?!oxidized-proxy(?:/|$))"
+)
 _QUOTED_ABS_PATH_RE = re.compile(
-    r"""(?P<q>["'])/(?!oxidized-proxy)(?P<path>[^"']*)"""
+    r"""(?P<q>["'])/(?!oxidized-proxy(?:/|$))(?P<path>[^"']*)"""
 )
-_BASE_TAG_RE = re.compile(r"<base\s[^>]*>", re.IGNORECASE)
+
+
+def upstream_target(path: str = "", query_string: str = "") -> str:
+    """Map incoming /oxidized-proxy/... request to Oxidized upstream path."""
+    clean = (path or "").lstrip("/")
+    if clean == _PROXY_PREFIX_SLUG:
+        clean = ""
+    elif clean.startswith(f"{_PROXY_PREFIX_SLUG}/"):
+        clean = clean[len(_PROXY_PREFIX_SLUG) + 1 :]
+    target = f"/{clean}" if clean else "/"
+    if query_string:
+        target = f"{target}?{query_string}"
+    return target
+
+
+def _to_proxy_path(path: str) -> str:
+    path = path.lstrip("/")
+    if not path or path == _PROXY_PREFIX_SLUG:
+        return f"{OXIDIZED_PROXY_PREFIX}/"
+    if path.startswith(f"{_PROXY_PREFIX_SLUG}/"):
+        return f"{OXIDIZED_PROXY_PREFIX}/{path[len(_PROXY_PREFIX_SLUG) + 1:]}"
+    return f"{OXIDIZED_PROXY_PREFIX}/{path}"
 
 
 def rewrite_proxy_location(location: str) -> str:
@@ -45,8 +70,12 @@ def rewrite_proxy_location(location: str) -> str:
             suffix = location[len(base) :] or "/"
             if not suffix.startswith("/"):
                 suffix = f"/{suffix}"
+            if suffix.startswith(OXIDIZED_PROXY_PREFIX):
+                return suffix
             return f"{OXIDIZED_PROXY_PREFIX}{suffix}"
-    if location.startswith("/") and not location.startswith(OXIDIZED_PROXY_PREFIX):
+    if location.startswith(OXIDIZED_PROXY_PREFIX):
+        return location
+    if location.startswith("/"):
         return f"{OXIDIZED_PROXY_PREFIX}{location}"
     return location
 
@@ -56,18 +85,9 @@ def _rewrite_quoted_paths(text: str) -> str:
         path = match.group("path")
         if path.startswith(("http://", "https://", "//")):
             return match.group(0)
-        return f'{match.group("q")}{OXIDIZED_PROXY_PREFIX}/{path}'
+        return f'{match.group("q")}{_to_proxy_path(path)}'
 
     return _QUOTED_ABS_PATH_RE.sub(repl, text)
-
-
-def _inject_base_tag(text: str) -> str:
-    if _BASE_TAG_RE.search(text):
-        return text
-    base = f'<base href="{OXIDIZED_PROXY_PREFIX}/">'
-    if re.search(r"<head[^>]*>", text, re.IGNORECASE):
-        return re.sub(r"(<head[^>]*>)", rf"\1\n    {base}", text, count=1, flags=re.IGNORECASE)
-    return text
 
 
 def rewrite_proxy_body(content: bytes, content_type: str) -> bytes:
@@ -87,26 +107,26 @@ def rewrite_proxy_body(content: bytes, content_type: str) -> bytes:
     )
     text = _rewrite_quoted_paths(text)
 
-    if "html" in ct:
+    if "html" in ct or "javascript" in ct or "json" in ct:
         text = _ROOT_ATTR_RE.sub(
             lambda m: (
                 f"{m.group('attr')}={m.group('q')}"
-                f"{OXIDIZED_PROXY_PREFIX}/{m.group('rest')}"
-            ),
-            text,
-        )
-        text = _inject_base_tag(text)
-    elif "javascript" in ct or "json" in ct:
-        text = _ROOT_ATTR_RE.sub(
-            lambda m: (
-                f"{m.group('attr')}={m.group('q')}"
-                f"{OXIDIZED_PROXY_PREFIX}/{m.group('rest')}"
+                f"{_to_proxy_path(m.group('rest'))}"
             ),
             text,
         )
 
     if "css" in ct:
-        text = _CSS_URL_RE.sub(f"url(\\1{OXIDIZED_PROXY_PREFIX}/", text)
+        text = _CSS_URL_RE.sub(
+            lambda m: f"url({m.group(1)}{OXIDIZED_PROXY_PREFIX}/",
+            text,
+        )
+
+    while f"{OXIDIZED_PROXY_PREFIX}/{_PROXY_PREFIX_SLUG}/" in text:
+        text = text.replace(
+            f"{OXIDIZED_PROXY_PREFIX}/{_PROXY_PREFIX_SLUG}/",
+            f"{OXIDIZED_PROXY_PREFIX}/",
+        )
 
     return text.encode("utf-8")
 
