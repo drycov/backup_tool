@@ -451,18 +451,22 @@ def update_oxidized_credentials(inventory: Inventory) -> dict[str, str]:
     }
 
     if GIT_REMOTE_URL:
-        push_hook: dict = {
-            "type": "githubrepo",
-            "events": ["post_store"],
-            "remote_repo": GIT_REMOTE_URL,
-        }
-        if GITEA_TOKEN:
-            push_hook["username"] = GITEA_HTTP_USER
-            push_hook["password"] = ""
+        if engine == "python":
+            # Python HookRunner pushes via subprocess with token from env (not Rugged).
+            config.pop("hooks", None)
         else:
-            push_hook["privatekey"] = GIT_SSH_PRIVATE_KEY
-            push_hook["publickey"] = GIT_SSH_PUBLIC_KEY
-        config["hooks"] = {"push_to_git": push_hook}
+            push_hook: dict = {
+                "type": "githubrepo",
+                "events": ["post_store"],
+                "remote_repo": GIT_REMOTE_URL,
+            }
+            if GITEA_TOKEN:
+                push_hook["username"] = GITEA_HTTP_USER
+                push_hook["password"] = GITEA_TOKEN
+            else:
+                push_hook["privatekey"] = GIT_SSH_PRIVATE_KEY
+                push_hook["publickey"] = GIT_SSH_PUBLIC_KEY
+            config["hooks"] = {"push_to_git": push_hook}
     else:
         config.pop("hooks", None)
 
