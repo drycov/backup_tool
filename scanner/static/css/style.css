@@ -168,11 +168,11 @@ body.login-page .login-logo {
   height: 65vh;
   border: 0;
   display: block;
-  background: #fff;
+  background: #0d1117;
 }
 
 .oxidized-diff-modal .modal-body {
-  background: #f4f6f9;
+  background: #0d1117;
 }
 
 .oxidized-ui-toolbar .btn-group .btn {

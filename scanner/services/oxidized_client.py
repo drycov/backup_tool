@@ -126,7 +126,7 @@ def build_diff_proxy_path(
     oid2: Optional[str] = None,
 ) -> str:
     if _use_python_engine():
-        params = {"oid": oid}
+        params = {"oid": oid, "format": "html"}
         if oid2:
             params["oid2"] = oid2
         query = "&".join(f"{k}={quote(v, safe='')}" for k, v in params.items())

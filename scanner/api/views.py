@@ -437,11 +437,12 @@ def oxidized_node_version_view(request: HttpRequest, name: str, oid: str) -> Htt
 
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
-def oxidized_node_diff(request: HttpRequest, name: str) -> JsonResponse:
+def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
         return error_response("Доступно только для python engine", status=501)
     from services.oxidized_engine import get_manager
     from services.oxidized_engine.exceptions import NodeNotFound
+    from services.git_diff_html import render_git_diff_html
 
     oid = request.GET.get("oid", "")
     oid2 = request.GET.get("oid2") or None
@@ -451,7 +452,19 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> JsonResponse:
         diff = get_manager().get_diff(name, oid, oid2)
     except NodeNotFound:
         return error_response(f"Node '{name}' not found", status=404)
-    return json_response(diff)
+
+    fmt = (request.GET.get("format") or "html").lower()
+    patch = str(diff.get("patch") or "")
+    if fmt == "json":
+        return json_response(diff)
+    if fmt == "text":
+        return HttpResponse(patch, content_type="text/plain; charset=utf-8")
+    html_body = render_git_diff_html(
+        patch,
+        title=f"Diff {name}",
+        stat=diff.get("stat"),
+    )
+    return HttpResponse(html_body, content_type="text/html; charset=utf-8")
 
 
 def health(request: HttpRequest) -> JsonResponse:
