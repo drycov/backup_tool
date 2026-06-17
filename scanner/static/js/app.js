@@ -204,6 +204,8 @@ function showApp() {
   qs("#app-layout").style.display = "block";
   applyPermissions();
   updateNavbarUser();
+  const iframe = qs("#oxidized-iframe");
+  if (iframe) iframe.setAttribute("src", "about:blank");
 }
 
 function updateNavbarUser() {
@@ -290,11 +292,12 @@ function showAlert(containerId, msg, type = "danger") {
   setTimeout(() => { el.innerHTML = ""; }, 5000);
 }
 
-function loadOxidizedIframe() {
+function loadOxidizedIframe(force = false) {
   const iframe = qs("#oxidized-iframe");
-  if (!iframe) return;
+  if (!iframe || !currentUser) return;
   const target = oxidizedProxyUrl || "/oxidized-proxy/nodes";
-  if (iframe.getAttribute("src") !== target) {
+  const current = iframe.getAttribute("src") || "";
+  if (force || current === "about:blank" || !current.includes("/oxidized-proxy")) {
     iframe.setAttribute("src", target);
   }
 }
@@ -302,11 +305,13 @@ function loadOxidizedIframe() {
 function setOxidizedLinks(url, proxyUrl) {
   oxidizedPublicUrl = url || oxidizedPublicUrl;
   if (proxyUrl) oxidizedProxyUrl = proxyUrl;
-  ["link-oxidized", "link-oxidized-2", "link-oxidized-3"].forEach(id => {
+  const proxyHref = `${window.location.origin}${oxidizedProxyUrl || "/oxidized-proxy/nodes"}`;
+  ["link-oxidized", "link-oxidized-2"].forEach(id => {
     const a = qs(`#${id}`);
     if (a) a.href = oxidizedPublicUrl;
   });
-  loadOxidizedIframe();
+  const embedLink = qs("#link-oxidized-3");
+  if (embedLink) embedLink.href = proxyHref;
 }
 
 function setPageTitle(page) {
@@ -339,7 +344,7 @@ function initNavigation() {
       } else {
         stopOxidizedLogsPolling();
       }
-      if (page === "oxidized-ui") loadOxidizedIframe();
+      if (page === "oxidized-ui") loadOxidizedIframe(true);
       if (page === "users") {
         loadUsers();
         loadRbacMatrix();
