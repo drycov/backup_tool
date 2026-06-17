@@ -20,6 +20,8 @@ docker compose up -d --build
 
 UI: http://localhost:8000/ui
 
+LDAP / Active Directory: **Настройки** → раздел «LDAP / Active Directory» (роль admin). При первом запуске подтягиваются значения из `.env`.
+
 ## Развёртывание через Portainer
 
 Пошаговая инструкция: **[deploy/PORTAINER.md](deploy/PORTAINER.md)**

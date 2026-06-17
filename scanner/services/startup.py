@@ -14,5 +14,8 @@ def initialize() -> None:
     setup_logging()
     logger.info("scanner | startup")
     init_db()
+    from services.ldap_settings import ensure_initialized
+
+    ensure_initialized()
     update_oxidized_credentials(load_inventory())
     _initialized = True

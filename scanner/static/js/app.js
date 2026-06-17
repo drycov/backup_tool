@@ -179,6 +179,10 @@ function applyPermissions() {
       el.style.display = can(perm) ? "" : "none";
     }
   });
+  const ldapCard = qs("#settings-ldap-card");
+  if (ldapCard) {
+    ldapCard.style.display = can("users:manage") ? "" : "none";
+  }
   const netsCard = qs("#networks-card");
   if (netsCard) {
     netsCard.style.display = can("inventory:write") ? "" : "none";
@@ -601,6 +605,162 @@ async function loadSettings() {
   inventory = await api("/inventory");
   updateGroupSelects();
   renderSettingsCredentials();
+  if (can("users:manage")) {
+    await loadLdapSettings();
+  }
+}
+
+const LDAP_PRESETS = {
+  ldap: {
+    user_filter: "(uid={username})",
+    start_tls: true,
+    use_ssl: false,
+    hint: "OpenLDAP / generic: uid, StartTLS на порту 389",
+  },
+  ad: {
+    user_filter: "(sAMAccountName={username})",
+    start_tls: true,
+    use_ssl: false,
+    hint: "Active Directory: sAMAccountName, StartTLS или LDAPS",
+  },
+};
+
+function updateLdapPresetHint() {
+  const type = qs("#ldap-directory-type")?.value || "ldap";
+  const hint = qs("#ldap-preset-hint");
+  if (hint) hint.textContent = LDAP_PRESETS[type]?.hint || "";
+}
+
+function applyLdapPreset(force = false) {
+  const type = qs("#ldap-directory-type")?.value || "ldap";
+  const preset = LDAP_PRESETS[type];
+  if (!preset) return;
+
+  const filterEl = qs("#ldap-user-filter");
+  if (force || !filterEl?.value.trim() || filterEl.value.includes("{username}")) {
+    if (filterEl) filterEl.value = preset.user_filter;
+  }
+  if (force || qs("#ldap-start-tls")?.checked === undefined) {
+    qs("#ldap-start-tls").checked = preset.start_tls;
+  }
+  if (force) {
+    qs("#ldap-use-ssl").checked = preset.use_ssl;
+  }
+  updateLdapPresetHint();
+}
+
+function fillLdapForm(cfg) {
+  qs("#ldap-enabled").checked = !!cfg.enabled;
+  qs("#ldap-directory-type").value = cfg.directory_type || "ldap";
+  qs("#ldap-server").value = cfg.server || "";
+  qs("#ldap-use-ssl").checked = !!cfg.use_ssl;
+  qs("#ldap-start-tls").checked = cfg.start_tls !== false;
+  qs("#ldap-bind-dn").value = cfg.bind_dn || "";
+  qs("#ldap-bind-password").value = cfg.bind_password_set ? "********" : "";
+  qs("#ldap-user-base").value = cfg.user_base || "";
+  qs("#ldap-user-filter").value = cfg.user_filter || "(uid={username})";
+  qs("#ldap-dn-template").value = cfg.user_dn_template || "";
+  qs("#ldap-upn-suffix").value = cfg.user_upn_suffix || "";
+  qs("#ldap-admin-groups").value = cfg.admin_groups || "";
+  qs("#ldap-operator-groups").value = cfg.operator_groups || "";
+  qs("#ldap-default-role").value = cfg.default_role || "viewer";
+  qs("#ldap-fallback-local").checked = cfg.fallback_local !== false;
+  qs("#ldap-timeout").value = cfg.connect_timeout || 10;
+  updateLdapPresetHint();
+}
+
+function collectLdapForm() {
+  const bindPassword = qs("#ldap-bind-password").value;
+  return {
+    enabled: qs("#ldap-enabled").checked,
+    directory_type: qs("#ldap-directory-type").value,
+    server: qs("#ldap-server").value.trim(),
+    use_ssl: qs("#ldap-use-ssl").checked,
+    start_tls: qs("#ldap-start-tls").checked,
+    bind_dn: qs("#ldap-bind-dn").value.trim(),
+    bind_password: bindPassword === "********" ? "********" : bindPassword,
+    user_base: qs("#ldap-user-base").value.trim(),
+    user_filter: qs("#ldap-user-filter").value.trim(),
+    user_dn_template: qs("#ldap-dn-template").value.trim(),
+    user_upn_suffix: qs("#ldap-upn-suffix").value.trim(),
+    admin_groups: qs("#ldap-admin-groups").value.trim(),
+    operator_groups: qs("#ldap-operator-groups").value.trim(),
+    default_role: qs("#ldap-default-role").value,
+    fallback_local: qs("#ldap-fallback-local").checked,
+    connect_timeout: parseInt(qs("#ldap-timeout").value, 10) || 10,
+  };
+}
+
+function showLdapTestResult(result) {
+  const el = qs("#ldap-test-result");
+  if (!el) return;
+  const cls = result.ok ? "text-success" : "text-danger";
+  const icon = result.ok ? "check-circle" : "times-circle";
+  el.innerHTML = `<span class="${cls}"><i class="fas fa-${icon} mr-1"></i>${escapeHtml(result.message)}</span>`;
+}
+
+async function loadLdapSettings() {
+  try {
+    const cfg = await api("/api/settings/ldap");
+    fillLdapForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `LDAP: ${e.message}`, "error");
+  }
+}
+
+async function saveLdapSettings(e) {
+  e.preventDefault();
+  try {
+    const saved = await api("/api/settings/ldap", {
+      method: "PUT",
+      body: JSON.stringify(collectLdapForm()),
+    });
+    fillLdapForm(saved);
+    showAlert("settings-alert", "Настройки LDAP сохранены", "success");
+    updateLoginAuthHint(saved);
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+async function testLdap(mode) {
+  const payload = { mode };
+  if (mode === "auth") {
+    payload.username = qs("#ldap-test-username")?.value.trim();
+    payload.password = qs("#ldap-test-password")?.value;
+  }
+  try {
+    if (mode === "bind") {
+      await api("/api/settings/ldap", {
+        method: "PUT",
+        body: JSON.stringify(collectLdapForm()),
+      });
+    }
+    const result = await api("/api/settings/ldap/test", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    showLdapTestResult(result);
+  } catch (err) {
+    showLdapTestResult({ ok: false, message: err.message });
+  }
+}
+
+function updateLoginAuthHint(authOrCfg) {
+  const ldapHint = qs("#login-ldap-hint");
+  const hintText = qs("#login-auth-hint-text");
+  if (!ldapHint) return;
+
+  const enabled = authOrCfg?.ldap_enabled ?? authOrCfg?.enabled;
+  if (!enabled) {
+    ldapHint.style.display = "none";
+    return;
+  }
+  ldapHint.style.display = "block";
+  if (hintText) {
+    const type = authOrCfg.directory_type;
+    hintText.textContent = type === "ad" ? "Active Directory" : "LDAP";
+  }
 }
 
 function renderSettingsCredentials() {
@@ -1259,6 +1419,19 @@ function bindEvents() {
     }
   });
 
+  qs("#ldap-settings-form")?.addEventListener("submit", saveLdapSettings);
+  qs("#btn-ldap-apply-preset")?.addEventListener("click", () => applyLdapPreset(true));
+  qs("#ldap-directory-type")?.addEventListener("change", () => {
+    applyLdapPreset(false);
+    updateLdapPresetHint();
+  });
+  qs("#btn-ldap-test-bind")?.addEventListener("click", () => testLdap("bind"));
+  qs("#btn-ldap-test-auth")?.addEventListener("click", () => {
+    const fields = qs("#ldap-test-auth-fields");
+    if (fields) fields.style.display = "";
+    testLdap("auth");
+  });
+
   qs("#credential-create-form")?.addEventListener("submit", async e => {
     e.preventDefault();
     if (!can("credentials:write")) return;
@@ -1367,10 +1540,7 @@ async function bootstrapApp() {
   try {
     const uiConfig = await api("/api/ui/config");
     setOxidizedLinks(uiConfig.oxidized_public_url, uiConfig.oxidized_proxy_url);
-    const ldapHint = qs("#login-ldap-hint");
-    if (ldapHint && uiConfig.auth?.ldap_enabled) {
-      ldapHint.style.display = "block";
-    }
+    updateLoginAuthHint(uiConfig.auth || {});
   } catch {}
 
   setPageTitle("dashboard");
@@ -1389,10 +1559,7 @@ async function init() {
 
   try {
     const uiConfig = await api("/api/ui/config").catch(() => ({}));
-    const ldapHint = qs("#login-ldap-hint");
-    if (ldapHint && uiConfig.auth?.ldap_enabled) {
-      ldapHint.style.display = "block";
-    }
+    updateLoginAuthHint(uiConfig.auth || {});
   } catch {}
 
   try {

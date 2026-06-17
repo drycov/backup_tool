@@ -52,3 +52,31 @@ class User(models.Model):
 
     class Meta:
         db_table = "users"
+
+
+class LdapConfig(models.Model):
+    """Singleton: настройки LDAP / Active Directory (pk=1)."""
+
+    DIRECTORY_LDAP = "ldap"
+    DIRECTORY_AD = "ad"
+
+    enabled = models.BooleanField(default=False)
+    directory_type = models.CharField(max_length=16, default=DIRECTORY_LDAP)
+    server = models.CharField(max_length=512, blank=True, default="")
+    use_ssl = models.BooleanField(default=False)
+    start_tls = models.BooleanField(default=True)
+    bind_dn = models.CharField(max_length=512, blank=True, default="")
+    bind_password = models.CharField(max_length=512, blank=True, default="")
+    user_base = models.CharField(max_length=512, blank=True, default="")
+    user_filter = models.CharField(max_length=256, default="(uid={username})")
+    user_dn_template = models.CharField(max_length=512, blank=True, default="")
+    user_upn_suffix = models.CharField(max_length=256, blank=True, default="")
+    admin_groups = models.TextField(blank=True, default="")
+    operator_groups = models.TextField(blank=True, default="")
+    default_role = models.CharField(max_length=32, default="viewer")
+    fallback_local = models.BooleanField(default=True)
+    connect_timeout = models.PositiveIntegerField(default=10)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "ldap_config"

@@ -71,13 +71,14 @@ def get_user_by_username(username: str) -> Optional[User]:
 
 
 def authenticate_user(username: str, password: str) -> Optional[User]:
-    from services.ldap_auth import LDAP_FALLBACK_LOCAL, authenticate_ldap, ldap_configured
+    from services.ldap_auth import authenticate_ldap, ldap_configured
+    from services.ldap_settings import get_config
 
     if ldap_configured():
         ldap_info = authenticate_ldap(username, password)
         if ldap_info:
             return upsert_ldap_user(ldap_info["username"], ldap_info["role"])
-        if not LDAP_FALLBACK_LOCAL:
+        if not get_config().fallback_local:
             return None
 
     user = get_user_by_username(username)

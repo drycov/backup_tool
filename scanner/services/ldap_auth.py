@@ -1,34 +1,11 @@
-"""LDAP authentication and role mapping."""
+"""LDAP / Active Directory authentication and role mapping."""
 
 import logging
-import os
 from typing import Optional
 
+from services.ldap_settings import LdapConfigData, get_config, ldap_configured
+
 logger = logging.getLogger(__name__)
-
-LDAP_ENABLED = os.environ.get("LDAP_ENABLED", "").lower() in ("1", "true", "yes")
-LDAP_SERVER = os.environ.get("LDAP_SERVER", "")
-LDAP_USE_SSL = os.environ.get("LDAP_USE_SSL", "").lower() in ("1", "true", "yes")
-LDAP_START_TLS = os.environ.get("LDAP_START_TLS", "").lower() in ("1", "true", "yes")
-LDAP_BIND_DN = os.environ.get("LDAP_BIND_DN", "")
-LDAP_BIND_PASSWORD = os.environ.get("LDAP_BIND_PASSWORD", "")
-LDAP_USER_BASE = os.environ.get("LDAP_USER_BASE", "")
-LDAP_USER_FILTER = os.environ.get("LDAP_USER_FILTER", "(uid={username})")
-LDAP_USER_DN_TEMPLATE = os.environ.get("LDAP_USER_DN_TEMPLATE", "")
-LDAP_USER_UPN_SUFFIX = os.environ.get("LDAP_USER_UPN_SUFFIX", "")
-LDAP_ADMIN_GROUPS = os.environ.get("LDAP_ADMIN_GROUPS", "")
-LDAP_OPERATOR_GROUPS = os.environ.get("LDAP_OPERATOR_GROUPS", "")
-LDAP_DEFAULT_ROLE = os.environ.get("LDAP_DEFAULT_ROLE", "viewer")
-LDAP_FALLBACK_LOCAL = os.environ.get("LDAP_FALLBACK_LOCAL", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-)
-LDAP_CONNECT_TIMEOUT = int(os.environ.get("LDAP_CONNECT_TIMEOUT", "10"))
-
-
-def ldap_configured() -> bool:
-    return LDAP_ENABLED and LDAP_SERVER.strip()
 
 
 def _parse_group_list(raw: str) -> list[str]:
@@ -46,16 +23,16 @@ def _group_matches(member_values: list[str], configured: list[str]) -> bool:
     return False
 
 
-def _map_role_from_groups(member_of: list[str]) -> str:
-    admin_groups = _parse_group_list(LDAP_ADMIN_GROUPS)
-    operator_groups = _parse_group_list(LDAP_OPERATOR_GROUPS)
+def _map_role_from_groups(cfg: LdapConfigData, member_of: list[str]) -> str:
+    admin_groups = _parse_group_list(cfg.admin_groups)
+    operator_groups = _parse_group_list(cfg.operator_groups)
 
     if _group_matches(member_of, admin_groups):
         return "admin"
     if _group_matches(member_of, operator_groups):
         return "operator"
 
-    default = LDAP_DEFAULT_ROLE.strip().lower()
+    default = cfg.default_role.strip().lower()
     if default in ("viewer", "operator", "admin"):
         return default
     return "viewer"
@@ -76,48 +53,48 @@ def _extract_member_of(entry) -> list[str]:
     return values
 
 
-def _build_user_bind_id(username: str) -> str:
-    if LDAP_USER_DN_TEMPLATE:
-        return LDAP_USER_DN_TEMPLATE.replace("{username}", username)
-    if LDAP_USER_UPN_SUFFIX:
-        suffix = LDAP_USER_UPN_SUFFIX
+def _build_user_bind_id(cfg: LdapConfigData, username: str) -> str:
+    if cfg.user_dn_template:
+        return cfg.user_dn_template.replace("{username}", username)
+    if cfg.user_upn_suffix:
+        suffix = cfg.user_upn_suffix
         if not suffix.startswith("@"):
             suffix = f"@{suffix}"
         return f"{username}{suffix}"
     return username
 
 
-def _ldap_server():
+def _ldap_server(cfg: LdapConfigData):
     from ldap3 import Server
 
     return Server(
-        LDAP_SERVER,
-        use_ssl=LDAP_USE_SSL,
-        connect_timeout=LDAP_CONNECT_TIMEOUT,
+        cfg.server,
+        use_ssl=cfg.use_ssl,
+        connect_timeout=cfg.connect_timeout,
     )
 
 
-def _search_user_dn(username: str) -> tuple[Optional[str], list[str]]:
+def _search_user_dn(cfg: LdapConfigData, username: str) -> tuple[Optional[str], list[str]]:
     from ldap3 import Connection, SUBTREE
 
-    if not LDAP_USER_BASE:
-        logger.warning("ldap | LDAP_USER_BASE не задан")
+    if not cfg.user_base:
+        logger.warning("ldap | user_base не задан")
         return None, []
 
-    server = _ldap_server()
-    search_filter = LDAP_USER_FILTER.replace("{username}", username)
+    server = _ldap_server(cfg)
+    search_filter = cfg.user_filter.replace("{username}", username)
     conn = Connection(
         server,
-        user=LDAP_BIND_DN or None,
-        password=LDAP_BIND_PASSWORD or None,
+        user=cfg.bind_dn or None,
+        password=cfg.bind_password or None,
         auto_bind=True,
-        receive_timeout=LDAP_CONNECT_TIMEOUT,
+        receive_timeout=cfg.connect_timeout,
     )
-    if LDAP_START_TLS and not LDAP_USE_SSL:
+    if cfg.start_tls and not cfg.use_ssl:
         conn.start_tls()
 
     ok = conn.search(
-        LDAP_USER_BASE,
+        cfg.user_base,
         search_filter,
         search_scope=SUBTREE,
         attributes=["memberOf", "cn", "sAMAccountName"],
@@ -133,18 +110,18 @@ def _search_user_dn(username: str) -> tuple[Optional[str], list[str]]:
     return user_dn, member_of
 
 
-def _bind_as_user(bind_id: str, password: str) -> bool:
+def _bind_as_user(cfg: LdapConfigData, bind_id: str, password: str) -> bool:
     from ldap3 import Connection
 
-    server = _ldap_server()
+    server = _ldap_server(cfg)
     conn = Connection(
         server,
         user=bind_id,
         password=password,
         auto_bind=False,
-        receive_timeout=LDAP_CONNECT_TIMEOUT,
+        receive_timeout=cfg.connect_timeout,
     )
-    if LDAP_START_TLS and not LDAP_USE_SSL:
+    if cfg.start_tls and not cfg.use_ssl:
         conn.open()
         conn.start_tls()
 
@@ -157,31 +134,32 @@ def _bind_as_user(bind_id: str, password: str) -> bool:
 
 
 def authenticate_ldap(username: str, password: str) -> Optional[dict]:
-    """Проверка LDAP. Возвращает {username, role} или None."""
+    """Проверка LDAP. Возвращает {username, role, groups} или None."""
     if not ldap_configured():
         return None
     if not username or not password:
         return None
 
+    cfg = get_config()
     username = username.strip()
     member_of: list[str] = []
 
     try:
-        if LDAP_BIND_DN and LDAP_USER_BASE:
-            user_dn, member_of = _search_user_dn(username)
+        if cfg.bind_dn and cfg.user_base:
+            user_dn, member_of = _search_user_dn(cfg, username)
             if not user_dn:
                 logger.info("ldap | пользователь не найден: %s", username)
                 return None
-            if not _bind_as_user(user_dn, password):
+            if not _bind_as_user(cfg, user_dn, password):
                 return None
         else:
-            bind_id = _build_user_bind_id(username)
-            if not _bind_as_user(bind_id, password):
+            bind_id = _build_user_bind_id(cfg, username)
+            if not _bind_as_user(cfg, bind_id, password):
                 return None
-            if LDAP_BIND_DN and LDAP_USER_BASE:
-                _, member_of = _search_user_dn(username)
+            if cfg.bind_dn and cfg.user_base:
+                _, member_of = _search_user_dn(cfg, username)
 
-        role = _map_role_from_groups(member_of)
+        role = _map_role_from_groups(cfg, member_of)
         logger.info("ldap | вход %s, role=%s, groups=%d", username, role, len(member_of))
         return {"username": username, "role": role, "groups": member_of}
     except Exception as exc:
@@ -190,7 +168,10 @@ def authenticate_ldap(username: str, password: str) -> Optional[dict]:
 
 
 def auth_methods() -> dict:
+    cfg = get_config()
+    configured = ldap_configured()
     return {
-        "ldap_enabled": ldap_configured(),
-        "local_enabled": not ldap_configured() or LDAP_FALLBACK_LOCAL,
+        "ldap_enabled": configured,
+        "local_enabled": not configured or cfg.fallback_local,
+        "directory_type": cfg.directory_type if configured else None,
     }

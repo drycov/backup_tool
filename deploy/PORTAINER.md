@@ -113,6 +113,9 @@ scanner:
 
 Первый вход: логин/пароль из `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 
+LDAP / Active Directory настраивается в UI: **Настройки → LDAP / Active Directory** (только admin).
+При первом запуске значения импортируются из `.env`.
+
 ## 5. Обновление стека
 
 **Git deploy:** Push в репо → Redeploy stack в Portainer (или webhook).

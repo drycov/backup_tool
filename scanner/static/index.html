@@ -21,7 +21,7 @@
         <div class="card-body login-card-body">
           <p class="login-box-msg">Вход в систему</p>
           <p class="text-center text-muted small mb-3" id="login-ldap-hint" style="display:none;">
-            <i class="fas fa-network-wired mr-1"></i> LDAP
+            <i class="fas fa-network-wired mr-1"></i> <span id="login-auth-hint-text">LDAP / Active Directory</span>
           </p>
           <form id="login-form">
             <div class="input-group mb-3">
@@ -126,7 +126,7 @@
                 <p>Oxidized UI</p>
               </a>
             </li>
-            <li class="nav-item" data-permission-any="credentials:read,credentials:write,inventory:write">
+            <li class="nav-item" data-permission-any="credentials:read,credentials:write,inventory:write,users:manage">
               <a href="#" class="nav-link nav-page" data-page="settings">
                 <i class="nav-icon fas fa-cog"></i>
                 <p>Настройки</p>
@@ -445,6 +445,155 @@
                 <button class="btn btn-secondary btn-sm" id="btn-import-network">
                   <i class="fas fa-file-import mr-1"></i> Импорт network_inventory.yml
                 </button>
+              </div>
+            </div>
+
+            <div class="card card-outline card-info" id="settings-ldap-card" data-permission="users:manage">
+              <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-network-wired mr-2"></i>LDAP / Active Directory</h3>
+              </div>
+              <div class="card-body">
+                <p class="text-muted small mb-3">
+                  Настройки хранятся в базе данных и применяются без перезапуска контейнера.
+                  При первом запуске значения из <code>.env</code> импортируются автоматически.
+                </p>
+                <form id="ldap-settings-form">
+                  <div class="form-row align-items-center mb-3">
+                    <div class="form-group col-md-3 mb-md-0">
+                      <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="ldap-enabled">
+                        <label class="custom-control-label" for="ldap-enabled">Включить LDAP</label>
+                      </div>
+                    </div>
+                    <div class="form-group col-md-3 mb-md-0">
+                      <label for="ldap-directory-type">Тип каталога</label>
+                      <select id="ldap-directory-type" class="form-control">
+                        <option value="ldap">Generic LDAP</option>
+                        <option value="ad">Active Directory</option>
+                      </select>
+                    </div>
+                    <div class="form-group col-md-6 mb-md-0 d-flex align-items-end">
+                      <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="btn-ldap-apply-preset">
+                        <i class="fas fa-magic mr-1"></i> Применить шаблон
+                      </button>
+                      <span class="text-muted small" id="ldap-preset-hint"></span>
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group col-md-8">
+                      <label for="ldap-server">Сервер</label>
+                      <input type="text" id="ldap-server" class="form-control" placeholder="ldap://dc.example.com:389">
+                      <small class="text-muted">Для AD: <code>ldap://</code> + StartTLS или <code>ldaps://</code> + SSL</small>
+                    </div>
+                    <div class="form-group col-md-2">
+                      <label for="ldap-timeout">Таймаут, сек</label>
+                      <input type="number" id="ldap-timeout" class="form-control" min="1" max="120" value="10">
+                    </div>
+                    <div class="form-group col-md-2 d-flex flex-column justify-content-end">
+                      <div class="custom-control custom-checkbox mb-1">
+                        <input type="checkbox" class="custom-control-input" id="ldap-use-ssl">
+                        <label class="custom-control-label" for="ldap-use-ssl">LDAPS (SSL)</label>
+                      </div>
+                      <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="ldap-start-tls" checked>
+                        <label class="custom-control-label" for="ldap-start-tls">StartTLS</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="row">
+                    <div class="col-lg-6">
+                      <h6 class="text-muted text-uppercase small mb-2">Сервисная учётная запись</h6>
+                      <div class="form-group">
+                        <label for="ldap-bind-dn">Bind DN</label>
+                        <input type="text" id="ldap-bind-dn" class="form-control" placeholder="CN=svc-ldap,OU=Service,DC=corp,DC=local">
+                      </div>
+                      <div class="form-group">
+                        <label for="ldap-bind-password">Bind password</label>
+                        <input type="password" id="ldap-bind-password" class="form-control" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                      </div>
+                    </div>
+                    <div class="col-lg-6">
+                      <h6 class="text-muted text-uppercase small mb-2">Поиск пользователей</h6>
+                      <div class="form-group">
+                        <label for="ldap-user-base">Base DN</label>
+                        <input type="text" id="ldap-user-base" class="form-control" placeholder="DC=corp,DC=local">
+                      </div>
+                      <div class="form-group">
+                        <label for="ldap-user-filter">Фильтр</label>
+                        <input type="text" id="ldap-user-filter" class="form-control" placeholder="(sAMAccountName={username})">
+                        <small class="text-muted"><code>{username}</code> заменяется на логин</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group col-md-6">
+                      <label for="ldap-upn-suffix">UPN suffix (AD)</label>
+                      <input type="text" id="ldap-upn-suffix" class="form-control" placeholder="@corp.local">
+                      <small class="text-muted">Для прямого bind без поиска: <code>user@domain</code></small>
+                    </div>
+                    <div class="form-group col-md-6">
+                      <label for="ldap-dn-template">DN template (опционально)</label>
+                      <input type="text" id="ldap-dn-template" class="form-control" placeholder="uid={username},ou=users,dc=example,dc=com">
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group col-md-6">
+                      <label for="ldap-admin-groups">Группы → admin</label>
+                      <input type="text" id="ldap-admin-groups" class="form-control" placeholder="CN=Backup Admins,OU=Groups,DC=corp,DC=local">
+                      <small class="text-muted">Через запятую, DN или CN</small>
+                    </div>
+                    <div class="form-group col-md-6">
+                      <label for="ldap-operator-groups">Группы → operator</label>
+                      <input type="text" id="ldap-operator-groups" class="form-control" placeholder="CN=Backup Operators,OU=Groups,DC=corp,DC=local">
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group col-md-4">
+                      <label for="ldap-default-role">Роль по умолчанию</label>
+                      <select id="ldap-default-role" class="form-control">
+                        <option value="viewer">viewer</option>
+                        <option value="operator">operator</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    </div>
+                    <div class="form-group col-md-4 d-flex align-items-end">
+                      <div class="custom-control custom-checkbox mb-3">
+                        <input type="checkbox" class="custom-control-input" id="ldap-fallback-local" checked>
+                        <label class="custom-control-label" for="ldap-fallback-local">Разрешить локальный вход при ошибке LDAP</label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="border rounded p-3 mb-3 bg-light" id="ldap-test-panel">
+                    <h6 class="mb-2">Проверка подключения</h6>
+                    <div class="btn-group btn-group-sm mb-2" role="group">
+                      <button type="button" class="btn btn-outline-primary" id="btn-ldap-test-bind">
+                        <i class="fas fa-plug mr-1"></i> Bind сервисной УЗ
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary" id="btn-ldap-test-auth">
+                        <i class="fas fa-user-check mr-1"></i> Вход пользователя
+                      </button>
+                    </div>
+                    <div class="form-row" id="ldap-test-auth-fields" style="display:none;">
+                      <div class="form-group col-md-4 mb-2">
+                        <input type="text" id="ldap-test-username" class="form-control form-control-sm" placeholder="Логин LDAP">
+                      </div>
+                      <div class="form-group col-md-4 mb-2">
+                        <input type="password" id="ldap-test-password" class="form-control form-control-sm" placeholder="Пароль">
+                      </div>
+                    </div>
+                    <div id="ldap-test-result" class="small"></div>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save mr-1"></i> Сохранить настройки LDAP
+                  </button>
+                </form>
               </div>
             </div>
           </div>

@@ -286,3 +286,12 @@ mark.search-hit {
     font-size: 0.75rem;
   }
 }
+
+#settings-ldap-card .form-group label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+#ldap-test-result {
+  min-height: 1.25rem;
+}

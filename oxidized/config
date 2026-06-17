@@ -37,10 +37,6 @@ groups:
     username: satcoadm
     password: QJq7w8RN%q
     model: routeros
-  int:
-    username: mehanizator
-    password: pEKHX6R@Dn3fK2
-    model: routeros
 output:
   default: git
   git:

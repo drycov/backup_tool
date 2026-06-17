@@ -7,6 +7,8 @@ from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from pydantic import ValidationError
+
 from api.helpers import (
     ApiError,
     error_response,
@@ -41,10 +43,13 @@ from services.schemas import (
     Device,
     DeviceCreate,
     Inventory,
+    LdapConfigUpdate,
+    LdapTestRequest,
     ScanJobStatus,
     ScanLogEntry,
     ScanStartResponse,
 )
+from services import ldap_settings
 
 _HOP_HEADERS = frozenset(
     {
@@ -535,3 +540,48 @@ def sync_oxidized_view(request: HttpRequest) -> JsonResponse:
             "enabled_count": sum(1 for d in inventory.devices if d.enabled),
         }
     )
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def ldap_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    if request.method == "GET":
+        return json_response(ldap_settings.get_config_public())
+    if request.method == "PUT":
+        try:
+            body = parse_json_body(request)
+            payload = LdapConfigUpdate.model_validate(body)
+            saved = ldap_settings.save_config(payload.model_dump())
+        except ApiError as exc:
+            return error_response(exc.detail, exc.status)
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def ldap_settings_test_view(request: HttpRequest) -> JsonResponse:
+    try:
+        body = parse_json_body(request)
+        payload = LdapTestRequest.model_validate(body)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    except ValidationError as exc:
+        return error_response(str(exc))
+
+    mode = payload.mode.strip().lower()
+    if mode not in ("bind", "auth"):
+        return error_response("mode должен быть bind или auth")
+
+    result = ldap_settings.test_connection(
+        mode=mode,
+        username=payload.username,
+        password=payload.password,
+    )
+    return json_response(result)
+

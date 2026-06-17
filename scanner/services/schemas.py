@@ -163,3 +163,54 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     password: Optional[str] = None
     role_locked: Optional[bool] = None
+
+
+class LdapConfigPublic(BaseModel):
+    enabled: bool = False
+    directory_type: str = "ldap"
+    server: str = ""
+    use_ssl: bool = False
+    start_tls: bool = True
+    bind_dn: str = ""
+    bind_password_set: bool = False
+    user_base: str = ""
+    user_filter: str = "(uid={username})"
+    user_dn_template: str = ""
+    user_upn_suffix: str = ""
+    admin_groups: str = ""
+    operator_groups: str = ""
+    default_role: str = "viewer"
+    fallback_local: bool = True
+    connect_timeout: int = 10
+    configured: bool = False
+
+
+class LdapConfigUpdate(BaseModel):
+    enabled: bool = False
+    directory_type: str = "ldap"
+    server: str = ""
+    use_ssl: bool = False
+    start_tls: bool = True
+    bind_dn: str = ""
+    bind_password: Optional[str] = None
+    user_base: str = ""
+    user_filter: str = "(uid={username})"
+    user_dn_template: str = ""
+    user_upn_suffix: str = ""
+    admin_groups: str = ""
+    operator_groups: str = ""
+    default_role: str = "viewer"
+    fallback_local: bool = True
+    connect_timeout: int = 10
+
+
+class LdapTestRequest(BaseModel):
+    mode: str = "bind"
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
+class LdapTestResponse(BaseModel):
+    ok: bool
+    message: str
+    role: Optional[str] = None
