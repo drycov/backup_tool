@@ -6,12 +6,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ruby \
     ruby-dev \
     build-essential \
+    cmake \
+    pkg-config \
     libssl-dev \
     libssh2-1-dev \
+    libgit2-dev \
+    libicu-dev \
+    libyaml-dev \
+    libzstd-dev \
     zlib1g-dev \
+    && gem install oxidized --no-document \
+    && apt-get purge -y build-essential ruby-dev cmake pkg-config libgit2-dev \
+    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
-
-RUN gem install oxidized --no-document
 
 WORKDIR /app
 

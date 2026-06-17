@@ -8,7 +8,6 @@ from urllib.parse import quote, urlparse, urlunparse
 
 from services.oxidized_engine.config import OxidizedConfig
 from services.oxidized_engine.job import Job
-from services.oxidized_engine.node import Node
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from services.oxidized_engine.config import OxidizedConfig
-from services.oxidized_engine.node import Node
 from services.oxidized_engine.outputs import ModelOutputs
 
 logger = logging.getLogger(__name__)

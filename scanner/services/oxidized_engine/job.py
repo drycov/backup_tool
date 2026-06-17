@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from services.oxidized_engine.node import Node
 from services.oxidized_engine.outputs import ModelOutputs
 
 

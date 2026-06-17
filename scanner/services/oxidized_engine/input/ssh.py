@@ -5,7 +5,6 @@ import logging
 import paramiko
 
 from services.oxidized_engine.model.base import Model
-from services.oxidized_engine.node import Node
 from services.oxidized_engine.outputs import ModelOutputs
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,7 @@ class SSHInput:
     def __init__(self, secure: bool = False) -> None:
         self.secure = secure
 
-    def get(self, node: Node) -> ModelOutputs:
+    def get(self, node) -> ModelOutputs:
         client = paramiko.SSHClient()
         if self.secure:
             client.load_system_host_keys()
