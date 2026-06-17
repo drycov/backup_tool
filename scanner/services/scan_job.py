@@ -173,23 +173,23 @@ async def _run_scan_job(job: ScanJob) -> None:
             log=True,
         )
 
-            def on_scan_progress(done: int, total: int, result) -> None:
-                _set_progress(
+        def on_scan_progress(done: int, total: int, result) -> None:
+            _set_progress(
+                job,
+                ScanPhase.SCAN,
+                f"Сканирование: {done}/{total}",
+                done,
+                total,
+            )
+            if (
+                done == total
+                or done % 25 == 0
+                or result.status.value != "offline"
+            ):
+                append_job_log(
                     job,
-                    ScanPhase.SCAN,
-                    f"Сканирование: {done}/{total}",
-                    done,
-                    total,
+                    f"scan | {result.status.value:8} | {result.name} ({result.ip})",
                 )
-                if (
-                    done == total
-                    or done % 25 == 0
-                    or result.status.value != "offline"
-                ):
-                    append_job_log(
-                        job,
-                        f"scan | {result.status.value:8} | {result.name} ({result.ip})",
-                    )
 
         summary = await scan_devices(
             inventory.devices,
