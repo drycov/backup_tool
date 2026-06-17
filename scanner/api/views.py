@@ -30,6 +30,7 @@ from services.inventory import (
     add_credential_profile,
     delete_credential_profile,
     update_credential_profile,
+    cleanup_discovered_devices,
     update_oxidized_credentials,
 )
 from services.ldap_auth import auth_methods
@@ -61,6 +62,7 @@ from services.schemas import (
     Inventory,
     LdapConfigUpdate,
     LdapTestRequest,
+    OxidizedSettingsUpdate,
     ScanJobStatus,
     ScanLogEntry,
     ScanStartResponse,
@@ -541,8 +543,18 @@ def create_credential_profile_view(request: HttpRequest) -> JsonResponse:
     profile = CredentialProfileCreate.model_validate(body)
     try:
         inventory = add_credential_profile(
-            CredentialProfile(**profile.model_dump())
+            CredentialProfile(
+                name=profile.name,
+                group_name=profile.group_name,
+                username=profile.username,
+                password=profile.password,
+            )
         )
+        if profile.model:
+            from services.oxidized_settings import set_group_model
+
+            set_group_model(profile.group_name, profile.model)
+            inventory = load_inventory()
     except ValueError as exc:
         return error_response(str(exc))
     update_oxidized_credentials(inventory)
@@ -630,6 +642,51 @@ def sync_oxidized_view(request: HttpRequest) -> JsonResponse:
             "devices_count": len(inventory.devices),
             "enabled_count": sum(1 for d in inventory.devices if d.enabled),
             **reload_info,
+        }
+    )
+
+
+@csrf_exempt
+def oxidized_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import oxidized_settings
+
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    if request.method == "GET":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_READ):
+            return error_response("Недостаточно прав", status=403)
+        return json_response(oxidized_settings.get_oxidized_settings())
+    if request.method == "PUT":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_WRITE):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            body = parse_json_body(request)
+            payload = OxidizedSettingsUpdate.model_validate(body)
+            saved = oxidized_settings.save_oxidized_settings(payload.model_dump())
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_EDIT_INVENTORY)
+def cleanup_discovered_devices_view(request: HttpRequest) -> JsonResponse:
+    user: User = request.api_user
+    deleted, inventory = cleanup_discovered_devices()
+    update_oxidized_credentials(inventory)
+    return json_response(
+        {
+            "status": "ok",
+            "deleted": deleted,
+            "message": f"Удалено устройств discovery: {deleted}",
+            "inventory": mask_inventory_for_role(inventory, user.role),
         }
     )
 

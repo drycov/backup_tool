@@ -40,6 +40,7 @@ class CredentialProfileUpdate(BaseModel):
     username: str
     password: str
     group_name: Optional[str] = None
+    model: Optional[str] = None
 
 
 class CredentialProfileCreate(BaseModel):
@@ -47,6 +48,7 @@ class CredentialProfileCreate(BaseModel):
     group_name: str
     username: str
     password: str
+    model: Optional[str] = "routeros"
 
 
 class NetworkEntry(BaseModel):
@@ -208,6 +210,17 @@ class LdapTestRequest(BaseModel):
     mode: str = "bind"
     username: Optional[str] = None
     password: Optional[str] = None
+
+
+class OxidizedSettingsUpdate(BaseModel):
+    interval: int = 3600
+    threads: int = 10
+    timeout: int = 20
+    retries: int = 3
+    default_model: str = "routeros"
+    ssh_port: int = 44333
+    resolve_dns: bool = True
+    group_models: dict[str, str] = Field(default_factory=dict)
 
 
 class LdapTestResponse(BaseModel):

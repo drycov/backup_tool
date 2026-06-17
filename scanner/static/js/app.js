@@ -14,6 +14,7 @@ let oxidizedNodesCache = [];
 let usersCache = [];
 let oxidizedLogsTimer = null;
 let oxidizedLogsStickToBottom = true;
+let oxidizedSettingsCache = null;
 
 const SCAN_PHASE_LABELS = {
   idle: "Ожидание",
@@ -182,6 +183,10 @@ function applyPermissions() {
       el.style.display = can(perm) ? "" : "none";
     }
   });
+  const oxCard = qs("#settings-oxidized-card");
+  if (oxCard) {
+    oxCard.style.display = canAny("oxidized:read,oxidized:write") ? "" : "none";
+  }
   const ldapCard = qs("#settings-ldap-card");
   if (ldapCard) {
     ldapCard.style.display = can("users:manage") ? "" : "none";
@@ -633,9 +638,141 @@ function renderDevicesTable() {
 async function loadSettings() {
   inventory = await api("/inventory");
   updateGroupSelects();
+  updateDiscoveredCountBadge();
+  if (can("oxidized:read") || can("oxidized:write")) {
+    await loadOxidizedSettings();
+  }
   renderSettingsCredentials();
   if (can("users:manage")) {
     await loadLdapSettings();
+  }
+}
+
+function updateDiscoveredCountBadge() {
+  const el = qs("#settings-discovered-count");
+  if (!el || !inventory?.devices) return;
+  const count = inventory.devices.filter(d => d.name.startsWith("discovered-")).length;
+  el.textContent = count ? `В инвентаре: ${count} discovered-*` : "";
+}
+
+function fillModelSelect(selectEl, selected, models) {
+  if (!selectEl) return;
+  const list = (models && models.length) ? models : ["routeros"];
+  selectEl.innerHTML = list.map(m =>
+    `<option value="${escapeHtml(m)}"${m === selected ? " selected" : ""}>${escapeHtml(m)}</option>`
+  ).join("");
+}
+
+function fillOxidizedSettingsForm(cfg) {
+  oxidizedSettingsCache = cfg;
+  const badge = qs("#ox-settings-engine-badge");
+  if (badge) badge.textContent = cfg.engine_title || cfg.engine || "—";
+  const nodesBadge = qs("#ox-settings-nodes-badge");
+  if (nodesBadge) {
+    const n = cfg.health?.nodes_count;
+    if (n != null) {
+      nodesBadge.style.display = "inline";
+      nodesBadge.textContent = `${n} узлов`;
+      nodesBadge.className = `badge ml-1 ${cfg.health?.reachable ? "badge-success" : "badge-danger"}`;
+    } else {
+      nodesBadge.style.display = "none";
+    }
+  }
+  const note = qs("#ox-settings-env-note");
+  if (note) note.textContent = cfg.env_note || "";
+  qs("#ox-interval").value = cfg.interval ?? 3600;
+  qs("#ox-threads").value = cfg.threads ?? 10;
+  qs("#ox-timeout").value = cfg.timeout ?? 20;
+  qs("#ox-retries").value = cfg.retries ?? 3;
+  qs("#ox-ssh-port").value = cfg.ssh_port ?? 44333;
+  qs("#ox-resolve-dns").checked = cfg.resolve_dns !== false;
+  qs("#ox-git-remote").textContent = cfg.git_remote_url || "не задан (GIT_REMOTE_URL)";
+  const logEl = qs("#ox-settings-log-path");
+  if (logEl) logEl.textContent = cfg.log_path ? `Лог: ${cfg.log_path}` : "";
+  fillModelSelect(qs("#ox-default-model"), cfg.default_model || "routeros", cfg.available_models);
+  fillModelSelect(qs("#new-cred-model"), cfg.default_model || "routeros", cfg.available_models);
+  const uiBtn = qs("#btn-settings-oxidized-ui");
+  if (uiBtn && cfg.proxy_url) {
+    uiBtn.href = `${window.location.origin}${cfg.proxy_url}`;
+  }
+  const scanConc = qs("#settings-scan-concurrency");
+  if (scanConc) scanConc.textContent = String(cfg.scan_concurrency ?? "—");
+}
+
+function collectOxidizedSettingsForm() {
+  const groupModels = { ...(oxidizedSettingsCache?.group_models || {}) };
+  qsa("#settings-credentials-table tr[data-profile]").forEach(row => {
+    const group = row.querySelector(".cred-group")?.value.trim();
+    const model = row.querySelector(".cred-model")?.value;
+    if (group && model) groupModels[group] = model;
+  });
+  return {
+    interval: parseInt(qs("#ox-interval")?.value, 10) || 3600,
+    threads: parseInt(qs("#ox-threads")?.value, 10) || 10,
+    timeout: parseInt(qs("#ox-timeout")?.value, 10) || 20,
+    retries: parseInt(qs("#ox-retries")?.value, 10) || 3,
+    ssh_port: parseInt(qs("#ox-ssh-port")?.value, 10) || 44333,
+    default_model: qs("#ox-default-model")?.value || "routeros",
+    resolve_dns: qs("#ox-resolve-dns")?.checked !== false,
+    group_models: groupModels,
+  };
+}
+
+async function loadOxidizedSettings() {
+  try {
+    const cfg = await api("/api/settings/oxidized");
+    cfg.scan_concurrency = cfg.scan_concurrency;
+    fillOxidizedSettingsForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `Oxidized: ${e.message}`, "error");
+  }
+}
+
+async function saveOxidizedSettings(e) {
+  e.preventDefault();
+  if (!can("oxidized:write")) return;
+  try {
+    const saved = await api("/api/settings/oxidized", {
+      method: "PUT",
+      body: JSON.stringify(collectOxidizedSettingsForm()),
+    });
+    fillOxidizedSettingsForm(saved);
+    showAlert("settings-alert", "Настройки Oxidized сохранены", "success");
+    renderSettingsCredentials();
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+async function syncOxidizedFromSettings() {
+  if (!can("oxidized:write")) return;
+  try {
+    const res = await api("/oxidized/sync", { method: "POST" });
+    showAlert("settings-alert", res.message || "Конфиг Oxidized синхронизирован", "success");
+    await loadOxidizedSettings();
+  } catch (e) {
+    showAlert("settings-alert", e.message, "error");
+  }
+}
+
+async function cleanupDiscoveredDevices() {
+  if (!can("inventory:write")) return;
+  const count = (inventory?.devices || []).filter(d => d.name.startsWith("discovered-")).length;
+  if (!count) {
+    showAlert("settings-alert", "Нет устройств discovered-*", "info");
+    return;
+  }
+  if (!confirm(`Удалить ${count} устройств discovered-* из инвентаря?`)) return;
+  try {
+    const res = await api("/inventory/cleanup-discovered", { method: "POST" });
+    inventory = res.inventory;
+    showAlert("settings-alert", res.message || "Готово", "success");
+    updateDiscoveredCountBadge();
+    loadInventory();
+    loadHealth();
+    if (can("oxidized:read")) await loadOxidizedSettings();
+  } catch (e) {
+    showAlert("settings-alert", e.message, "error");
   }
 }
 
@@ -800,7 +937,7 @@ function renderSettingsCredentials() {
   const emptyEl = qs("#settings-credentials-empty");
   const query = globalSearchQuery;
   const filtered = profiles.filter(p =>
-    matchesSearch([p.name, p.group_name, p.username, p.password], query)
+    matchesSearch([p.name, p.group_name, p.username, p.password, groupModels[p.group_name]], query)
   );
 
   if (!profiles.length) {
@@ -811,17 +948,30 @@ function renderSettingsCredentials() {
   if (emptyEl) emptyEl.style.display = "none";
 
   if (!filtered.length) {
-    tbody.innerHTML = searchEmptyRow(5, query);
+    tbody.innerHTML = searchEmptyRow(6, query);
     return;
   }
 
-  tbody.innerHTML = filtered.map(p => `
+  const models = oxidizedSettingsCache?.available_models || ["routeros"];
+  const groupModels = oxidizedSettingsCache?.group_models || {};
+
+  tbody.innerHTML = filtered.map(p => {
+    const model = groupModels[p.group_name] || oxidizedSettingsCache?.default_model || "routeros";
+    const modelOptions = models.map(m =>
+      `<option value="${escapeHtml(m)}"${m === model ? " selected" : ""}>${escapeHtml(m)}</option>`
+    ).join("");
+    return `
     <tr data-profile="${escapeHtml(p.name)}">
       <td><strong>${escapeHtml(p.name)}</strong></td>
       <td>
         ${canEdit
           ? `<input type="text" class="form-control form-control-sm cred-group" value="${escapeHtml(p.group_name)}">`
           : `<code>${escapeHtml(p.group_name)}</code>`}
+      </td>
+      <td>
+        ${canEdit
+          ? `<select class="form-control form-control-sm cred-model">${modelOptions}</select>`
+          : `<code>${escapeHtml(model)}</code>`}
       </td>
       <td>
         ${canEdit || canView
@@ -838,7 +988,8 @@ function renderSettingsCredentials() {
         ${canEdit ? `<button class="btn btn-danger btn-sm btn-delete-cred" data-name="${escapeHtml(p.name)}" title="Удалить"><i class="fas fa-trash"></i></button>` : ""}
       </td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   tbody.querySelectorAll(".btn-save-cred").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -851,6 +1002,7 @@ function renderSettingsCredentials() {
             username: row.querySelector(".cred-username").value,
             password: row.querySelector(".cred-password").value,
             group_name: row.querySelector(".cred-group").value.trim(),
+            model: row.querySelector(".cred-model")?.value,
           }),
         });
         showAlert("settings-alert", `Профиль ${name} сохранён`, "success");
@@ -1632,6 +1784,9 @@ function bindEvents() {
   });
 
   qs("#ldap-settings-form")?.addEventListener("submit", saveLdapSettings);
+  qs("#oxidized-settings-form")?.addEventListener("submit", saveOxidizedSettings);
+  qs("#btn-settings-sync-oxidized")?.addEventListener("click", syncOxidizedFromSettings);
+  qs("#btn-cleanup-discovered")?.addEventListener("click", cleanupDiscoveredDevices);
   qs("#btn-ldap-apply-preset")?.addEventListener("click", () => applyLdapPreset(true));
   qs("#ldap-directory-type")?.addEventListener("change", () => {
     applyLdapPreset(false);
@@ -1655,6 +1810,7 @@ function bindEvents() {
           group_name: qs("#new-cred-group").value.trim(),
           username: qs("#new-cred-username").value,
           password: qs("#new-cred-password").value,
+          model: qs("#new-cred-model")?.value || "routeros",
         }),
       });
       qs("#new-cred-name").value = "";

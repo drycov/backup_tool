@@ -259,6 +259,12 @@ def remove_device(name: str) -> Inventory:
     return load_inventory()
 
 
+def cleanup_discovered_devices() -> tuple[int, Inventory]:
+    """Remove temporary discovery placeholders (discovered-*)."""
+    deleted, _ = DeviceModel.objects.filter(name__startswith=DISCOVERED_NAME_PREFIX).delete()
+    return deleted, load_inventory()
+
+
 def update_credential_profile(name: str, creds: CredentialProfileUpdate) -> Inventory:
     profile = CredentialProfileModel.objects.filter(name=name).first()
     if not profile:
@@ -270,6 +276,10 @@ def update_credential_profile(name: str, creds: CredentialProfileUpdate) -> Inve
     profile.username = creds.username
     profile.password = creds.password
     profile.save()
+    if creds.model:
+        from services.oxidized_settings import set_group_model
+
+        set_group_model(profile.group_name, creds.model)
     return load_inventory()
 
 

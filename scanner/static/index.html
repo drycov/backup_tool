@@ -392,6 +392,71 @@
           <div id="page-settings" class="page d-none">
             <div id="settings-alert" class="page-alert"></div>
 
+            <div class="card card-outline card-warning" id="settings-oxidized-card" data-permission-any="oxidized:read,oxidized:write">
+              <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-cogs mr-2"></i>Oxidized — бэкап конфигов</h3>
+                <div class="card-tools">
+                  <span class="badge badge-secondary" id="ox-settings-engine-badge">—</span>
+                  <span class="badge badge-info ml-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
+                </div>
+              </div>
+              <div class="card-body">
+                <p class="text-muted small mb-3" id="ox-settings-env-note"></p>
+                <form id="oxidized-settings-form">
+                  <div class="form-row">
+                    <div class="form-group col-md-2">
+                      <label for="ox-interval">Интервал, сек</label>
+                      <input type="number" id="ox-interval" class="form-control" min="60" step="60">
+                    </div>
+                    <div class="form-group col-md-2">
+                      <label for="ox-threads">Потоки</label>
+                      <input type="number" id="ox-threads" class="form-control" min="1" max="64">
+                    </div>
+                    <div class="form-group col-md-2">
+                      <label for="ox-timeout">Timeout SSH</label>
+                      <input type="number" id="ox-timeout" class="form-control" min="5">
+                    </div>
+                    <div class="form-group col-md-2">
+                      <label for="ox-retries">Повторы</label>
+                      <input type="number" id="ox-retries" class="form-control" min="0" max="10">
+                    </div>
+                    <div class="form-group col-md-2">
+                      <label for="ox-ssh-port">SSH порт</label>
+                      <input type="number" id="ox-ssh-port" class="form-control" min="1" max="65535">
+                    </div>
+                    <div class="form-group col-md-2">
+                      <label for="ox-default-model">Модель по умолчанию</label>
+                      <select id="ox-default-model" class="form-control"></select>
+                    </div>
+                  </div>
+                  <div class="form-row align-items-center mb-2">
+                    <div class="form-group col-md-4 mb-md-0">
+                      <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="ox-resolve-dns">
+                        <label class="custom-control-label" for="ox-resolve-dns">Resolve DNS</label>
+                      </div>
+                    </div>
+                    <div class="form-group col-md-8 mb-md-0">
+                      <label class="d-block small text-muted mb-0">Git remote (.env)</label>
+                      <code id="ox-git-remote" class="small">—</code>
+                    </div>
+                  </div>
+                  <div class="d-flex flex-wrap align-items-center">
+                    <button type="submit" class="btn btn-primary mr-2 mb-1" data-permission="oxidized:write">
+                      <i class="fas fa-save mr-1"></i> Сохранить
+                    </button>
+                    <button type="button" class="btn btn-outline-primary mr-2 mb-1" id="btn-settings-sync-oxidized" data-permission="oxidized:write">
+                      <i class="fas fa-sync mr-1"></i> Sync конфиг
+                    </button>
+                    <a class="btn btn-outline-secondary mr-2 mb-1" id="btn-settings-oxidized-ui" href="#" data-permission="oxidized:read">
+                      <i class="fas fa-external-link-alt mr-1"></i> Oxidized UI
+                    </a>
+                    <span class="text-muted small mb-1" id="ox-settings-log-path"></span>
+                  </div>
+                </form>
+              </div>
+            </div>
+
             <div class="card card-outline card-primary" id="settings-groups-card">
               <div class="card-header">
                 <h3 class="card-title">Группы и учётные данные (Oxidized)</h3>
@@ -407,6 +472,7 @@
                       <tr>
                         <th>Профиль</th>
                         <th>Группа</th>
+                        <th>Model</th>
                         <th>Username</th>
                         <th>Password</th>
                         <th></th>
@@ -441,10 +507,16 @@
                       <input type="text" id="new-cred-username" class="form-control" required>
                     </div>
                     <div class="form-group col-md-2">
+                      <label for="new-cred-model">Model</label>
+                      <select id="new-cred-model" class="form-control">
+                        <option value="routeros">routeros</option>
+                      </select>
+                    </div>
+                    <div class="form-group col-md-2">
                       <label for="new-cred-password">Password</label>
                       <input type="password" id="new-cred-password" class="form-control" required>
                     </div>
-                    <div class="form-group col-md-2 d-flex align-items-end">
+                    <div class="form-group col-md-1 d-flex align-items-end">
                       <button type="submit" class="btn btn-primary btn-block">
                         <i class="fas fa-plus mr-1"></i> Добавить
                       </button>
@@ -455,15 +527,24 @@
             </div>
 
             <div class="card card-outline card-secondary" id="settings-import-card" data-permission="inventory:write">
-              <div class="card-header"><h3 class="card-title">Импорт инвентаря</h3></div>
+              <div class="card-header"><h3 class="card-title">Импорт и обслуживание</h3></div>
               <div class="card-body">
                 <p class="text-muted small mb-2">
-                  Загрузить подсети и группы из <code>network_inventory.yml</code>
-                  (креды берутся из OVN_USER/OVN_PASS и US_USER/US_PASS в .env).
+                  Импорт подсетей из <code>network_inventory.yml</code>.
+                  Креды по умолчанию — из <code>OVN_*</code> / <code>US_*</code> в .env.
                 </p>
-                <button class="btn btn-secondary btn-sm" id="btn-import-network">
-                  <i class="fas fa-file-import mr-1"></i> Импорт network_inventory.yml
-                </button>
+                <div class="d-flex flex-wrap align-items-center mb-2">
+                  <button class="btn btn-secondary btn-sm mr-2 mb-1" id="btn-import-network">
+                    <i class="fas fa-file-import mr-1"></i> Импорт network_inventory.yml
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm mb-1" id="btn-cleanup-discovered">
+                    <i class="fas fa-broom mr-1"></i> Удалить discovered-*
+                  </button>
+                  <span class="text-muted small ml-2 mb-1" id="settings-discovered-count"></span>
+                </div>
+                <p class="text-muted small mb-0">
+                  Scan concurrency: <code id="settings-scan-concurrency">—</code> (из .env <code>SCAN_CONCURRENCY</code>)
+                </p>
               </div>
             </div>
 
