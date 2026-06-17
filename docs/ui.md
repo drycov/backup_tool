@@ -71,7 +71,12 @@ Telegram + SMTP, error/report toggles, тестовые кнопки.
 
 ### Вкладка «Группы»
 
-Профили credentials (SSH). Пароли видны только admin.
+SSH credentials и model per group. UI: **Настройки → Группы**.
+
+Подробнее: [groups.md](groups.md).
+
+- Профиль `ovn` → группа `hex` (после import network_inventory)
+- Редактирование паролей — только admin (`credentials:write`)
 
 ### Вкладка «LDAP» (`users:manage`)
 

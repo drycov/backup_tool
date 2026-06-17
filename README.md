@@ -44,7 +44,8 @@ docker compose up -d --build
 | [Архитектура](docs/architecture.md) | Компоненты, потоки данных, режимы Oxidized |
 | [Установка](docs/installation.md) | Docker Compose, Portainer, dev-окружение |
 | [Конфигурация](docs/configuration.md) | Все переменные `.env` |
-| [Инвентарь](docs/inventory.md) | YAML, импорт подсетей, профили credentials |
+| [Инвентарь](docs/inventory.md) | YAML, import, credentials |
+| [Группы Oxidized](docs/groups.md) | SSH groups, hex/us, профиль vs группа |
 | [Сканирование](docs/scanning.md) | Scan, discovery, tuning |
 | [Oxidized](docs/oxidized.md) | Бэкапы, Git push, SSH-ключи |
 | [Типы движков](docs/engines.md) | Python vs Ruby Oxidized |

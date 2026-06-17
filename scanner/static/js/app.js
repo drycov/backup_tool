@@ -90,7 +90,10 @@ function applyGlobalSearch() {
   renderDevicesTable();
   if (lastScanSummary) renderScanResults(lastScanSummary);
   if (oxidizedNodesCache.length) renderOxidizedNodesTable(oxidizedNodesCache);
-  if (!qs("#page-oxidized")?.classList.contains("d-none")) loadOxidizedLogs();
+  if (!qs("#page-oxidized")?.classList.contains("d-none")) {
+    refreshOxidizedLogBadge();
+    if ($("#oxidized-logs-modal").hasClass("show")) loadOxidizedLogs();
+  }
   renderSettingsCredentials();
   if (usersCache.length) renderUsersTable(usersCache);
 }
@@ -365,7 +368,7 @@ function initNavigation() {
       setPageTitle(page);
       if (page === "oxidized") {
         loadOxidizedNodes();
-        startOxidizedLogsPolling();
+        refreshOxidizedLogBadge();
       } else {
         stopOxidizedLogsPolling();
       }
@@ -1077,6 +1080,7 @@ function renderSettingsCredentials() {
   const tbody = qs("#settings-credentials-table");
   const emptyEl = qs("#settings-credentials-empty");
   const query = globalSearchQuery;
+  const groupModels = oxidizedSettingsCache?.group_models || {};
   const filtered = profiles.filter(p =>
     matchesSearch([p.name, p.group_name, p.username, p.password, groupModels[p.group_name]], query)
   );
@@ -1094,7 +1098,6 @@ function renderSettingsCredentials() {
   }
 
   const models = oxidizedSettingsCache?.available_models || ["routeros"];
-  const groupModels = oxidizedSettingsCache?.group_models || {};
 
   tbody.innerHTML = filtered.map(p => {
     const model = groupModels[p.group_name] || oxidizedSettingsCache?.default_model || "routeros";
@@ -1795,6 +1798,7 @@ function renderOxidizedLogs(data) {
   if (!data.available) {
     viewer.textContent = data.error || "Лог недоступен";
     if (badge) badge.style.display = "none";
+    updateOxidizedLogBtnBadge(data);
     return;
   }
 
@@ -1804,6 +1808,7 @@ function renderOxidizedLogs(data) {
       ? "Нет строк, подходящих под фильтр поиска"
       : "Лог пуст";
     if (badge) badge.style.display = "none";
+    updateOxidizedLogBtnBadge(data);
     return;
   }
 
@@ -1819,9 +1824,41 @@ function renderOxidizedLogs(data) {
     badge.textContent = data.truncated ? `${data.returned}+` : String(data.returned);
   }
 
+  updateOxidizedLogBtnBadge(data);
+
   if (oxidizedLogsStickToBottom) {
     viewer.scrollTop = viewer.scrollHeight;
   }
+}
+
+function updateOxidizedLogBtnBadge(data) {
+  const btnBadge = qs("#oxidized-logs-btn-badge");
+  if (!btnBadge) return;
+  const lines = data.lines || [];
+  if (lines.length && data.available) {
+    btnBadge.style.display = "inline";
+    btnBadge.textContent = data.truncated ? `${data.returned}+` : String(data.returned);
+    const hasError = lines.some(line => classifyOxidizedLogLine(line) === "log-error");
+    btnBadge.className = `badge ml-1 ${hasError ? "badge-danger" : "badge-secondary"}`;
+  } else {
+    btnBadge.style.display = "none";
+  }
+}
+
+async function refreshOxidizedLogBadge() {
+  const params = new URLSearchParams({ lines: "100" });
+  try {
+    const data = await api(`/api/oxidized/logs?${params}`);
+    updateOxidizedLogBtnBadge(data);
+  } catch (e) {
+    const btnBadge = qs("#oxidized-logs-btn-badge");
+    if (btnBadge) btnBadge.style.display = "none";
+  }
+}
+
+function openOxidizedLogsModal() {
+  oxidizedLogsStickToBottom = true;
+  $("#oxidized-logs-modal").modal("show");
 }
 
 async function loadOxidizedLogs() {
@@ -2067,6 +2104,9 @@ function bindEvents() {
   qs("#btn-backup-all")?.addEventListener("click", backupAllNodes);
   qs("#btn-refresh-oxidized")?.addEventListener("click", loadOxidizedNodes);
   qs("#btn-refresh-oxidized-logs")?.addEventListener("click", loadOxidizedLogs);
+  qs("#btn-open-oxidized-logs")?.addEventListener("click", openOxidizedLogsModal);
+  $("#oxidized-logs-modal").on("shown.bs.modal", startOxidizedLogsPolling);
+  $("#oxidized-logs-modal").on("hidden.bs.modal", stopOxidizedLogsPolling);
   qs("#btn-oxidized-iframe-reload")?.addEventListener("click", () => loadOxidizedIframe(true));
   qs("#btn-oxidized-iframe-nodes")?.addEventListener("click", () => navigateOxidizedIframe("/nodes"));
   qs("#config-card")?.querySelector(".btn-show-versions")?.addEventListener("click", () => {
@@ -2076,7 +2116,7 @@ function bindEvents() {
   $("#oxidized-diff-modal").on("hidden.bs.modal", closeOxidizedDiffModal);
   $("#oxidized-config-modal").on("shown.bs.modal", () => window.ConfigEditor?.refreshAll());
   qs("#oxidized-logs-autorefresh")?.addEventListener("change", () => {
-    if (!qs("#page-oxidized")?.classList.contains("d-none")) {
+    if ($("#oxidized-logs-modal").hasClass("show")) {
       startOxidizedLogsPolling();
     }
   });

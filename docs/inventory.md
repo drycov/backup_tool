@@ -26,12 +26,15 @@
 
 ### Профиль учётных данных (CredentialProfile)
 
+См. подробнее **[groups.md](groups.md)**.
+
 | Поле | Тип | Описание |
 |------|-----|----------|
-| `name` | string | Имя профиля (`ovn`, `us`, …) |
-| `group_name` | string | Группа устройств |
+| `name` | string | Имя профиля в БД (`ovn`, `us`, …) |
+| `group_name` | string | Группа устройств и ключ `groups` в Oxidized (`hex`, `us`) |
 | `username` | string | SSH-логин |
 | `password` | string | SSH-пароль |
+| `model` | string | (в UI/API) модель Oxidized для группы — пишется в `oxidized/config` |
 
 ## network_inventory.yml
 

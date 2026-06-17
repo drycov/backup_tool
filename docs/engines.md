@@ -24,7 +24,9 @@ OXIDIZED_ENGINE=external
 | **Git push** | Python `HookRunner` (subprocess git) | Hook `githubrepo` в `oxidized/config` |
 | **Web UI Oxidized** | Нет (только раздел Scanner UI) | `:8888` + прокси `/oxidized-proxy/*` |
 | **Лог** | `OXIDIZED_PYTHON_LOG_PATH` | `OXIDIZED_LOG_PATH` / `log:` в config |
-| **Sync / reload** | Перезагрузка in-process worker | Запись config + reload по mtime Ruby |
+| **Sync / reload** | In-process worker reload | Config mtime + Ruby reload |
+| **MikroTik bin/rsc** | Да (routeros) | Нет |
+| **Уведомления Telegram/Email** | Да | Нет (только логи) |
 
 ```mermaid
 flowchart LR
@@ -282,5 +284,5 @@ curl -s http://localhost:8000/api/oxidized/health | jq '{engine, engine_title, m
 ## Связанные документы
 
 - [Oxidized и бэкапы](oxidized.md) — Git push, SSH-ключи, API, troubleshooting
-- [Конfigурация](configuration.md) — переменные `.env`
+- [Конфигурация](configuration.md) — переменные `.env`
 - [Архитектура](architecture.md) — общая схема стека

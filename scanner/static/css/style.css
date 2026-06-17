@@ -154,16 +154,28 @@ body.login-page .login-logo {
 .settings-page-card > .card-header {
   background: #f8f9fa;
 }
+
+.oxidized-log-viewer {
   background: #1e1e1e;
   color: #c9d1d9;
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.78rem;
   line-height: 1.45;
-  max-height: 360px;
+  max-height: 65vh;
+  min-height: 240px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  border-radius: 0 0 0.25rem 0.25rem;
+  border-radius: 0;
+}
+
+.oxidized-logs-modal .modal-body {
+  background: #1e1e1e;
+}
+
+.oxidized-logs-modal .modal-header {
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .oxidized-log-viewer .log-warn { color: #d29922; }

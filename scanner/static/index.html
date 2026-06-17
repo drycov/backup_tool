@@ -312,30 +312,13 @@
               <button class="btn btn-warning mr-1" id="btn-backup-all" data-permission="oxidized:write">
                 <i class="fas fa-database mr-1"></i> Backup все
               </button>
-              <a class="btn btn-outline-secondary" id="link-oxidized-2" href="#" target="_blank">
+              <a class="btn btn-outline-secondary mr-1" id="link-oxidized-2" href="#" target="_blank">
                 <i class="fas fa-external-link-alt mr-1"></i> Oxidized Web ↗
               </a>
-            </div>
-            <div class="card card-outline card-dark" id="oxidized-logs-card">
-              <div class="card-header">
-                <h3 class="card-title mb-0">
-                  <i class="fas fa-terminal mr-1"></i> Лог Oxidized
-                  <span class="badge badge-info ml-1" id="oxidized-log-engine" style="display:none;"></span>
-                  <span class="badge badge-secondary ml-1" id="oxidized-logs-count" style="display:none;" title="Число строк"></span>
-                </h3>
-                <div class="card-tools">
-                  <div class="custom-control custom-checkbox custom-control-inline mr-2">
-                    <input type="checkbox" class="custom-control-input" id="oxidized-logs-autorefresh" checked>
-                    <label class="custom-control-label text-sm" for="oxidized-logs-autorefresh">Авто</label>
-                  </div>
-                  <button type="button" class="btn btn-tool" id="btn-refresh-oxidized-logs" title="Обновить">
-                    <i class="fas fa-sync-alt"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="card-body p-0">
-                <pre id="oxidized-log-viewer" class="oxidized-log-viewer p-3 m-0">Загрузка…</pre>
-              </div>
+              <button type="button" class="btn btn-outline-dark" id="btn-open-oxidized-logs" title="Лог Oxidized">
+                <i class="fas fa-terminal mr-1"></i> Лог
+                <span class="badge badge-secondary ml-1" id="oxidized-logs-btn-badge" style="display:none;"></span>
+              </button>
             </div>
             <div class="card card-outline card-primary">
               <div class="card-header">
@@ -648,8 +631,14 @@
                 <div class="tab-pane fade" id="settings-tab-groups" role="tabpanel">
                   <div id="settings-groups-card">
                     <p class="text-muted small mb-3">
-                      Группы → секция <code>groups</code> в Oxidized. Устройства привязаны к группе для SSH и бэкапа.
+                      Группы задают SSH-логин, пароль и модель Oxidized для устройств с одинаковым полем <code>group</code>.
+                      Сохраняются в БД и синхронизируются в <code>oxidized/config</code> → секция <code>groups</code>.
                     </p>
+                    <div class="callout callout-info py-2 px-3 mb-3 small">
+                      <strong>Профиль</strong> — имя записи в системе (напр. <code>ovn</code>).
+                      <strong>Группа</strong> — ключ для устройств (напр. <code>hex</code> из <code>network_inventory.yml</code>).
+                      Стандартный набор после import: профиль <code>ovn</code> → группа <code>hex</code>, профиль <code>us</code> → группа <code>us</code>.
+                    </div>
                     <div class="table-responsive">
                       <table class="table table-bordered table-striped table-sm">
                         <thead>
@@ -1095,6 +1084,38 @@
         </div>
         <div class="modal-body p-0 config-editor-wrap">
           <textarea id="oxidized-config-modal-content" spellcheck="false" aria-label="Версия конфигурации"></textarea>
+        </div>
+        <div class="modal-footer bg-light py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Oxidized logs -->
+  <div class="modal fade" id="oxidized-logs-modal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable oxidized-logs-modal">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h5 class="modal-title">
+            <i class="fas fa-terminal mr-2 text-muted"></i>
+            Лог Oxidized
+            <span class="badge badge-info ml-1" id="oxidized-log-engine" style="display:none;"></span>
+            <span class="badge badge-secondary ml-1" id="oxidized-logs-count" style="display:none;" title="Число строк"></span>
+          </h5>
+          <div class="d-flex align-items-center ml-auto mr-2">
+            <div class="custom-control custom-checkbox custom-control-inline mr-3 mb-0">
+              <input type="checkbox" class="custom-control-input" id="oxidized-logs-autorefresh" checked>
+              <label class="custom-control-label text-sm" for="oxidized-logs-autorefresh">Авто</label>
+            </div>
+            <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="btn-refresh-oxidized-logs" title="Обновить">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+        </div>
+        <div class="modal-body p-0">
+          <pre id="oxidized-log-viewer" class="oxidized-log-viewer p-3 m-0">Загрузка…</pre>
         </div>
         <div class="modal-footer bg-light py-2">
           <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
