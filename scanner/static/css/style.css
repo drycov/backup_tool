@@ -267,6 +267,28 @@ body.login-page .login-logo {
   font-weight: 600;
 }
 
+@media (max-width: 991.98px) {
+  .settings-nav-card {
+    position: static;
+  }
+
+  .settings-tab-nav {
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-tab-nav .nav-item {
+    flex-shrink: 0;
+  }
+
+  .settings-tab-nav .nav-link span {
+    white-space: nowrap;
+  }
+}
+
 .settings-tab-content {
   padding: 0.25rem 0;
 }

@@ -18,6 +18,7 @@ let oxidizedLogsLevelFilter = "all";
 let oxidizedLogsRawData = null;
 let oxidizedSettingsCache = null;
 let groupPoliciesCache = [];
+const SETTINGS_TAB_STORAGE_KEY = "backup-tools-settings-tab";
 
 const SCAN_PHASE_LABELS = {
   idle: "Ожидание",
@@ -248,6 +249,128 @@ function applyPermissions() {
   const netsCard = qs("#networks-card");
   if (netsCard) {
     netsCard.style.display = can("inventory:write") ? "" : "none";
+  }
+  syncSettingsActiveTab();
+}
+
+function normalizeSettingsTabId(raw) {
+  if (!raw) return "";
+  let s = String(raw).replace(/^#/, "").trim();
+  if (s.startsWith("settings-tab-")) return s;
+  if (s.startsWith("settings/")) s = s.slice("settings/".length);
+  const aliases = {
+    backup: "settings-tab-backup",
+    git: "settings-tab-git",
+    notify: "settings-tab-notify",
+    notifications: "settings-tab-notify",
+    groups: "settings-tab-groups",
+    ldap: "settings-tab-ldap",
+    service: "settings-tab-service",
+  };
+  return aliases[s] || "";
+}
+
+function isSettingsTabVisible(tabId) {
+  if (!tabId) return false;
+  const navItem = qs(`#settings-tab-nav a[href="#${tabId}"]`)?.closest(".nav-item");
+  if (!navItem || navItem.style.display === "none") return false;
+  const pane = qs(`#${tabId}`);
+  return !!(pane && pane.style.display !== "none");
+}
+
+function getVisibleSettingsTabIds() {
+  return qsa("#settings-tab-nav .nav-item a.nav-link")
+    .map(a => a.getAttribute("href")?.slice(1))
+    .filter(id => id && isSettingsTabVisible(id));
+}
+
+function activateSettingsTab(tabId, opts = {}) {
+  const { persist = true, updateHash = true, scroll = false } = opts;
+  let id = normalizeSettingsTabId(tabId);
+  if (!id || !isSettingsTabVisible(id)) {
+    id = getVisibleSettingsTabIds()[0] || "";
+  }
+  if (!id) return;
+
+  const link = qs(`#settings-tab-nav a[href="#${id}"]`);
+  if (link && !link.classList.contains("active")) {
+    if (window.bootstrap?.Tab) {
+      window.bootstrap.Tab.getOrCreateInstance(link).show();
+    } else {
+      link.click();
+    }
+  }
+  if (persist) {
+    try { localStorage.setItem(SETTINGS_TAB_STORAGE_KEY, id); } catch {}
+  }
+  if (updateHash) {
+    const short = id.replace("settings-tab-", "");
+    const next = `#settings/${short}`;
+    if (location.hash !== next) {
+      history.replaceState(null, "", next);
+    }
+  }
+  if (scroll) {
+    qs(".settings-content-card")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+function resolveInitialSettingsTab() {
+  const hashPart = location.hash.replace(/^#/, "");
+  if (hashPart.startsWith("settings/")) {
+    const fromHash = normalizeSettingsTabId(hashPart);
+    if (fromHash && isSettingsTabVisible(fromHash)) return fromHash;
+  }
+  try {
+    const stored = localStorage.getItem(SETTINGS_TAB_STORAGE_KEY);
+    if (stored && isSettingsTabVisible(stored)) return stored;
+  } catch {}
+  return getVisibleSettingsTabIds()[0] || "settings-tab-backup";
+}
+
+function syncSettingsActiveTab() {
+  if (qs("#page-settings")?.classList.contains("d-none")) return;
+  const activeId = qs("#settings-tab-nav .nav-link.active")?.getAttribute("href")?.slice(1);
+  if (activeId && isSettingsTabVisible(activeId)) return;
+  activateSettingsTab(resolveInitialSettingsTab(), { updateHash: false });
+}
+
+function initSettingsTabs() {
+  qsa("#settings-tab-nav a[data-bs-toggle='tab']").forEach(link => {
+    link.addEventListener("shown.bs.tab", e => {
+      const id = e.target.getAttribute("href")?.slice(1);
+      if (!id) return;
+      try { localStorage.setItem(SETTINGS_TAB_STORAGE_KEY, id); } catch {}
+      const short = id.replace("settings-tab-", "");
+      const next = `#settings/${short}`;
+      if (location.hash !== next) {
+        history.replaceState(null, "", next);
+      }
+    });
+  });
+}
+
+function navigateToSettingsTab(tabId, opts = {}) {
+  navigateToPage("settings");
+  window.setTimeout(() => {
+    activateSettingsTab(tabId, { scroll: true, ...opts });
+  }, 150);
+}
+
+function handleRouteHash() {
+  const h = location.hash.replace(/^#/, "");
+  if (!h || h === "settings" || h.startsWith("settings/")) {
+    if (!currentUser) return;
+    const tab = h.startsWith("settings/") ? h.slice("settings/".length) : "";
+    navigateToPage("settings");
+    window.setTimeout(() => {
+      activateSettingsTab(tab || resolveInitialSettingsTab(), { updateHash: !tab });
+    }, 150);
+    return;
+  }
+  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "audit", "users"];
+  if (pages.includes(h)) {
+    navigateToPage(h);
   }
 }
 
@@ -551,7 +674,11 @@ function initNavigation() {
         loadScanHistory();
       }
       if (page === "audit") loadAudit();
-      if (page === "settings") loadSettings();
+      if (page === "settings") {
+        loadSettings().then(() => {
+          activateSettingsTab(resolveInitialSettingsTab(), { updateHash: false });
+        });
+      }
     });
   });
 }
@@ -2131,7 +2258,7 @@ function updateDeviceGroupHint() {
     hint.querySelector(".device-goto-settings")?.addEventListener("click", e => {
       e.preventDefault();
       hideModal("device-modal");
-      navigateToPage("settings");
+      navigateToSettingsTab("groups");
     });
     return;
   }
@@ -3246,6 +3373,8 @@ async function backupAllNodes() {
 
 function bindEvents() {
   bindMaintenanceDayToggles();
+  initSettingsTabs();
+  window.addEventListener("hashchange", handleRouteHash);
   const addDeviceBtn = qs("#btn-add-device");
   if (addDeviceBtn) addDeviceBtn.addEventListener("click", () => openDeviceModal());
 
@@ -3253,7 +3382,7 @@ function bindEvents() {
   qs("#device-enabled")?.addEventListener("change", syncDeviceEnabledLabel);
   qs("#btn-device-goto-settings")?.addEventListener("click", () => {
     hideModal("device-modal");
-    navigateToPage("settings");
+    navigateToSettingsTab("groups");
   });
 
   qs("#device-form").addEventListener("submit", e => {
@@ -3280,10 +3409,7 @@ function bindEvents() {
   qs("#device-maintenance-settings-link")?.addEventListener("click", e => {
     e.preventDefault();
     hideModal("device-modal");
-    navigateToPage("settings");
-    window.setTimeout(() => {
-      qs('a[href="#settings-tab-service"]')?.click();
-    }, 200);
+    navigateToSettingsTab("service");
   });
 
   qs("#btn-save-maintenance")?.addEventListener("click", saveMaintenanceSettings);
@@ -3383,7 +3509,7 @@ function bindEvents() {
   qs("#oxidized-backups-goto-settings")?.addEventListener("click", e => {
     e.preventDefault();
     hideModal("oxidized-backups-modal");
-    navigateToPage("settings");
+    navigateToSettingsTab("backup");
   });
   qs("#oxidized-backups-goto-logs")?.addEventListener("click", e => {
     e.preventDefault();
@@ -3517,6 +3643,7 @@ async function init() {
     currentUser = await api("/api/auth/me");
     showApp();
     await bootstrapApp();
+    handleRouteHash();
   } catch {
     showLogin();
   }
