@@ -89,7 +89,7 @@ def get_oxidized_settings() -> dict[str, Any]:
             "error": health.get("error"),
         },
         "editable": True,
-        "env_note": "Движок задаётся в .env (OXIDIZED_ENGINE); worker — в oxidized/config; Git и scan — во вкладках настроек",
+        "env_note": "Движок и системные параметры — вкладка «Система»; worker — ниже; Git и scan — в соседних вкладках",
     }
 
 

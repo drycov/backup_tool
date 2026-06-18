@@ -378,6 +378,28 @@ class AlertState(models.Model):
         db_table = "alert_states"
 
 
+class SystemConfig(models.Model):
+    """Singleton: системные настройки (ранее только .env), pk=1."""
+
+    oxidized_engine = models.CharField(max_length=16, default="python")
+    oxidized_external_url = models.CharField(
+        max_length=512, blank=True, default="http://oxidized:8888"
+    )
+    zabbix_auth_key = models.CharField(max_length=256, blank=True, default="")
+    zabbix_monitoring_enabled = models.BooleanField(default=True)
+    audit_retention_days = models.PositiveIntegerField(default=365)
+    metrics_enabled = models.BooleanField(default=True)
+    backup_data_dir = models.CharField(max_length=512, default="/data/backups")
+    access_token_expire_minutes = models.PositiveIntegerField(default=480)
+    behind_https_proxy = models.BooleanField(default=False)
+    task_worker_enabled = models.BooleanField(default=True)
+    task_worker_poll_sec = models.PositiveIntegerField(default=30)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "system_config"
+
+
 class ConfigAuditRun(models.Model):
     """Запуск анализа конфигураций на уязвимости и misconfiguration."""
 

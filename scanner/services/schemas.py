@@ -388,6 +388,20 @@ class IntegrationSettingsUpdate(BaseModel):
     inventory_sync_interval_hours: int = 24
 
 
+class SystemSettingsUpdate(BaseModel):
+    oxidized_engine: str = "python"
+    oxidized_external_url: str = ""
+    zabbix_auth_key: Optional[str] = None
+    zabbix_monitoring_enabled: bool = True
+    audit_retention_days: int = 365
+    metrics_enabled: bool = True
+    backup_data_dir: str = "/data/backups"
+    access_token_expire_minutes: int = 480
+    behind_https_proxy: bool = False
+    task_worker_enabled: bool = True
+    task_worker_poll_sec: int = 30
+
+
 class LdapTestResponse(BaseModel):
     ok: bool
     message: str

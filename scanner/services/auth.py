@@ -50,8 +50,10 @@ def permissions_for_role(role: str) -> list[str]:
 
 
 def create_access_token(user_id: int, username: str, role: str) -> str:
+    from services.system_settings import get_config
+
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        minutes=get_config().access_token_expire_minutes
     )
     payload = {
         "sub": str(user_id),

@@ -1,3 +1,4 @@
+import time
 from typing import Any, Optional
 
 import httpx
@@ -6,16 +7,30 @@ from urllib.parse import quote
 from django.conf import settings
 
 TIMEOUT = 30.0
+HEALTH_TIMEOUT = 5.0
+_NODES_CACHE_TTL = 10.0
+_nodes_cache: tuple[float, Optional[list], Optional[str]] | None = None
 
 
 def _use_python_engine() -> bool:
     return getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python"
 
 
-def _external_request(method: str, path: str, **kwargs: Any) -> tuple[Optional[Any], Optional[str]]:
+def invalidate_nodes_cache() -> None:
+    global _nodes_cache
+    _nodes_cache = None
+
+
+def _external_request(
+    method: str,
+    path: str,
+    *,
+    timeout: float | None = None,
+    **kwargs: Any,
+) -> tuple[Optional[Any], Optional[str]]:
     url = f"{settings.OXIDIZED_URL}{path}"
     try:
-        with httpx.Client(timeout=TIMEOUT) as client:
+        with httpx.Client(timeout=timeout if timeout is not None else TIMEOUT) as client:
             response = client.request(method, url, **kwargs)
             if response.status_code >= 400:
                 return None, f"Oxidized HTTP {response.status_code}: {response.text[:200]}"
@@ -32,18 +47,30 @@ def _external_request(method: str, path: str, **kwargs: Any) -> tuple[Optional[A
         return None, str(exc)
 
 
-def get_nodes() -> tuple[Optional[list], Optional[str]]:
+def get_nodes(*, use_cache: bool = True, timeout: float | None = None) -> tuple[Optional[list], Optional[str]]:
+    global _nodes_cache
+    if use_cache and _nodes_cache is not None:
+        cached_at, nodes, err = _nodes_cache
+        if time.monotonic() - cached_at < _NODES_CACHE_TTL:
+            return nodes, err
+
     if _use_python_engine():
         from services.oxidized_engine import get_manager
 
-        return get_manager().list_nodes(), None
+        nodes, err = get_manager().list_nodes(), None
+    else:
+        data, err = _external_request("GET", "/nodes.json", timeout=timeout)
+        if err:
+            nodes = None
+        elif isinstance(data, list):
+            nodes = data
+        else:
+            nodes = None
+            err = "Неверный формат ответа nodes.json"
 
-    data, err = _external_request("GET", "/nodes.json")
-    if err:
-        return None, err
-    if isinstance(data, list):
-        return data, None
-    return None, "Неверный формат ответа nodes.json"
+    if use_cache:
+        _nodes_cache = (time.monotonic(), nodes, err)
+    return nodes, err
 
 
 def get_node_config(name: str) -> tuple[Optional[str], Optional[str]]:
@@ -188,7 +215,7 @@ def check_health() -> dict:
         payload["proxy_url"] = "/oxidized-proxy/nodes"
         return payload
 
-    data, err = get_nodes()
+    data, err = get_nodes(timeout=HEALTH_TIMEOUT)
     return {
         "reachable": err is None,
         "error": err,

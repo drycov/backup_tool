@@ -104,6 +104,7 @@ from services.schemas import (
     ScanLogEntry,
     ScanSettingsUpdate,
     ScanStartResponse,
+    SystemSettingsUpdate,
     MikrotikRestoreRequest,
     MikrotikBackupCompareRequest,
 )
@@ -957,7 +958,9 @@ def health_ready(request: HttpRequest) -> JsonResponse:
 
 
 def metrics_view(request: HttpRequest) -> HttpResponse:
-    if not getattr(settings, "METRICS_ENABLED", True):
+    from services.system_settings import get_config
+
+    if not get_config().metrics_enabled:
         return HttpResponse("metrics disabled", status=404)
     from services.metrics import metrics_response, refresh_all_gauges
 
@@ -1684,6 +1687,35 @@ def git_settings_dispatch(request: HttpRequest) -> JsonResponse:
         except ValueError as exc:
             return error_response(str(exc))
         log_audit_user(user, ACTION_SETTINGS_UPDATE, target="git", request=request)
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+def system_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import system_settings
+
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    if request.method == "GET":
+        if not auth.user_has_permission(user, auth.PERMISSION_SETTINGS_READ):
+            return error_response("Недостаточно прав", status=403)
+        return json_response(system_settings.get_config_public())
+    if request.method == "PUT":
+        if not auth.user_has_permission(user, auth.PERMISSION_MANAGE_USERS):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            body = parse_json_body(request)
+            payload = SystemSettingsUpdate.model_validate(body)
+            saved = system_settings.save_config(payload.model_dump())
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        log_audit_user(user, ACTION_SETTINGS_UPDATE, target="system", request=request)
         return json_response(saved)
     return error_response("Method not allowed", status=405)
 

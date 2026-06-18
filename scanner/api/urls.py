@@ -29,6 +29,7 @@ urlpatterns = [
     path("api/settings/ldap/test", views.ldap_settings_test_view, name="settings-ldap-test"),
     path("api/settings/git", views.git_settings_dispatch, name="settings-git"),
     path("api/settings/integrations", views.integration_settings_dispatch, name="settings-integrations"),
+    path("api/settings/system", views.system_settings_dispatch, name="settings-system"),
     path("api/settings/integrations/test-audit-webhook", views.integration_test_audit_webhook, name="settings-integrations-test-audit"),
     path("api/settings/scan", views.scan_settings_dispatch, name="settings-scan"),
     path("api/oxidized/health", views.oxidized_health, name="oxidized-health"),

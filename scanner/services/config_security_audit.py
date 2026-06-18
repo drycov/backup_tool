@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.models import ConfigAuditRun, ConfigFinding
+from django.db.models import Count
 from services.config_security_rules import SEVERITY_ORDER, SecurityRule, rules_for_model
 from services.inventory import load_inventory
 from services.oxidized_client import get_node_config
@@ -188,6 +189,14 @@ def get_latest_run() -> ConfigAuditRun | None:
     )
 
 
+def _allowed_device_names(user) -> set[str] | None:
+    if user is None:
+        return None
+    from services.object_scope import filter_devices
+
+    return {d.name for d in filter_devices(user, load_inventory().devices)}
+
+
 def compute_security_summary(
     *,
     severity: str = "",
@@ -209,7 +218,12 @@ def compute_security_summary(
             "rules_total": len(_all_rule_ids()),
         }
 
-    qs = ConfigFinding.objects.filter(run=run)
+    allowed_names = _allowed_device_names(user)
+    scoped_qs = ConfigFinding.objects.filter(run=run)
+    if allowed_names is not None:
+        scoped_qs = scoped_qs.filter(device_name__in=allowed_names)
+
+    qs = scoped_qs
     if severity:
         qs = qs.filter(severity=severity.lower())
     if category:
@@ -221,32 +235,19 @@ def compute_security_summary(
     elif acknowledged == "false":
         qs = qs.filter(acknowledged=False)
 
-    if user is not None:
-        from services.object_scope import filter_devices
-
-        allowed_names = {d.name for d in filter_devices(user, load_inventory().devices)}
-        qs = qs.filter(device_name__in=allowed_names)
-
     findings = list(qs.order_by("severity", "device_name")[:500])
+
     counts = {s: 0 for s in SEVERITY_ORDER}
-    by_category: dict[str, int] = {}
-    for row in ConfigFinding.objects.filter(run=run):
-        if user is not None:
-            from services.object_scope import filter_devices
+    for row in scoped_qs.values("severity").annotate(n=Count("id")):
+        sev = row["severity"] if row["severity"] in counts else "info"
+        counts[sev] = counts.get(sev, 0) + int(row["n"])
 
-            allowed_names = {d.name for d in filter_devices(user, load_inventory().devices)}
-            if row.device_name not in allowed_names:
-                continue
-        sev = row.severity if row.severity in counts else "info"
-        counts[sev] = counts.get(sev, 0) + 1
-        by_category[row.category] = by_category.get(row.category, 0) + 1
+    by_category: dict[str, int] = {
+        str(row["category"]): int(row["n"])
+        for row in scoped_qs.values("category").annotate(n=Count("id"))
+    }
 
-    devices_with_findings = (
-        ConfigFinding.objects.filter(run=run)
-        .values_list("device_name", flat=True)
-        .distinct()
-        .count()
-    )
+    devices_with_findings = scoped_qs.values("device_name").distinct().count()
 
     return {
         "run": _run_to_dict(run),

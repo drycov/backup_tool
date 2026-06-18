@@ -14,7 +14,9 @@ _stop = threading.Event()
 
 
 def _poll_interval_sec() -> int:
-    return max(10, int(os.environ.get("TASK_WORKER_POLL_SEC", "30")))
+    from services.system_settings import get_config
+
+    return max(10, get_config().task_worker_poll_sec)
 
 
 def tick() -> None:
@@ -41,8 +43,10 @@ def _loop() -> None:
 def start_inline_task_worker() -> None:
     """Запуск воркера в daemon-потоке (по умолчанию в web-контейнере)."""
     global _thread
-    if os.environ.get("TASK_WORKER_ENABLED", "true").lower() in ("0", "false", "no"):
-        logger.info("task_worker | disabled via TASK_WORKER_ENABLED")
+    from services.system_settings import get_config
+
+    if not get_config().task_worker_enabled:
+        logger.info("task_worker | disabled in system settings")
         return
     if os.environ.get("TASK_WORKER_INLINE", "true").lower() in ("0", "false", "no"):
         logger.info("task_worker | inline disabled — use manage.py run_task_worker")

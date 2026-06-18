@@ -6,15 +6,13 @@
   <meta name="color-scheme" content="light dark">
   <title>Backup Tools</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-400.css" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-500.css" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-600.css" crossorigin="anonymous">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-700.css" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.11.0/styles/overlayscrollbars.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/css/adminlte.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="layout-fixed sidebar-expand-lg enterprise-ui">
@@ -606,6 +604,12 @@
                         <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-integrations" role="tab">
                           <i class="fas fa-plug" aria-hidden="true"></i>
                           <span>Интеграции</span>
+                        </a>
+                      </li>
+                      <li class="nav-item" id="settings-tab-system-li" data-permission="users:manage">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-system" role="tab">
+                          <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                          <span>Система</span>
                         </a>
                       </li>
                       <li class="nav-item" data-permission="inventory:write">
@@ -1553,6 +1557,104 @@
                       </form>
                     </div>
 
+                    <!-- Tab: System -->
+                    <div class="tab-pane fade" id="settings-tab-system" role="tabpanel" data-permission="users:manage">
+                      <form id="system-settings-form">
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">Oxidized engine</h5>
+                              <p class="settings-section-desc mb-0">Смена движка требует перезапуска контейнера scanner.</p>
+                            </div>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="row g-3">
+                              <div class="col-md-4">
+                                <label class="form-label" for="sys-oxidized-engine">Движок</label>
+                                <select id="sys-oxidized-engine" class="form-select form-select-sm">
+                                  <option value="python">python (встроенный worker)</option>
+                                  <option value="external">external (Ruby-контейнер)</option>
+                                </select>
+                              </div>
+                              <div class="col-md-8">
+                                <label class="form-label" for="sys-oxidized-url">URL external Oxidized</label>
+                                <input type="url" id="sys-oxidized-url" class="form-control form-control-sm" placeholder="http://oxidized:8888">
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <h5 class="settings-section-title mb-1">Zabbix</h5>
+                            <p class="settings-section-desc mb-0">HTTP LLD — шаблон RMB_Monitoring / BackupTools_Monitoring.</p>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="form-check mb-3">
+                              <input type="checkbox" class="form-check-input" id="sys-zabbix-enabled" checked>
+                              <label class="form-check-label" for="sys-zabbix-enabled">Включить API /device/*</label>
+                            </div>
+                            <div class="row g-3">
+                              <div class="col-lg-6">
+                                <label class="form-label" for="sys-zabbix-key">Auth key ({$AUTHKEY})</label>
+                                <input type="password" id="sys-zabbix-key" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <h5 class="settings-section-title mb-1">Платформа</h5>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="row g-3">
+                              <div class="col-md-3">
+                                <label class="form-label" for="sys-audit-retention">Аудит, дней хранения</label>
+                                <input type="number" id="sys-audit-retention" class="form-control form-control-sm" min="0" max="3650">
+                              </div>
+                              <div class="col-md-3">
+                                <label class="form-label" for="sys-token-ttl">JWT TTL, мин</label>
+                                <input type="number" id="sys-token-ttl" class="form-control form-control-sm" min="5" max="10080">
+                              </div>
+                              <div class="col-md-6">
+                                <label class="form-label" for="sys-backup-dir">Каталог backup_data</label>
+                                <input type="text" id="sys-backup-dir" class="form-control form-control-sm">
+                              </div>
+                              <div class="col-md-3">
+                                <label class="form-label" for="sys-worker-poll">Task worker poll, сек</label>
+                                <input type="number" id="sys-worker-poll" class="form-control form-control-sm" min="10" max="600">
+                              </div>
+                            </div>
+                            <div class="row g-3 mt-1">
+                              <div class="col-md-4">
+                                <div class="form-check">
+                                  <input type="checkbox" class="form-check-input" id="sys-metrics-enabled" checked>
+                                  <label class="form-check-label" for="sys-metrics-enabled">Prometheus /metrics</label>
+                                </div>
+                              </div>
+                              <div class="col-md-4">
+                                <div class="form-check">
+                                  <input type="checkbox" class="form-check-input" id="sys-worker-enabled" checked>
+                                  <label class="form-check-label" for="sys-worker-enabled">Inline task worker</label>
+                                </div>
+                              </div>
+                              <div class="col-md-4">
+                                <div class="form-check">
+                                  <input type="checkbox" class="form-check-input" id="sys-https-proxy">
+                                  <label class="form-check-label" for="sys-https-proxy">За HTTPS reverse proxy</label>
+                                </div>
+                              </div>
+                            </div>
+                            <p class="text-muted small mt-2 mb-0" id="sys-settings-restart-hint"></p>
+                          </div>
+                        </section>
+                        <div class="settings-form-actions">
+                          <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-save me-1"></i> Сохранить системные настройки
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+
                     <!-- Tab: Service -->
                     <div class="tab-pane fade" id="settings-tab-service" role="tabpanel" data-permission="inventory:write">
                       <div id="settings-import-card">
@@ -1564,7 +1666,7 @@
                               </h5>
                               <p class="settings-section-desc mb-0">
                                 Импорт подсетей из <code>network_inventory.yml</code>.
-                                Scan/discovery и seed-креды — в БД (из <code>.env</code> при старте).
+                                Scan/discovery и seed-креды настраиваются ниже.
                               </p>
                             </div>
                           </div>
@@ -2239,10 +2341,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/js/adminlte.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
-  <script src="/static/js/ui-shell.js"></script>
-  <script src="/static/js/config-editor.js"></script>
-  <script src="/static/js/app.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
+  <script defer src="/static/js/ui-shell.js"></script>
+  <script defer src="/static/js/config-editor.js"></script>
+  <script defer src="/static/js/app.js"></script>
 </body>
 </html>

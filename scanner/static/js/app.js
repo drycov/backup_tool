@@ -282,6 +282,8 @@ function normalizeSettingsTabId(raw) {
     notifications: "settings-tab-notify",
     groups: "settings-tab-groups",
     ldap: "settings-tab-ldap",
+    integrations: "settings-tab-integrations",
+    system: "settings-tab-system",
     service: "settings-tab-service",
   };
   return aliases[s] || "";
@@ -402,6 +404,7 @@ function getSettingsStatePayload() {
     };
   }
   parts.maintenance = collectMaintenanceSettingsOnly();
+  if (qs("#system-settings-form")) parts.system = collectSystemSettingsForm();
   return JSON.stringify(parts);
 }
 
@@ -452,6 +455,15 @@ function handleRouteHash() {
   if (pages.includes(h)) {
     navigateToPage(h);
   }
+}
+
+function currentAppPage() {
+  const h = location.hash.replace(/^#/, "");
+  if (!h || h === "settings" || h.startsWith("settings/")) {
+    return h.startsWith("settings") ? "settings" : "dashboard";
+  }
+  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "security", "audit", "users"];
+  return pages.includes(h) ? h : "dashboard";
 }
 
 function syncAppRouteFromHash() {
@@ -770,6 +782,7 @@ function initNavigation() {
       }
       if (page === "audit") loadAudit();
       if (page === "security") loadSecurityAudit();
+      if (page === "dashboard") loadHealth();
       if (page === "settings") {
         loadSettings().then(() => {
           activateSettingsTab(resolveInitialSettingsTab(), { updateHash: true });
@@ -843,8 +856,10 @@ async function verifyLoginTotp() {
 async function completeLogin(data) {
   currentUser = data.user;
   showApp();
-  await bootstrapApp();
   syncAppRouteFromHash();
+  bootstrapApp(window.__uiConfig).catch(err => {
+    console.error("bootstrap failed", err);
+  });
   if (currentUser?.must_change_password) {
     showPasswordChangeModal();
   }
@@ -1138,11 +1153,14 @@ function renderUsersTable(users) {
   });
 }
 
-async function loadHealth() {
+async function loadHealth(opts = {}) {
+  const { includeCompliance = true } = opts;
   try {
-    const health = await api("/health");
-    const oxHealth = await api("/api/oxidized/health").catch(() => ({ reachable: false }));
-    const trends = await api("/api/scan/trends?days=30").catch(() => ({ points: [] }));
+    const [health, oxHealth, trends] = await Promise.all([
+      api("/health"),
+      api("/api/oxidized/health").catch(() => ({ reachable: false })),
+      api("/api/scan/trends?days=30").catch(() => ({ points: [] })),
+    ]);
 
     let warningHtml = "";
     if (oxHealth.models === "python-fallback") {
@@ -1156,7 +1174,9 @@ async function loadHealth() {
     }
 
     const latest = trends.latest || {};
-    qs("#dashboard-stats").innerHTML = `
+    const statsEl = qs("#dashboard-stats");
+    if (statsEl) {
+      statsEl.innerHTML = `
       ${warningHtml}
       <div class="col-12 stats-row">
         <div class="row">
@@ -1170,11 +1190,33 @@ async function loadHealth() {
         </div>
       </div>
     `;
-    await loadComplianceDashboard();
+    }
     renderScanTrends(trends);
+    if (includeCompliance) {
+      loadComplianceDashboard();
+    }
   } catch (e) {
     showAlert("dashboard-alert", e.message, "error");
   }
+}
+
+function complianceBySiteFromNodes(nodes) {
+  const buckets = {};
+  for (const node of nodes || []) {
+    const site = (node.site || "").trim() || "(без site)";
+    const bucket = buckets[site] || { site, total: 0, ok: 0, failed: 0, critical: 0 };
+    bucket.total += 1;
+    if (node.state === "ok") bucket.ok += 1;
+    else bucket.failed += 1;
+    if (node.critical) bucket.critical += 1;
+    buckets[site] = bucket;
+  }
+  return Object.values(buckets)
+    .sort((a, b) => a.site.localeCompare(b.site, undefined, { sensitivity: "base" }))
+    .map(bucket => ({
+      ...bucket,
+      compliance_pct: bucket.total ? Math.round((100 * bucket.ok) / bucket.total * 10) / 10 : 100,
+    }));
 }
 
 function complianceFilterQuery() {
@@ -1250,8 +1292,7 @@ async function loadComplianceDashboard() {
 
   const bySiteEl = qs("#dashboard-compliance-by-site");
   if (bySiteEl) {
-    const bySite = await api("/api/compliance/by-site").catch(() => null);
-    const sites = bySite?.sites || [];
+    const sites = complianceBySiteFromNodes(compliance.nodes);
     if (sites.length) {
       bySiteEl.innerHTML = `
         <div class="col-12">
@@ -1766,6 +1807,9 @@ async function loadSettings() {
   }
   if (can("settings:read")) {
     await loadIntegrationSettings();
+  }
+  if (can("users:manage")) {
+    await loadSystemSettings();
   }
   if (can("inventory:write")) {
     await loadScanSettings();
@@ -2335,6 +2379,72 @@ async function testAuditWebhook() {
   try {
     const res = await api("/api/settings/integrations/test-audit-webhook", { method: "POST" });
     showAlert("settings-alert", res.message || (res.ok ? "Webhook OK" : "Ошибка"), res.ok ? "success" : "error");
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+function fillSystemSettingsForm(cfg) {
+  if (qs("#sys-oxidized-engine")) qs("#sys-oxidized-engine").value = cfg.oxidized_engine || "python";
+  if (qs("#sys-oxidized-url")) qs("#sys-oxidized-url").value = cfg.oxidized_external_url || "";
+  if (qs("#sys-zabbix-enabled")) qs("#sys-zabbix-enabled").checked = cfg.zabbix_monitoring_enabled !== false;
+  if (qs("#sys-zabbix-key")) qs("#sys-zabbix-key").value = "";
+  if (qs("#sys-audit-retention")) qs("#sys-audit-retention").value = cfg.audit_retention_days ?? 365;
+  if (qs("#sys-token-ttl")) qs("#sys-token-ttl").value = cfg.access_token_expire_minutes ?? 480;
+  if (qs("#sys-backup-dir")) qs("#sys-backup-dir").value = cfg.backup_data_dir || "/data/backups";
+  if (qs("#sys-worker-poll")) qs("#sys-worker-poll").value = cfg.task_worker_poll_sec ?? 30;
+  if (qs("#sys-metrics-enabled")) qs("#sys-metrics-enabled").checked = cfg.metrics_enabled !== false;
+  if (qs("#sys-worker-enabled")) qs("#sys-worker-enabled").checked = cfg.task_worker_enabled !== false;
+  if (qs("#sys-https-proxy")) qs("#sys-https-proxy").checked = !!cfg.behind_https_proxy;
+  const hint = qs("#sys-settings-restart-hint");
+  if (hint) {
+    hint.textContent = cfg.zabbix_auth_key_set
+      ? "Zabbix auth key задан. После смены движка или HTTPS proxy перезапустите scanner."
+      : "Задайте Zabbix auth key для шаблона мониторинга. Секреты JWT и БД остаются в .env.";
+  }
+}
+
+function collectSystemSettingsForm() {
+  const key = qs("#sys-zabbix-key")?.value?.trim() || "";
+  const payload = {
+    oxidized_engine: qs("#sys-oxidized-engine")?.value || "python",
+    oxidized_external_url: qs("#sys-oxidized-url")?.value?.trim() || "",
+    zabbix_monitoring_enabled: qs("#sys-zabbix-enabled")?.checked === true,
+    audit_retention_days: parseInt(qs("#sys-audit-retention")?.value, 10) || 0,
+    access_token_expire_minutes: parseInt(qs("#sys-token-ttl")?.value, 10) || 480,
+    backup_data_dir: qs("#sys-backup-dir")?.value?.trim() || "/data/backups",
+    task_worker_poll_sec: parseInt(qs("#sys-worker-poll")?.value, 10) || 30,
+    metrics_enabled: qs("#sys-metrics-enabled")?.checked === true,
+    task_worker_enabled: qs("#sys-worker-enabled")?.checked === true,
+    behind_https_proxy: qs("#sys-https-proxy")?.checked === true,
+  };
+  if (key) payload.zabbix_auth_key = key;
+  return payload;
+}
+
+async function loadSystemSettings() {
+  try {
+    const cfg = await api("/api/settings/system");
+    fillSystemSettingsForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `Система: ${e.message}`, "error");
+  }
+}
+
+async function saveSystemSettings(e) {
+  e.preventDefault();
+  if (!can("users:manage")) return;
+  try {
+    const saved = await api("/api/settings/system", {
+      method: "PUT",
+      body: JSON.stringify(collectSystemSettingsForm()),
+    });
+    fillSystemSettingsForm(saved);
+    showAlert("settings-alert", "Системные настройки сохранены. Перезапустите scanner при смене движка.", "success");
+    markSettingsSaved();
+    if (can("oxidized:read") || can("oxidized:write")) {
+      await loadOxidizedSettings();
+    }
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
   }
@@ -4254,6 +4364,7 @@ function bindEvents() {
   qs("#scan-settings-form")?.addEventListener("submit", saveScanSettings);
   qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
   qs("#integration-settings-form")?.addEventListener("submit", saveIntegrationSettings);
+  qs("#system-settings-form")?.addEventListener("submit", saveSystemSettings);
   qs("#btn-test-audit-webhook")?.addEventListener("click", testAuditWebhook);
   qs("#btn-import-netbox")?.addEventListener("click", () => runInventoryImport("netbox"));
   qs("#btn-import-librenms")?.addEventListener("click", () => runInventoryImport("librenms"));
@@ -4485,21 +4596,32 @@ function bindEvents() {
   });
 }
 
-async function bootstrapApp() {
+async function bootstrapApp(uiConfig = {}) {
   try {
-    const uiConfig = await api("/api/ui/config");
-    setOxidizedLinks(uiConfig.oxidized_public_url, uiConfig.oxidized_proxy_url, uiConfig.oxidized_engine);
-    updateLoginAuthHint(uiConfig.auth || {});
+    if (uiConfig.oxidized_engine !== undefined) {
+      setOxidizedLinks(uiConfig.oxidized_public_url, uiConfig.oxidized_proxy_url, uiConfig.oxidized_engine);
+      if (uiConfig.auth) updateLoginAuthHint(uiConfig.auth);
+    } else {
+      const cfg = await api("/api/ui/config");
+      setOxidizedLinks(cfg.oxidized_public_url, cfg.oxidized_proxy_url, cfg.oxidized_engine);
+      updateLoginAuthHint(cfg.auth || {});
+      uiConfig = cfg;
+      window.__uiConfig = cfg;
+    }
   } catch {}
 
-  await loadOxidizedModels();
-  setPageTitle("dashboard");
-  await loadHealth();
-  await loadInventory();
+  const page = currentAppPage();
+  const tasks = [loadInventory(), loadOxidizedModels()];
+  if (page === "dashboard") {
+    tasks.push(loadHealth());
+  }
 
-  const latest = await api("/scan/latest").catch(() => null);
-  renderScanResults(latest);
-  await resumeScanIfRunning();
+  await Promise.all(tasks);
+
+  api("/scan/latest")
+    .then(latest => renderScanResults(latest))
+    .catch(() => null);
+  resumeScanIfRunning();
 }
 
 async function init() {
@@ -4507,16 +4629,20 @@ async function init() {
   bindEvents();
   bindGlobalSearch();
 
+  let uiConfig = {};
   try {
-    const uiConfig = await api("/api/ui/config").catch(() => ({}));
+    uiConfig = await api("/api/ui/config").catch(() => ({}));
+    window.__uiConfig = uiConfig;
     updateLoginAuthHint(uiConfig.auth || {});
   } catch {}
 
   try {
     currentUser = await api("/api/auth/me");
     showApp();
-    await bootstrapApp();
     syncAppRouteFromHash();
+    bootstrapApp(uiConfig).catch(err => {
+      console.error("bootstrap failed", err);
+    });
     if (currentUser?.must_change_password) {
       showPasswordChangeModal();
     }

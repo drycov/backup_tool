@@ -280,11 +280,9 @@ def compute_compliance_summary(
     }
 
 
-def compute_compliance_by_site(*, user=None) -> dict[str, Any]:
-    """Группировка compliance по site для дашборда."""
-    summary = compute_compliance_summary(user=user)
+def _bucket_nodes_by_site(nodes: list[dict[str, Any]], generated_at: Any) -> dict[str, Any]:
     buckets: dict[str, dict[str, Any]] = {}
-    for node in summary.get("nodes") or []:
+    for node in nodes or []:
         site = (node.get("site") or "").strip() or "(без site)"
         bucket = buckets.setdefault(
             site,
@@ -306,10 +304,16 @@ def compute_compliance_by_site(*, user=None) -> dict[str, Any]:
         sites.append(bucket)
 
     return {
-        "generated_at": summary.get("generated_at"),
+        "generated_at": generated_at,
         "total_sites": len(sites),
         "sites": sites,
     }
+
+
+def compute_compliance_by_site(*, user=None) -> dict[str, Any]:
+    """Группировка compliance по site для дашборда."""
+    summary = compute_compliance_summary(user=user)
+    return _bucket_nodes_by_site(summary.get("nodes") or [], summary.get("generated_at"))
 
 
 def compliance_to_csv(summary: dict[str, Any] | None = None) -> str:

@@ -120,9 +120,16 @@ def zabbix_user_from_request(request: HttpRequest) -> User:
         raise ApiError("Требуется заголовок authkey", status=401)
 
     static_key = (getattr(settings, "ZABBIX_AUTH_KEY", "") or "").strip()
+    if not static_key:
+        from services.system_settings import get_config
+
+        static_key = (get_config().zabbix_auth_key or "").strip()
     if static_key:
         if not getattr(settings, "ZABBIX_MONITORING_ENABLED", True):
-            raise ApiError("Zabbix monitoring disabled", status=503)
+            from services.system_settings import get_config
+
+            if not get_config().zabbix_monitoring_enabled:
+                raise ApiError("Zabbix monitoring disabled", status=503)
         if secrets.compare_digest(authkey, static_key):
             return User(
                 id=0,

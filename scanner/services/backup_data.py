@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 def backup_destination() -> Path:
-    return Path(os.environ.get("BACKUP_DATA_DIR", "/data/backups"))
+    from services.system_settings import get_config
+
+    return Path(get_config().backup_data_dir)
 
 
 def run_backup_data() -> dict:

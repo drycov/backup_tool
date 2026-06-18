@@ -13,13 +13,18 @@ HTTP-интеграция для Zabbix 5.0+ (HTTP agent + LLD). Эндпоин�
 
 ## Настройка Backup Tools
 
+**UI (рекомендуется):** **Настройки → Система** — `Zabbix auth key`, включение мониторинга, TTL сессии, каталог бэкапов и др.
+
+При первом запуске значения копируются из `.env`; дальше меняйте в UI. В `.env` остаются только bootstrap-параметры (`DATABASE_URL`, `JWT_SECRET`, порты).
+
 ```env
+# bootstrap (опционально, если БД ещё пустая)
 ZABBIX_AUTH_KEY=change-me-zabbix-secret
 ZABBIX_MONITORING_ENABLED=true
 SCANNER_PORT=8000
 ```
 
-Пересборка: `docker compose up -d --build scanner`
+Пересборка после смены порта: `docker compose up -d --build scanner`
 
 Альтернатива `{$AUTHKEY}`: API key `bk_...` (роль viewer) в заголовке `authkey`.
 
@@ -31,7 +36,7 @@ SCANNER_PORT=8000
 
 | Макрос | Пример | Описание |
 |--------|--------|----------|
-| `{$AUTHKEY}` | секрет из `.env` | Обязательно |
+| `{$AUTHKEY}` | секрет из **Настройки → Система** | Обязательно |
 | `{$BACKUPTOOLS.PORT}` | `8000` | `SCANNER_PORT` |
 | `{$BACKUPTOOLS.SCHEME}` | `http` / `https` | За reverse proxy — `https` |
 | `{$COMPLIANCE.WARN}` | `90` | Warning compliance % |

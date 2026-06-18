@@ -30,6 +30,10 @@ def initialize() -> None:
     from services.integration_settings import ensure_initialized as ensure_integration_initialized
 
     ensure_integration_initialized()
+    from services.system_settings import apply_runtime_overrides, ensure_initialized as ensure_system_initialized
+
+    ensure_system_initialized()
+    apply_runtime_overrides()
 
     from django.conf import settings
 
