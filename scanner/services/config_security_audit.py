@@ -139,7 +139,9 @@ def run_config_audit(
                 continue
 
             scanned += 1
-            model = device.model or "routeros"
+            from services.vendor_catalog import normalize_model
+
+            model = normalize_model(device.model or "routeros")
             for item in analyze_config_text(config_text, model):
                 ConfigFinding.objects.create(
                     run=run,
@@ -184,17 +186,19 @@ def run_config_audit(
 def get_latest_run() -> ConfigAuditRun | None:
     return (
         ConfigAuditRun.objects.filter(status=ConfigAuditRun.STATUS_COMPLETED)
-        .order_by("-finished_at")
+        .order_by("-finished_at", "-id")
         .first()
     )
 
 
-def _allowed_device_names(user) -> set[str] | None:
+def _allowed_device_names(user, *, devices=None) -> set[str] | None:
     if user is None:
         return None
     from services.object_scope import filter_devices
 
-    return {d.name for d in filter_devices(user, load_inventory().devices)}
+    if devices is None:
+        devices = load_inventory().devices
+    return {d.name for d in filter_devices(user, devices)}
 
 
 def _apply_finding_filters(
@@ -232,7 +236,8 @@ def _scoped_findings_qs(
     if not run:
         return None, None
 
-    allowed_names = _allowed_device_names(user)
+    inventory_devices = load_inventory().devices if user is not None else None
+    allowed_names = _allowed_device_names(user, devices=inventory_devices)
     scoped_qs = ConfigFinding.objects.filter(run=run)
     if allowed_names is not None:
         scoped_qs = scoped_qs.filter(device_name__in=allowed_names)
@@ -257,7 +262,8 @@ def _scoped_findings_base_qs(
     if not run:
         return None, None
 
-    allowed_names = _allowed_device_names(user)
+    inventory_devices = load_inventory().devices if user is not None else None
+    allowed_names = _allowed_device_names(user, devices=inventory_devices)
     scoped_qs = ConfigFinding.objects.filter(run=run)
     if allowed_names is not None:
         scoped_qs = scoped_qs.filter(device_name__in=allowed_names)

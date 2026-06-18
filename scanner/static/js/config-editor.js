@@ -23,11 +23,41 @@
     });
   }
 
+  function defineIosMode() {
+    if (!global.CodeMirror || global.CodeMirror.modes.ioslike) return;
+    global.CodeMirror.defineSimpleMode("ioslike", {
+      start: [
+        { regex: /!.*/, token: "comment" },
+        { regex: /\b(interface|hostname|ip|router|line|snmp-server|username|enable|no)\b/, token: "keyword" },
+        { regex: /"(?:[^\\"]|\\.)*"/, token: "string" },
+        { regex: /\b\d+\.\d+\.\d+\.\d+\b/, token: "number" },
+      ],
+    });
+  }
+
+  function defineJunosMode() {
+    if (!global.CodeMirror || global.CodeMirror.modes.junoslike) return;
+    global.CodeMirror.defineSimpleMode("junoslike", {
+      start: [
+        { regex: /#.*/, token: "comment" },
+        { regex: /\b(system|interfaces|routing-options|protocols)\b/, token: "keyword" },
+        { regex: /"(?:[^\\"]|\\.)*"/, token: "string" },
+        { regex: /\{|\}/, token: "bracket" },
+      ],
+    });
+  }
+
   function detectMode(text, modelHint) {
-    if (modelHint && /routeros|mikrotik|ros/i.test(String(modelHint))) {
+    const hint = String(modelHint || "").toLowerCase();
+    if (/routeros|mikrotik|ros/.test(hint) || /^\/[\w/.-]+/m.test(text || "")) {
       return "routeros";
     }
-    if (/^\/[\w/.-]+/m.test(text || "")) return "routeros";
+    if (/junos|juniper/.test(hint) || /\{\s*$/.test(text || "") || /^\s*system\s*\{/m.test(text || "")) {
+      return "junoslike";
+    }
+    if (/ios|eos|nxos|asa|cisco|arista/.test(hint) || /^interface /m.test(text || "")) {
+      return "ioslike";
+    }
     return "routeros";
   }
 
@@ -37,6 +67,8 @@
     if (!el || !global.CodeMirror) return null;
 
     defineRouterOsMode();
+    defineIosMode();
+    defineJunosMode();
     const cm = global.CodeMirror.fromTextArea(el, {
       mode: "routeros",
       theme: "dracula",

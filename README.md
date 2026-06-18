@@ -56,6 +56,7 @@ docker compose up -d --build
 | [Web UI](docs/ui.md) | Интерфейс и чеклист |
 | [Аутентификация](docs/authentication.md) | JWT, RBAC, LDAP / AD |
 | [API](docs/api.md) | REST-эндпоинты |
+| [Интеграции](docs/integrations.md) | API keys, Ansible, CI, NetBox |
 | [Эксплуатация](docs/operations.md) | Мониторинг, backup, troubleshooting |
 
 ## Развёртывание

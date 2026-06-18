@@ -22,7 +22,16 @@ _MODELS: dict[str, type[Model]] = {
 
 
 def get_model(name: str) -> Model:
-    key = (name or "").lower().replace("-", "").replace("_", "")
+    from services.vendor_catalog import normalize_model
+
+    key = normalize_model(name).replace("-", "").replace("_", "")
+    python_aliases = {
+        "iosxe": "ios",
+        "iosxr": "ios",
+        "nxos": "ios",
+        "asa": "ios",
+    }
+    key = python_aliases.get(key, key)
     model_cls = _MODELS.get(key)
     if not model_cls:
         raise ModelNotFound(f"model '{name}' not found")

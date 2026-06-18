@@ -18,30 +18,20 @@ logger = logging.getLogger(__name__)
 TIMEOUT = 60.0
 PAGE_SIZE = 100
 
-_MODEL_ALIASES = {
-    "routeros": "routeros",
-    "mikrotik": "routeros",
-    "ios": "ios",
-    "cisco-ios": "ios",
-    "junos": "junos",
-    "juniper": "junos",
-    "eos": "eos",
-    "arista": "eos",
-    "nxos": "nxos",
-    "asa": "asa",
-    "linux": "linux",
-}
-
-
 def _map_model_hint(hint: str) -> str:
+    from services.vendor_catalog import normalize_model
+
     raw = (hint or "").strip().lower()
     if not raw:
         return "ios"
-    for key, model in _MODEL_ALIASES.items():
+    for key in (
+        "routeros", "mikrotik", "ios", "cisco", "junos", "juniper",
+        "eos", "arista", "nxos", "asa", "fortios", "panos", "linux",
+    ):
         if key in raw:
-            return model
+            return normalize_model(key)
     cleaned = raw.replace(" ", "-")[:32]
-    return cleaned or "ios"
+    return normalize_model(cleaned) if cleaned else "ios"
 
 
 @dataclass

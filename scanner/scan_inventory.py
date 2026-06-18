@@ -10,13 +10,18 @@ import sys
 # Позволяет запускать из корня проекта: python scanner/scan_inventory.py
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.log_config import setup_logging
-from app.inventory import (
+import django
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backup_tools.settings")
+django.setup()
+
+from services.log_config import setup_logging
+from services.inventory import (
     load_inventory,
     update_oxidized_credentials,
     init_db,
 )
-from app.scanner import scan_devices, discover_and_enrich, apply_device_names
+from services.scanner import scan_devices, discover_and_enrich, apply_device_names
 
 
 async def run_scan(discover: bool = False, sync: bool = True) -> None:

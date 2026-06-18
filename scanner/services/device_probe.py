@@ -66,7 +66,9 @@ def probe_device_access(
         return DeviceProbeResult(authenticated=False)
 
     try:
-        model_lower = (model or "").lower()
+        from services.vendor_catalog import normalize_model
+
+        model_lower = normalize_model(model)
         if model_lower == "routeros":
             _, stdout, _ = client.exec_command(
                 "/system identity print without-paging",
@@ -78,7 +80,7 @@ def probe_device_access(
                 identity=_parse_routeros_identity(output),
             )
 
-        if model_lower == "ios":
+        if model_lower in ("ios", "iosxe", "iosxr", "nxos", "asa"):
             _, stdout, _ = client.exec_command(
                 "show running-config | include hostname",
                 timeout=IDENTITY_TIMEOUT_SEC,
@@ -90,6 +92,34 @@ def probe_device_access(
                     parts = re.split(r"\s+", line, maxsplit=1)
                     if len(parts) > 1 and parts[1]:
                         return DeviceProbeResult(authenticated=True, identity=parts[1].strip())
+            return DeviceProbeResult(authenticated=True)
+
+        if model_lower in ("junos", "juniper"):
+            _, stdout, _ = client.exec_command(
+                "show system host-name",
+                timeout=IDENTITY_TIMEOUT_SEC,
+            )
+            output = stdout.read().decode("utf-8", errors="replace")
+            for line in output.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith("host-name"):
+                    parts = re.split(r"\s+", stripped, maxsplit=1)
+                    if len(parts) > 1 and parts[1]:
+                        return DeviceProbeResult(authenticated=True, identity=parts[1].strip())
+            return DeviceProbeResult(authenticated=True)
+
+        if model_lower in ("eos", "arista"):
+            _, stdout, _ = client.exec_command(
+                "show hostname",
+                timeout=IDENTITY_TIMEOUT_SEC,
+            )
+            output = stdout.read().decode("utf-8", errors="replace")
+            for line in output.splitlines():
+                stripped = line.strip()
+                if stripped.lower().startswith("hostname:"):
+                    value = stripped.split(":", 1)[1].strip()
+                    if value:
+                        return DeviceProbeResult(authenticated=True, identity=value)
             return DeviceProbeResult(authenticated=True)
 
         return DeviceProbeResult(authenticated=True)

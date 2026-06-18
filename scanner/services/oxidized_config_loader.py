@@ -47,14 +47,9 @@ def _map_value(model_map: dict[Any, Any], original: str) -> str:
 
 def _normalize_model_id(name: str) -> str:
     """Oxidized gem model ids are lowercase file names (e.g. routeros)."""
-    key = name.strip().lower().replace(" ", "").replace("_", "-")
-    aliases = {
-        "routeros": "routeros",
-        "mikrotik": "routeros",
-        "mikrotik-routeros": "routeros",
-        "ros": "routeros",
-    }
-    return aliases.get(key, key.lower())
+    from services.vendor_catalog import normalize_model
+
+    return normalize_model(name)
 
 
 def resolve_model_name(raw: str | None, yaml_cfg: dict[str, Any] | None = None) -> str:

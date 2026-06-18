@@ -99,6 +99,8 @@ def test_compute_security_summary_scoped_once(monkeypatch):
 
     from datetime import datetime, timezone
 
+    ConfigAuditRun.objects.all().delete()
+
     run = ConfigAuditRun.objects.create(
         status=ConfigAuditRun.STATUS_COMPLETED,
         triggered_by="test",
@@ -190,3 +192,11 @@ def test_list_security_findings_paginated(monkeypatch):
     assert len(page["items"]) == 2
     page2 = list_security_findings(user=None, limit=2, offset=2)
     assert len(page2["items"]) == 1
+
+
+def test_rules_for_model_eos():
+    from services.config_security_rules import rules_for_model
+
+    ids = {r.id for r in rules_for_model("eos")}
+    assert "eos-telnet" in ids
+    assert "gen-cleartext-password" in ids

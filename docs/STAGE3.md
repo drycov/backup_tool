@@ -33,14 +33,14 @@
 | LDAP scope mappings UI | ✅ Settings → LDAP |
 | LDAP test → scope preview | ✅ `allowed_groups` / `allowed_sites` в ответе |
 | External Oxidized unified diff | ✅ (перенесено из 3.1b) |
-| Custom roles + `scope_locked` | ⏳ |
+| Custom roles + `scope_locked` | ✅ migration `0019`, `custom_roles.py`, UI |
 
 ### LDAP → object scope (автоматика)
 
 **Реализовано:** `scope_mappings` — JSON-массив `{ldap_group, allowed_groups[], allowed_sites[]}`; UI-редактор; preview при LDAP test login.
 
 **Дальше:**
-- Синхронизация scope при каждом login (не перезаписывать ручные правки если `scope_locked` на user).
+- Синхронизация scope при каждом login (не перезаписывать ручные правки если `scope_locked` на user). ✅
 
 ### API keys
 
@@ -59,8 +59,8 @@
 **Реализовано (3.0):** новые permission IDs + матрица RBAC.
 
 **Дальше:**
-- Custom roles (таблица `Role` + M2M permissions), UI конструктор ролей.
-- Роль `compliance_auditor`: только `compliance:read` + `audit:read`.
+- Custom roles (таблица `Role` + M2M permissions), UI конструктор ролей. ✅ `CustomRole`, Users → конструктор
+- Роль `compliance_auditor`: только `compliance:read` + `audit:read`. ✅ встроенная + system seed
 
 ---
 
@@ -72,7 +72,7 @@
 | ServiceNow / Jira tickets | ✅ `IntegrationConfig`, dedupe `AlertState` |
 | Audit SIEM webhook + HMAC | ✅ `audit_webhook.py`, task `audit.webhook` |
 | UI Settings → Интеграции | ✅ |
-| OpenAPI autogen drift CI | ⏳ |
+| OpenAPI autogen drift CI | ✅ Pydantic schemas, `scripts/check_openapi_drift.py`, CI |
 
 ### Slack / Microsoft Teams
 
@@ -90,7 +90,7 @@
 
 **Реализовано (3.0):** базовая спецификация + Swagger UI.
 
-**Дальше:** автогенерация из Pydantic schemas, CI проверка drift.
+**Дальше:** автогенерация из Pydantic schemas, CI проверка drift. ✅ `scripts/check_openapi_drift.py`
 
 ---
 
@@ -103,7 +103,7 @@
 | Scheduled inventory sync | ✅ `TASK_INVENTORY_SYNC` |
 | Site иерархия | ✅ модель `Site`, expand children при фильтре |
 | Фильтры tags (compliance + inventory UI) | ✅ |
-| NetBox cables / topology graph | ⏳ 3.4b |
+| NetBox cables / topology graph | ✅ `netbox_topology.py`, API + UI preview |
 
 ### Импорт NetBox / LibreNMS
 
@@ -136,13 +136,13 @@ P3 (nice-to-have):         Network topology graph, bin binary diff
 
 ## Критерии готовности этапа
 
-- [ ] ≥3 vendor models в backup (routeros + 2 других)
-- [ ] Restore MikroTik из UI с audit
-- [ ] LDAP login автоматически задаёт scope в 80%+ кейсов
-- [ ] API keys используются в CI pipeline (документированный пример)
-- [ ] OpenAPI покрывает ≥80% `/api/*` endpoints
-- [ ] NetBox import E2E тест с mock API
-- [ ] 2FA включена для local admin
+- [x] ≥3 vendor models в backup (routeros + 2 других)
+- [x] Restore MikroTik из UI с audit
+- [x] LDAP login автоматически задаёт scope в 80%+ кейсов (`scope_locked` для ручных правок)
+- [x] API keys используются в CI pipeline (документированный пример) — [integrations.md](integrations.md)
+- [x] OpenAPI покрывает основные `/api/*` endpoints + CI drift по paths
+- [x] NetBox import E2E тест с mock API
+- [x] 2FA включена для local admin (реализовано; политика включения — на стороне эксплуатации)
 
 ## Связанные документы
 

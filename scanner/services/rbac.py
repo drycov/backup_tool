@@ -5,7 +5,8 @@ from typing import Iterable
 ROLE_VIEWER = "viewer"
 ROLE_OPERATOR = "operator"
 ROLE_ADMIN = "admin"
-VALID_ROLES = {ROLE_VIEWER, ROLE_OPERATOR, ROLE_ADMIN}
+ROLE_COMPLIANCE_AUDITOR = "compliance_auditor"
+VALID_ROLES = {ROLE_VIEWER, ROLE_OPERATOR, ROLE_ADMIN, ROLE_COMPLIANCE_AUDITOR}
 
 PERMISSION_VIEW_INVENTORY = "inventory:read"
 PERMISSION_EDIT_DEVICES = "inventory:devices"
@@ -49,12 +50,14 @@ ROLE_LABELS: dict[str, str] = {
     ROLE_VIEWER: "Наблюдатель",
     ROLE_OPERATOR: "Оператор",
     ROLE_ADMIN: "Администратор",
+    ROLE_COMPLIANCE_AUDITOR: "Аудитор compliance",
 }
 
 ROLE_DESCRIPTIONS: dict[str, str] = {
     ROLE_VIEWER: "Дашборд, инвентарь и Oxidized только для чтения",
     ROLE_OPERATOR: "Сканирование, устройства, бэкапы Oxidized",
     ROLE_ADMIN: "Полный доступ, включая пароли и пользователи",
+    ROLE_COMPLIANCE_AUDITOR: "Compliance dashboard и журнал аудита (read-only)",
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
@@ -65,6 +68,10 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_COMPLIANCE_READ,
         PERMISSION_SECURITY_READ,
         PERMISSION_SETTINGS_READ,
+    },
+    ROLE_COMPLIANCE_AUDITOR: {
+        PERMISSION_COMPLIANCE_READ,
+        PERMISSION_AUDIT_READ,
     },
     ROLE_OPERATOR: {
         PERMISSION_VIEW_INVENTORY,
@@ -84,13 +91,25 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
 
 ROLE_RANK: dict[str, int] = {
     ROLE_VIEWER: 1,
+    ROLE_COMPLIANCE_AUDITOR: 1,
     ROLE_OPERATOR: 2,
     ROLE_ADMIN: 3,
 }
 
 
+def permissions_for_user(user) -> set[str]:
+    custom_role = getattr(user, "custom_role", None)
+    if custom_role is not None and getattr(custom_role, "permissions", None) is not None:
+        return set(custom_role.permissions or [])
+    return ROLE_PERMISSIONS.get(getattr(user, "role", ""), set())
+
+
 def has_permission(role: str, permission: str) -> bool:
     return permission in ROLE_PERMISSIONS.get(role, set())
+
+
+def user_has_role_permission(user, permission: str) -> bool:
+    return permission in permissions_for_user(user)
 
 
 def has_any_permission(role: str, permissions: Iterable[str]) -> bool:
@@ -108,7 +127,7 @@ def rbac_matrix() -> dict:
         for pid in sorted(PERMISSION_LABELS.keys())
     ]
     roles = []
-    for role_id in (ROLE_VIEWER, ROLE_OPERATOR, ROLE_ADMIN):
+    for role_id in (ROLE_VIEWER, ROLE_COMPLIANCE_AUDITOR, ROLE_OPERATOR, ROLE_ADMIN):
         perms = ROLE_PERMISSIONS.get(role_id, set())
         roles.append(
             {
@@ -117,6 +136,25 @@ def rbac_matrix() -> dict:
                 "description": ROLE_DESCRIPTIONS[role_id],
                 "rank": ROLE_RANK[role_id],
                 "permissions": sorted(perms),
+                "builtin": True,
             }
         )
+    try:
+        from services.custom_roles import list_custom_roles
+
+        for row in list_custom_roles():
+            roles.append(
+                {
+                    "id": f"custom:{row['slug']}",
+                    "slug": row["slug"],
+                    "label": row["label"],
+                    "description": row.get("description") or "",
+                    "rank": 1,
+                    "permissions": row.get("permissions") or [],
+                    "builtin": False,
+                    "is_system": row.get("is_system", False),
+                }
+            )
+    except Exception:
+        pass
     return {"roles": roles, "permissions": permissions}

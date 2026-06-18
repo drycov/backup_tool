@@ -35,5 +35,8 @@ jobs:
           ADMIN_PASSWORD: pytest-admin-pass
           JWT_SECRET: pytest-ci-secret-minimum-32-chars-long
 
+      - name: OpenAPI drift check
+        run: python scripts/check_openapi_drift.py --check
+
       - name: Compile check
         run: python -m compileall -q api services core

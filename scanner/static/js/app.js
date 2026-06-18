@@ -5,6 +5,7 @@ let oxidizedPublicUrl = "http://localhost:8888";
 let oxidizedProxyUrl = "/oxidized-proxy/nodes";
 let oxidizedEngine = "python";
 let oxidizedModels = ["routeros"];
+let vendorCatalog = {};
 const OXIDIZED_PROXY_PREFIX = "/oxidized-proxy";
 let currentUser = null;
 let scanPollTimer = null;
@@ -12,6 +13,8 @@ let globalSearchQuery = "";
 let lastScanSummary = null;
 let oxidizedNodesCache = [];
 let usersCache = [];
+let customRolesCache = [];
+let rbacPermissionsCache = [];
 let oxidizedLogsTimer = null;
 let oxidizedLogsStickToBottom = true;
 let oxidizedLogsLevelFilter = "all";
@@ -668,8 +671,28 @@ function isPythonEngine() {
 }
 
 function isRouterOsModel(model) {
+  const info = vendorCatalog[model];
+  if (info) return !!info.mikrotik_binary;
   const key = String(model || "").toLowerCase().replace(/[\s_-]/g, "");
   return key === "routeros" || key === "mikrotik" || key === "ros" || key.startsWith("mikrotik");
+}
+
+function nativePythonModels() {
+  const fromCatalog = Object.entries(vendorCatalog)
+    .filter(([, info]) => info.native_python)
+    .map(([id]) => id);
+  return fromCatalog.length ? fromCatalog : ["routeros", "ios", "junos", "eos"];
+}
+
+function defaultPortsForModel(model) {
+  const info = vendorCatalog[model];
+  if (info?.default_ports?.length) return info.default_ports;
+  if (isRouterOsModel(model)) return [44333, 22];
+  return [22];
+}
+
+function nativeModelsHintHtml() {
+  return nativePythonModels().map(m => `<strong>${escapeHtml(m)}</strong>`).join(", ");
 }
 
 function applyEngineAwareUi() {
@@ -772,8 +795,8 @@ function initNavigation() {
       }
       if (page === "oxidized-ui") loadOxidizedIframe(true);
       if (page === "users") {
+        loadRbacMatrix().then(() => loadCustomRoles());
         loadUsers();
-        loadRbacMatrix();
         refreshTotpSettings();
       }
       if (page === "scan") {
@@ -901,27 +924,121 @@ async function logout() {
 
 async function loadRbacMatrix() {
   const table = qs("#rbac-matrix-table tbody");
+  const theadRow = qs("#rbac-matrix-table thead tr");
   if (!table) return;
   try {
     const data = await api("/api/auth/rbac");
     const roles = data.roles || [];
+    rbacPermissionsCache = data.permissions || [];
     const roleIds = roles.map(r => r.id);
+    if (theadRow) {
+      theadRow.innerHTML = `<th>Право</th>${roles.map(r =>
+        `<th class="text-center small" title="${escapeHtml(r.description || "")}">${escapeHtml(r.label || r.id)}</th>`
+      ).join("")}`;
+    }
     table.innerHTML = (data.permissions || []).map(perm => {
       const cells = roleIds.map(rid => {
         const role = roles.find(r => r.id === rid);
         const ok = role?.permissions?.includes(perm.id);
         return `<td class="text-center">${ok ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-muted"></i>'}</td>`;
       }).join("");
-      return `<tr><td>${perm.label}<br><code class="small">${perm.id}</code></td>${cells}</tr>`;
+      return `<tr><td>${escapeHtml(perm.label)}<br><code class="small">${escapeHtml(perm.id)}</code></td>${cells}</tr>`;
     }).join("");
+    renderCustomRolePermissionPicker();
   } catch {
     table.innerHTML = `<tr><td colspan="4" class="text-muted">Нет доступа к матрице RBAC</td></tr>`;
   }
 }
 
+function renderCustomRolePermissionPicker() {
+  const box = qs("#cr-permissions-picker");
+  if (!box) return;
+  if (!rbacPermissionsCache.length) {
+    box.innerHTML = '<span class="text-muted small">Загрузите матрицу RBAC для выбора permissions</span>';
+    return;
+  }
+  box.innerHTML = `<div class="row g-1">${rbacPermissionsCache.map(p => `
+    <div class="col-lg-4 col-md-6">
+      <label class="form-check small mb-0">
+        <input type="checkbox" class="form-check-input cr-perm-check" value="${escapeHtml(p.id)}">
+        <span class="form-check-label">${escapeHtml(p.label)}</span>
+      </label>
+    </div>`).join("")}</div>`;
+}
+
+function customRoleSelectOptions(selectedId) {
+  const opts = ['<option value="">— встроенная —</option>'];
+  for (const r of customRolesCache) {
+    if (r.is_system) continue;
+    const sel = selectedId === r.id ? " selected" : "";
+    opts.push(`<option value="${r.id}"${sel}>${escapeHtml(r.label)} (${escapeHtml(r.slug)})</option>`);
+  }
+  return opts.join("");
+}
+
+function selectedCustomRolePermissions() {
+  return [...qsa("#cr-permissions-picker .cr-perm-check:checked")].map(el => el.value);
+}
+
+function renderCustomRolesTable() {
+  const tbody = qs("#custom-roles-table tbody");
+  if (!tbody) return;
+  if (!customRolesCache.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Нет пользовательских ролей</td></tr>';
+    return;
+  }
+  tbody.innerHTML = customRolesCache.map(r => `
+    <tr data-role-id="${r.id}">
+      <td><code>${escapeHtml(r.slug)}</code>${r.is_system ? ' <span class="badge bg-secondary">system</span>' : ""}</td>
+      <td>${escapeHtml(r.label)}<div class="small text-muted">${escapeHtml(r.description || "")}</div></td>
+      <td class="small"><code>${escapeHtml((r.permissions || []).join(", "))}</code></td>
+      <td class="text-nowrap">
+        ${r.is_system ? "—" : `<button type="button" class="btn btn-danger btn-sm btn-delete-custom-role" data-id="${r.id}"><i class="fas fa-trash"></i></button>`}
+      </td>
+    </tr>`).join("");
+
+  tbody.querySelectorAll(".btn-delete-custom-role").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Удалить пользовательскую роль?")) return;
+      try {
+        await api(`/api/auth/custom-roles/${btn.dataset.id}`, { method: "DELETE" });
+        showAlert("users-alert", "Роль удалена", "success");
+        await loadCustomRoles();
+        loadRbacMatrix();
+      } catch (e) {
+        showAlert("users-alert", e.message, "error");
+      }
+    });
+  });
+}
+
+async function loadCustomRoles() {
+  const panel = qs("#custom-roles-table");
+  if (!panel) return;
+  try {
+    const data = await api("/api/auth/custom-roles");
+    customRolesCache = data.items || [];
+    renderCustomRolesTable();
+    if (!rbacPermissionsCache.length) {
+      try {
+        const rbac = await api("/api/auth/rbac");
+        rbacPermissionsCache = rbac.permissions || [];
+        renderCustomRolePermissionPicker();
+      } catch {}
+    }
+    if (usersCache?.length) renderUsersTable(usersCache);
+  } catch {}
+}
+
 async function loadUsers() {
   try {
     usersCache = await api("/api/auth/users");
+    if (!customRolesCache.length) {
+      try {
+        const cr = await api("/api/auth/custom-roles");
+        customRolesCache = cr.items || [];
+      } catch { /* optional */ }
+    }
     renderUsersTable(usersCache);
   } catch (e) {
     showAlert("users-alert", e.message, "error");
@@ -929,6 +1046,28 @@ async function loadUsers() {
 }
 
 let totpSetupPending = null;
+
+async function loadNetboxTopology() {
+  const host = qs("#topology-preview");
+  const alertId = "settings-alert";
+  if (!host) return;
+  host.innerHTML = `<span class="text-muted"><i class="fas fa-spinner fa-spin"></i> Загрузка…</span>`;
+  try {
+    const data = await api("/api/inventory/topology/netbox");
+    const nodes = data.nodes?.length || 0;
+    const edges = data.edges?.length || 0;
+    const edgeList = (data.edges || []).slice(0, 50).map(e =>
+      `<li><code>${escapeHtml(e.source)}</code> ↔ <code>${escapeHtml(e.target)}</code>${e.label ? ` <span class="text-muted">(${escapeHtml(e.label)})</span>` : ""}</li>`
+    ).join("");
+    host.innerHTML = `
+      <p class="mb-1"><strong>${nodes}</strong> узлов, <strong>${edges}</strong> связей (NetBox cables)</p>
+      ${edges ? `<ul class="small mb-0">${edgeList}${edges > 50 ? `<li class="text-muted">… ещё ${edges - 50}</li>` : ""}</ul>` : "<p class="text-muted mb-0">Связи не найдены</p>"}
+    `;
+  } catch (e) {
+    host.innerHTML = `<span class="text-danger">${escapeHtml(e.message)}</span>`;
+    showAlert(alertId, e.message, "error");
+  }
+}
 
 async function refreshTotpSettings() {
   const card = qs("#totp-settings-card");
@@ -1025,11 +1164,11 @@ function renderUsersTable(users) {
   );
 
   if (!users?.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Нет пользователей</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Нет пользователей</td></tr>`;
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = searchEmptyRow(8, query);
+    tbody.innerHTML = searchEmptyRow(9, query);
     return;
   }
 
@@ -1043,8 +1182,14 @@ function renderUsersTable(users) {
       <td>
         <select class="form-control form-control-sm user-role-select" data-id="${u.id}" ${u.id === currentUser.id ? "disabled" : ""}>
           <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>viewer</option>
+          <option value="compliance_auditor" ${u.role === "compliance_auditor" ? "selected" : ""}>compliance_auditor</option>
           <option value="operator" ${u.role === "operator" ? "selected" : ""}>operator</option>
           <option value="admin" ${u.role === "admin" ? "selected" : ""}>admin</option>
+        </select>
+      </td>
+      <td>
+        <select class="form-control form-control-sm user-custom-role-select" data-id="${u.id}" ${u.id === currentUser.id ? "disabled" : ""}>
+          ${customRoleSelectOptions(u.custom_role_id)}
         </select>
       </td>
       <td>
@@ -1060,7 +1205,8 @@ function renderUsersTable(users) {
       <td><span class="${badgeCls(u.auth_source === "ldap" ? "info" : "secondary")}">${escapeHtml(u.auth_source || "local")}</span></td>
       <td class="text-center">
         ${u.auth_source === "ldap"
-    ? `<input type="checkbox" class="user-role-locked" data-id="${u.id}" ${u.role_locked ? "checked" : ""} title="Не обновлять роль из LDAP">`
+    ? `<input type="checkbox" class="user-role-locked" data-id="${u.id}" ${u.role_locked ? "checked" : ""} title="Не обновлять роль из LDAP">
+       <input type="checkbox" class="user-scope-locked" data-id="${u.id}" ${u.scope_locked ? "checked" : ""} title="Не обновлять scope из LDAP">`
     : "—"}
       </td>
       <td class="text-center">
@@ -1073,6 +1219,27 @@ function renderUsersTable(users) {
     </tr>
   `;
   }).join("");
+
+  tbody.querySelectorAll(".user-custom-role-select").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      const val = sel.value;
+      try {
+        await api(`/api/auth/users/${sel.dataset.id}`, {
+          method: "PUT",
+          body: JSON.stringify(
+            val
+              ? { custom_role_id: parseInt(val, 10) }
+              : { custom_role_id: 0, clear_custom_role: true }
+          ),
+        });
+        showAlert("users-alert", "Custom RBAC обновлён", "success");
+        loadUsers();
+      } catch (e) {
+        showAlert("users-alert", e.message, "error");
+        loadUsers();
+      }
+    });
+  });
 
   tbody.querySelectorAll(".user-role-select").forEach(sel => {
     sel.addEventListener("change", async () => {
@@ -1112,6 +1279,21 @@ function renderUsersTable(users) {
           body: JSON.stringify({ role_locked: chk.checked }),
         });
         showAlert("users-alert", "Фиксация роли обновлена", "success");
+      } catch (e) {
+        showAlert("users-alert", e.message, "error");
+        chk.checked = !chk.checked;
+      }
+    });
+  });
+
+  tbody.querySelectorAll(".user-scope-locked").forEach(chk => {
+    chk.addEventListener("change", async () => {
+      try {
+        await api(`/api/auth/users/${chk.dataset.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ scope_locked: chk.checked }),
+        });
+        showAlert("users-alert", "Фиксация scope обновлена", "success");
       } catch (e) {
         showAlert("users-alert", e.message, "error");
         chk.checked = !chk.checked;
@@ -1168,7 +1350,7 @@ async function loadHealth(opts = {}) {
         <div class="col-12 mb-2">
           <div class="alert alert-warning py-2 mb-0">
             <i class="fas fa-exclamation-triangle me-1"></i>
-            Ruby bridge недоступен — gem-модели Oxidized не загружены. Поддерживается только <strong>routeros</strong>.
+            Ruby bridge недоступен — без gem доступны Python-модели: ${nativeModelsHintHtml()}. Остальные — через Ruby Oxidized.
           </div>
         </div>`;
     }
@@ -3242,6 +3424,12 @@ const OXIDIZED_MODEL_LABELS = {
 };
 
 function formatOxidizedModelLabel(model) {
+  const info = vendorCatalog[model];
+  if (info?.label) {
+    return info.vendor && info.vendor !== "Unknown"
+      ? `${info.label}`
+      : info.label;
+  }
   return OXIDIZED_MODEL_LABELS[model] || model;
 }
 
@@ -3266,8 +3454,10 @@ async function loadOxidizedModels() {
     if (Array.isArray(data.models) && data.models.length) {
       oxidizedModels = data.models;
     }
+    vendorCatalog = data.catalog || data.model_info || {};
   } catch {
     oxidizedModels = ["routeros"];
+    vendorCatalog = {};
   }
   populateDeviceModelSelect();
 }
@@ -3288,9 +3478,10 @@ function openDeviceModal(name = null) {
   qs("#device-name").value = device?.name || "";
   qs("#device-name").disabled = !!name;
   qs("#device-ip").value = device?.ip || "";
-  populateDeviceModelSelect(device?.model || "routeros");
+  populateDeviceModelSelect(device?.model || oxidizedSettingsCache?.default_model || "routeros");
   if (device?.group) qs("#device-group").value = device.group;
-  qs("#device-ports").value = (device?.ports || [44333]).join(", ");
+  const ports = device?.ports?.length ? device.ports : defaultPortsForModel(qs("#device-model")?.value);
+  qs("#device-ports").value = ports.join(", ");
   qs("#device-enabled").checked = device ? device.enabled : true;
   if (qs("#device-site")) qs("#device-site").value = device?.site || "";
   if (qs("#device-role")) qs("#device-role").value = device?.role || "";
@@ -3320,7 +3511,7 @@ async function saveDevice() {
     model: qs("#device-model").value,
     group: qs("#device-group").value.trim() || "default",
     enabled: qs("#device-enabled").checked,
-    ports: ports.length ? ports : [44333],
+    ports: ports.length ? ports : defaultPortsForModel(qs("#device-model")?.value),
     site: qs("#device-site")?.value.trim() || "",
     role: qs("#device-role")?.value.trim() || "",
     tags: (qs("#device-tags")?.value || "").split(",").map(t => t.trim()).filter(Boolean),
@@ -3631,7 +3822,7 @@ async function loadOxidizedNodes() {
       if (health.models === "python-fallback" && isPythonEngine()) {
         modelsWarning.style.display = "";
         modelsWarning.innerHTML =
-          '<i class="fas fa-exclamation-triangle me-1"></i> Ruby bridge недоступен — бэкап только для модели <strong>routeros</strong>.';
+          `<i class="fas fa-exclamation-triangle me-1"></i> Ruby bridge недоступен — Python fallback: ${nativeModelsHintHtml()}. MikroTik binary — только routeros.`;
       } else {
         modelsWarning.style.display = "none";
         modelsWarning.innerHTML = "";
@@ -4373,6 +4564,11 @@ function bindEvents() {
     if (group) runBulkDeviceUpdate({ group });
   });
 
+  qs("#device-model")?.addEventListener("change", () => {
+    const ports = defaultPortsForModel(qs("#device-model")?.value);
+    if (qs("#device-ports")) qs("#device-ports").value = ports.join(", ");
+  });
+
   const addDeviceBtn = qs("#btn-add-device");
   if (addDeviceBtn) addDeviceBtn.addEventListener("click", () => openDeviceModal());
 
@@ -4652,6 +4848,40 @@ function bindEvents() {
       showAlert("users-alert", err.message, "error");
     }
   });
+
+  qs("#custom-role-create-form")?.addEventListener("submit", async e => {
+    e.preventDefault();
+    const perms = selectedCustomRolePermissions();
+    if (!perms.length) {
+      showAlert("users-alert", "Выберите хотя бы одно permission", "error");
+      return;
+    }
+    try {
+      await api("/api/auth/custom-roles", {
+        method: "POST",
+        body: JSON.stringify({
+          slug: qs("#cr-slug").value.trim().toLowerCase(),
+          label: qs("#cr-label").value.trim(),
+          description: qs("#cr-description").value.trim(),
+          permissions: perms,
+        }),
+      });
+      qs("#cr-slug").value = "";
+      qs("#cr-label").value = "";
+      qs("#cr-description").value = "";
+      qsa("#cr-permissions-picker .cr-perm-check").forEach(c => { c.checked = false; });
+      showAlert("users-alert", "Пользовательская роль создана", "success");
+      await loadCustomRoles();
+      loadRbacMatrix();
+    } catch (err) {
+      showAlert("users-alert", err.message, "error");
+    }
+  });
+
+  qs("#btn-custom-role-refresh")?.addEventListener("click", () => {
+    loadRbacMatrix().then(() => loadCustomRoles());
+  });
+  qs("#btn-topology-netbox")?.addEventListener("click", () => loadNetboxTopology());
 }
 
 async function bootstrapApp(uiConfig = {}) {

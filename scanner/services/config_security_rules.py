@@ -199,6 +199,36 @@ SECURITY_RULES: tuple[SecurityRule, ...] = (
         category="snmp",
         remediation="Замените SNMP community",
     ),
+    # Arista EOS
+    _rule(
+        "eos-telnet",
+        "Включён Telnet",
+        "high",
+        r"management\s+telnet|service\s+telnet",
+        models=("eos",),
+        category="services",
+        remediation="Отключите Telnet: no management telnet",
+        match_full_text=True,
+    ),
+    _rule(
+        "eos-snmp-public",
+        "SNMP community public",
+        "high",
+        r"snmp-server\s+community\s+public\b",
+        models=("eos",),
+        category="snmp",
+        remediation="Замените SNMP community",
+    ),
+    _rule(
+        "eos-http-server",
+        "Включён HTTP management",
+        "medium",
+        r"management\s+http|management\s+api\s+http-commands",
+        models=("eos",),
+        category="services",
+        remediation="Используйте HTTPS: management api http-commands protocols https",
+        match_full_text=True,
+    ),
     # Generic
     _rule(
         "gen-private-key",
@@ -222,24 +252,15 @@ SECURITY_RULES: tuple[SecurityRule, ...] = (
 
 
 def rules_for_model(model: str) -> list[SecurityRule]:
-    model_key = (model or "").strip().lower()
-    aliases = {
-        "routeros": "routeros",
-        "ros": "routeros",
-        "mikrotik": "routeros",
-        "ios": "ios",
-        "iosxe": "iosxe",
-        "ios-xe": "iosxe",
-        "iosxr": "iosxr",
-        "ios-xr": "iosxr",
-        "junos": "junos",
-        "juniper": "junos",
-    }
-    normalized = aliases.get(model_key, model_key)
+    from services.vendor_catalog import audit_profile_for_model, normalize_model
+
+    normalized = normalize_model(model)
+    profile = audit_profile_for_model(normalized)
     result: list[SecurityRule] = []
     for rule in SECURITY_RULES:
-        if rule.models and normalized not in rule.models:
-            if not any(normalized.startswith(m) for m in rule.models):
-                continue
+        if rule.models:
+            if profile not in rule.models and normalized not in rule.models:
+                if not any(normalized.startswith(m) or profile.startswith(m) for m in rule.models):
+                    continue
         result.append(rule)
     return result

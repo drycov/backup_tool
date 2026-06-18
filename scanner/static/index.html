@@ -1498,8 +1498,12 @@
                                 <button type="button" class="btn btn-outline-primary btn-sm" id="btn-import-librenms">
                                   <i class="fas fa-download me-1"></i> Import LibreNMS
                                 </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-topology-netbox" data-permission="inventory:read">
+                                  <i class="fas fa-project-diagram me-1"></i> Топология NetBox
+                                </button>
                               </div>
                             </div>
+                            <div id="topology-preview" class="small text-muted mt-2"></div>
                             <small class="text-muted d-block mt-2" id="int-sync-last-run">Последний sync: —</small>
                           </div>
                         </section>
@@ -1949,9 +1953,45 @@
               <div class="card-header"><h3 class="card-title">Матрица RBAC</h3></div>
               <div class="card-body table-responsive p-0">
                 <table class="table table-sm table-bordered mb-0" id="rbac-matrix-table">
-                  <thead><tr><th>Право</th><th class="text-center">viewer</th><th class="text-center">operator</th><th class="text-center">admin</th></tr></thead>
+                  <thead><tr><th>Право</th></tr></thead>
                   <tbody></tbody>
                 </table>
+              </div>
+            </div>
+            <div class="card card-outline card-warning" data-permission="users:manage">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">Пользовательские роли</h3>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btn-custom-role-refresh"><i class="fas fa-sync"></i></button>
+              </div>
+              <div class="card-body">
+                <form id="custom-role-create-form" class="mb-3">
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                      <label class="form-label" for="cr-slug">slug</label>
+                      <input type="text" id="cr-slug" class="form-control form-control-sm" placeholder="noc_readonly" pattern="[a-z][a-z0-9_-]{1,62}" required>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label" for="cr-label">Название</label>
+                      <input type="text" id="cr-label" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-md-5">
+                      <label class="form-label" for="cr-description">Описание</label>
+                      <input type="text" id="cr-description" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-md-2">
+                      <button type="submit" class="btn btn-primary btn-sm w-100">Создать</button>
+                    </div>
+                  </div>
+                  <div class="mt-2" id="cr-permissions-picker"></div>
+                </form>
+                <div class="table-responsive">
+                  <table class="table table-sm table-bordered mb-0" id="custom-roles-table">
+                    <thead>
+                      <tr><th>slug</th><th>Название</th><th>Permissions</th><th></th></tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
               </div>
             </div>
             <div class="card card-outline card-primary">
@@ -1971,6 +2011,7 @@
                       <label for="new-user-role">Роль</label>
                       <select id="new-user-role" class="form-control">
                         <option value="viewer">viewer — чтение</option>
+                        <option value="compliance_auditor">compliance_auditor — аудит</option>
                         <option value="operator">operator — оператор</option>
                         <option value="admin">admin — полный доступ</option>
                       </select>
@@ -1991,7 +2032,7 @@
               <div class="card-body table-responsive p-0">
                 <table class="table table-bordered table-striped mb-0">
                   <thead>
-                    <tr><th>Логин</th><th>Роль</th><th>Группы</th><th>Sites</th><th>Источник</th><th title="Не обновлять роль из LDAP">Lock</th><th>Активен</th><th></th></tr>
+                    <tr><th>Логин</th><th>Роль</th><th>Custom RBAC</th><th>Группы</th><th>Sites</th><th>Источник</th><th title="LDAP: lock роль / scope">Lock</th><th>Активен</th><th></th></tr>
                   </thead>
                   <tbody id="users-table"></tbody>
                 </table>
@@ -2086,8 +2127,9 @@
                   <div id="device-group-hint" class="small mt-2"></div>
                 </div>
                 <div class="form-group">
-                  <label for="device-ports">SSH-порт</label>
-                  <input type="text" id="device-ports" class="form-control" placeholder="44333">
+                  <label for="device-ports">SSH-порт(ы)</label>
+                  <input type="text" id="device-ports" class="form-control" placeholder="22 или 44333">
+                  <div class="form-text">Зависит от модели: Cisco/Juniper/Arista — 22, MikroTik — 44333</div>
                   <small class="text-muted">Несколько портов через запятую: 22, 44333</small>
                 </div>
                 <div class="form-group mb-0">

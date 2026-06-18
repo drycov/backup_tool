@@ -462,6 +462,44 @@ def discover_hosts_in_network(network: str) -> list[str]:
     return alive_sorted
 
 
+async def probe_discovered_device_multi(
+    ip: str,
+    group: str,
+    default_model: str,
+    credentials_by_group: dict[str, tuple[str, str]],
+    existing_names: set[str],
+    *,
+    ssh_port_override: int | None = None,
+    multi_vendor: bool = True,
+) -> Device | None:
+    """Discovery с перебором портов/моделей для мультивендорных сетей."""
+    from services.vendor_catalog import discovery_probe_plans, fallback_discovery_plans, normalize_model
+
+    if group not in credentials_by_group:
+        logger.info("discover | skip | %s — нет учётных данных для группы %s", ip, group)
+        return None
+
+    plans = discovery_probe_plans(default_model, ssh_port_override=ssh_port_override)
+    if multi_vendor:
+        primary = set(plans)
+        for plan in fallback_discovery_plans():
+            if plan not in primary:
+                plans.append(plan)
+
+    for port, model in plans:
+        device = await probe_discovered_device(
+            ip,
+            group,
+            port,
+            normalize_model(model),
+            credentials_by_group,
+            existing_names,
+        )
+        if device is not None:
+            return device
+    return None
+
+
 async def discover_and_enrich(
     network_entries: list,
     existing_devices: list[Device],
@@ -484,7 +522,12 @@ async def discover_and_enrich(
     names_in_use = {d.name for d in existing_devices}
     credentials_by_group = build_group_credentials(credential_profiles)
     saved_devices: list[Device] = []
-    port = DEFAULT_ROUTEROS_SSH_PORT
+    from services.oxidized_settings import get_oxidized_settings
+    from services.vendor_catalog import normalize_model
+
+    ox_cfg = get_oxidized_settings()
+    default_model = normalize_model(default_model or ox_cfg.get("default_model") or "routeros")
+    ssh_port_override = ox_cfg.get("ssh_port")
     state_lock = asyncio.Lock()
     sem = asyncio.Semaphore(scan_concurrency())
 
@@ -538,13 +581,13 @@ async def discover_and_enrich(
                         return None
                     local_names = set(names_in_use)
 
-                device = await probe_discovered_device(
+                device = await probe_discovered_device_multi(
                     ip,
                     group_name,
-                    port,
                     default_model,
                     credentials_by_group,
                     local_names,
+                    ssh_port_override=ssh_port_override,
                 )
                 if device is None:
                     return None

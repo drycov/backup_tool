@@ -29,6 +29,10 @@ ACTION_COMPLIANCE_REPORT_SEND = "compliance.report_send"
 ACTION_SECURITY_AUDIT_RUN = "security.audit_run"
 ACTION_SECURITY_EXPORT = "security.export"
 ACTION_MIKROTIK_RESTORE = "mikrotik.restore"
+ACTION_API_KEY_CREATE = "api_key.create"
+ACTION_API_KEY_ROTATE = "api_key.rotate"
+ACTION_API_KEY_REVOKE = "api_key.revoke"
+ACTION_API_KEY_USE = "api_key.use"
 
 
 def _client_ip(request: HttpRequest | None) -> str:

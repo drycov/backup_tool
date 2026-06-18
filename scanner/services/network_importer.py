@@ -37,6 +37,13 @@ def import_network_inventory(
     us_username: str,
     us_password: str,
 ) -> Inventory:
+    from services.oxidized_settings import get_oxidized_settings
+    from services.vendor_catalog import default_ports_for_model, normalize_model
+
+    ox = get_oxidized_settings()
+    gw_model = normalize_model(str(ox.get("default_model") or "routeros"))
+    gw_ports = default_ports_for_model(gw_model)
+
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
@@ -85,10 +92,10 @@ def import_network_inventory(
                     Device(
                         name=env_name,
                         ip=gateway,
-                        model="routeros",
+                        model=gw_model,
                         group=group_name,
                         enabled=True,
-                        ports=[44333],
+                        ports=gw_ports,
                     )
                 )
             elif not gateway and env_name and env_name not in seen_device_names:
@@ -101,10 +108,10 @@ def import_network_inventory(
                             Device(
                                 name=env_name,
                                 ip=host_ip,
-                                model="routeros",
+                                model=gw_model,
                                 group=group_name,
                                 enabled=True,
-                                ports=[44333],
+                                ports=gw_ports,
                             )
                         )
                 except ValueError:

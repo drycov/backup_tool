@@ -60,6 +60,23 @@ def create_api_key(
     return row, raw_key
 
 
+def rotate_api_key(key_id: int, *, rotated_by: str = "") -> tuple[ApiKey, str]:
+    """Создать новый секрет для ключа; старый hash заменяется."""
+    require_database("API keys требуют базу данных")
+    row = ApiKey.objects.filter(id=key_id, is_active=True).first()
+    if not row:
+        raise ValueError("Активный ключ не найден")
+    raw_key = KEY_PREFIX + secrets.token_urlsafe(32)
+    row.key_prefix = _display_prefix(raw_key)
+    row.key_hash = _hash_key(raw_key)
+    row.last_used_at = None
+    if rotated_by:
+        row.created_by = rotated_by[:64]
+    row.save(update_fields=["key_prefix", "key_hash", "last_used_at", "created_by"])
+    logger.info("api_key | rotated | name=%s", row.name)
+    return row, raw_key
+
+
 def list_api_keys() -> list[dict[str, Any]]:
     if not is_database_available():
         return []

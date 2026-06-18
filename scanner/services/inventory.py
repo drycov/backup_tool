@@ -39,13 +39,17 @@ def _default_ssh_port() -> int:
 
 
 def _device_from_model(record: DeviceModel) -> Device:
+    from services.vendor_catalog import default_ports_for_model, normalize_model
+
+    model = normalize_model(record.model)
+    ports = record.ports or default_ports_for_model(model)
     return Device(
         name=record.name,
         ip=record.ip,
-        model=record.model,
+        model=model,
         group=record.group,
         enabled=record.enabled,
-        ports=record.ports or [_default_ssh_port()],
+        ports=ports,
         site=getattr(record, "site", "") or "",
         role=getattr(record, "role", "") or "",
         critical=bool(getattr(record, "critical", False)),
@@ -116,6 +120,9 @@ def init_db() -> None:
         from services.auth import seed_default_admin
 
         seed_default_admin()
+        from services.custom_roles import seed_system_roles
+
+        seed_system_roles()
     except Exception as exc:
         logger.exception("inventory | database init failed: %s", exc)
         reset_availability_cache()
@@ -253,6 +260,7 @@ def save_inventory(inventory: Inventory) -> None:
 
 def _upsert_device_record(device: Device, *, old_name: str | None = None) -> None:
     """Create or update a device row without delete+insert (avoids unique name races)."""
+    device = _normalize_device(device)
     DeviceModel.objects.filter(name=device.name).exclude(ip=device.ip).delete()
     record = None
     if old_name:
@@ -274,6 +282,16 @@ def _upsert_device_record(device: Device, *, old_name: str | None = None) -> Non
         record.save()
     else:
         _model_from_device(device).save()
+
+
+def _normalize_device(device: Device) -> Device:
+    from services.vendor_catalog import default_ports_for_model, normalize_model
+
+    model = normalize_model(device.model)
+    ports = list(device.ports) if device.ports else default_ports_for_model(model)
+    if device.model == model and device.ports == ports:
+        return device
+    return device.model_copy(update={"model": model, "ports": ports})
 
 
 def add_device(device: Device) -> Inventory:

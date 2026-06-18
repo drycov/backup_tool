@@ -215,7 +215,7 @@ def login_view(request: HttpRequest) -> JsonResponse:
                 "id": user.id,
                 "username": user.username,
                 "role": user.role,
-                "permissions": auth.permissions_for_role(user.role),
+                "permissions": auth.user_permissions(user),
                 "must_change_password": bool(getattr(user, "must_change_password", False)),
                 **totp_public_status(user),
             },
@@ -286,7 +286,7 @@ def totp_verify_view(request: HttpRequest) -> JsonResponse:
                     "id": user.id,
                     "username": user.username,
                     "role": user.role,
-                    "permissions": auth.permissions_for_role(user.role),
+                    "permissions": auth.user_permissions(user),
                     "must_change_password": bool(getattr(user, "must_change_password", False)),
                     **totp_public_status(user),
                 },
@@ -368,23 +368,12 @@ def logout_view(request: HttpRequest) -> JsonResponse:
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
 def auth_me(request: HttpRequest) -> JsonResponse:
     user: User = request.api_user
-    from services.object_scope import scope_public
-
     from services.totp_auth import totp_public_status
 
-    return json_response(
-        {
-            "id": user.id,
-            "username": user.username,
-            "role": user.role,
-            "permissions": auth.permissions_for_role(user.role),
-            "auth_source": user.auth_source or "local",
-            "role_locked": bool(getattr(user, "role_locked", False)),
-            "must_change_password": bool(getattr(user, "must_change_password", False)),
-            **totp_public_status(user),
-            **scope_public(user),
-        }
-    )
+    payload = auth.user_public_dict(user)
+    payload["must_change_password"] = bool(getattr(user, "must_change_password", False))
+    payload.update(totp_public_status(user))
+    return json_response(payload)
 
 
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
@@ -395,20 +384,7 @@ def rbac_matrix_view(request: HttpRequest) -> JsonResponse:
 
 
 def _auth_users_list(request: HttpRequest) -> JsonResponse:
-    from services.object_scope import scope_public
-
-    users = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "role": u.role,
-            "is_active": u.is_active,
-            "auth_source": u.auth_source or "local",
-            "role_locked": bool(getattr(u, "role_locked", False)),
-            **scope_public(u),
-        }
-        for u in auth.list_users()
-    ]
+    users = [auth.user_public_dict(u) for u in auth.list_users()]
     return json_response(users)
 
 
@@ -451,8 +427,11 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
                 is_active=body.get("is_active"),
                 password=body.get("password"),
                 role_locked=body.get("role_locked"),
+                scope_locked=body.get("scope_locked"),
                 allowed_groups=body.get("allowed_groups"),
                 allowed_sites=body.get("allowed_sites"),
+                custom_role_id=body.get("custom_role_id"),
+                clear_custom_role=body.get("clear_custom_role") is True,
             )
         except ValueError as exc:
             return error_response(
@@ -472,19 +451,7 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
                 ),
                 request=request,
             )
-        from services.object_scope import scope_public
-
-        return json_response(
-            {
-                "id": updated.id,
-                "username": updated.username,
-                "role": updated.role,
-                "is_active": updated.is_active,
-                "auth_source": updated.auth_source or "local",
-                "role_locked": bool(getattr(updated, "role_locked", False)),
-                **scope_public(updated),
-            }
-        )
+        return json_response(auth.user_public_dict(updated))
     if request.method == "DELETE":
         user: User = request.api_user
         if user_id == user.id:
@@ -513,8 +480,24 @@ def oxidized_logs(request: HttpRequest) -> JsonResponse:
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
 def oxidized_models(request: HttpRequest) -> JsonResponse:
     from services.oxidized_config_loader import list_available_models
+    from services.oxidized_settings import get_oxidized_settings
+    from services.vendor_catalog import catalog_entry_public, catalog_public, normalize_model
 
-    return json_response({"models": list_available_models()})
+    models = list_available_models()
+    settings_cfg = get_oxidized_settings()
+    default_model = normalize_model(settings_cfg.get("default_model") or "routeros")
+    catalog = catalog_public()
+    from services.oxidized_engine.model.registry import list_native_models
+
+    return json_response(
+        {
+            "models": models,
+            "default_model": default_model,
+            "catalog": catalog,
+            "native_models": list_native_models(),
+            "model_info": {m: catalog.get(normalize_model(m), catalog_entry_public(m)) for m in models},
+        }
+    )
 
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
@@ -1937,6 +1920,7 @@ def api_keys_dispatch(request: HttpRequest) -> JsonResponse:
             return error_response(str(exc), status=400)
         result = api_keys._public_row(row)  # noqa: SLF001
         result["key"] = raw_key
+        log_audit_user(user, "api_key.create", target=row.name, request=request)
         return json_response(result, status=201)
     return error_response("Method not allowed", status=405)
 
@@ -1948,7 +1932,10 @@ def api_key_detail(request: HttpRequest, key_id: int) -> JsonResponse:
 
     if request.method == "DELETE":
         try:
+            items = api_keys.list_api_keys()
+            name = next((i["name"] for i in items if i["id"] == key_id), str(key_id))
             api_keys.delete_api_key(key_id)
+            log_audit_user(request.api_user, "api_key.delete", target=name, request=request)
         except ValueError as exc:
             return error_response(str(exc), status=404)
         return json_response({"status": "ok"})
@@ -1960,12 +1947,96 @@ def api_key_detail(request: HttpRequest, key_id: int) -> JsonResponse:
 @require_permission(auth.PERMISSION_API_KEYS_MANAGE)
 def api_key_revoke(request: HttpRequest, key_id: int) -> JsonResponse:
     from services import api_keys
+    from services.audit import ACTION_API_KEY_REVOKE
 
     try:
+        items = api_keys.list_api_keys()
+        name = next((i["name"] for i in items if i["id"] == key_id), str(key_id))
         api_keys.revoke_api_key(key_id)
+        log_audit_user(request.api_user, ACTION_API_KEY_REVOKE, target=name, request=request)
     except ValueError as exc:
         return error_response(str(exc), status=404)
     return json_response({"status": "ok"})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_API_KEYS_MANAGE)
+def api_key_rotate(request: HttpRequest, key_id: int) -> JsonResponse:
+    from services import api_keys
+    from services.audit import ACTION_API_KEY_ROTATE
+
+    user: User = request.api_user
+    try:
+        row, raw_key = api_keys.rotate_api_key(key_id, rotated_by=user.username)
+    except ValueError as exc:
+        return error_response(str(exc), status=404)
+    result = api_keys._public_row(row)  # noqa: SLF001
+    result["key"] = raw_key
+    log_audit_user(user, ACTION_API_KEY_ROTATE, target=row.name, request=request)
+    return json_response(result)
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def custom_roles_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import custom_roles
+
+    if request.method == "GET":
+        return json_response({"items": custom_roles.list_custom_roles()})
+    if request.method == "POST":
+        body = parse_json_body(request)
+        try:
+            row = custom_roles.create_custom_role(
+                slug=body.get("slug", ""),
+                label=body.get("label", ""),
+                description=body.get("description", ""),
+                permissions=body.get("permissions") or [],
+            )
+        except ValueError as exc:
+            return error_response(str(exc), status=400)
+        return json_response(row, status=201)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def custom_role_detail(request: HttpRequest, role_id: int) -> JsonResponse:
+    from services import custom_roles
+
+    if request.method == "PUT":
+        body = parse_json_body(request)
+        try:
+            row = custom_roles.update_custom_role(
+                role_id,
+                label=body.get("label"),
+                description=body.get("description"),
+                permissions=body.get("permissions"),
+            )
+        except ValueError as exc:
+            return error_response(str(exc), status=404 if "не найдена" in str(exc) else 400)
+        return json_response(row)
+    if request.method == "DELETE":
+        try:
+            custom_roles.delete_custom_role(role_id)
+        except ValueError as exc:
+            return error_response(str(exc), status=400)
+        return json_response({"status": "ok"})
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def netbox_topology_view(request: HttpRequest) -> JsonResponse:
+    from services.netbox_topology import fetch_netbox_topology
+
+    try:
+        return json_response(fetch_netbox_topology())
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    except httpx.HTTPError as exc:
+        return error_response(f"NetBox: {exc}", status=502)
 
 
 @csrf_exempt

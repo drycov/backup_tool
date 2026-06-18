@@ -85,6 +85,22 @@ class GroupPolicy(models.Model):
         db_table = "group_policies"
 
 
+class CustomRole(models.Model):
+    """Пользовательская роль с набором permissions (дополнение к встроенным ролям)."""
+
+    slug = models.CharField(max_length=64, unique=True, db_index=True)
+    label = models.CharField(max_length=128)
+    description = models.TextField(blank=True, default="")
+    permissions = LegacyJSONField(default=list, blank=True)
+    is_system = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_roles"
+        ordering = ["slug"]
+
+
 class User(models.Model):
     username = models.CharField(max_length=64, unique=True, db_index=True)
     password_hash = models.CharField(max_length=256)
@@ -92,6 +108,14 @@ class User(models.Model):
     is_active = models.BooleanField(default=True)
     auth_source = models.CharField(max_length=16, default="local")
     role_locked = models.BooleanField(default=False)
+    scope_locked = models.BooleanField(default=False)
+    custom_role = models.ForeignKey(
+        CustomRole,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="users",
+    )
     must_change_password = models.BooleanField(default=False)
     totp_enabled = models.BooleanField(default=False)
     totp_secret = models.CharField(max_length=64, blank=True, default="")

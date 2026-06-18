@@ -19,6 +19,9 @@ urlpatterns = [
     path("api/auth/api-keys", views.api_keys_dispatch, name="auth-api-keys"),
     path("api/auth/api-keys/<int:key_id>", views.api_key_detail, name="auth-api-key-detail"),
     path("api/auth/api-keys/<int:key_id>/revoke", views.api_key_revoke, name="auth-api-key-revoke"),
+    path("api/auth/api-keys/<int:key_id>/rotate", views.api_key_rotate, name="auth-api-key-rotate"),
+    path("api/auth/custom-roles", views.custom_roles_dispatch, name="auth-custom-roles"),
+    path("api/auth/custom-roles/<int:role_id>", views.custom_role_detail, name="auth-custom-role-detail"),
     path("api/auth/users", views.auth_users_dispatch, name="auth-users"),
     path("api/auth/users/<int:user_id>", views.auth_user_detail, name="auth-user-detail"),
     path("api/settings/oxidized", views.oxidized_settings_dispatch, name="settings-oxidized"),
@@ -106,6 +109,7 @@ urlpatterns = [
     ),
     path("api/inventory/import/netbox", views.import_netbox_view, name="inventory-import-netbox"),
     path("api/inventory/import/librenms", views.import_librenms_view, name="inventory-import-librenms"),
+    path("api/inventory/topology/netbox", views.netbox_topology_view, name="inventory-topology-netbox"),
     path("api/sites", views.sites_list_view, name="sites-list"),
     path(
         "inventory/cleanup-discovered",

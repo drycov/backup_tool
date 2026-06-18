@@ -177,8 +177,11 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     password: Optional[str] = None
     role_locked: Optional[bool] = None
+    scope_locked: Optional[bool] = None
     allowed_groups: Optional[list[str]] = None
     allowed_sites: Optional[list[str]] = None
+    custom_role_id: Optional[int] = None
+    clear_custom_role: Optional[bool] = None
 
 
 class LdapConfigPublic(BaseModel):

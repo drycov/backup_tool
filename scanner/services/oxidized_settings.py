@@ -17,6 +17,7 @@ from services.oxidized_config_loader import (
     resolve_model_name,
 )
 from services.oxidized_logging import engine_title, is_python_engine, oxidized_log_path
+from services.vendor_catalog import catalog_public
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ def get_oxidized_settings() -> dict[str, Any]:
         "log_path": str(oxidized_log_path()),
         "proxy_url": "/oxidized-proxy/nodes",
         "available_models": list_available_models(),
+        "vendor_catalog": catalog_public(),
         "group_models": group_models_from_yaml(yaml_cfg),
         "health": {
             "reachable": health.get("reachable", False),

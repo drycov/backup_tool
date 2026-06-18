@@ -49,6 +49,12 @@ def permissions_for_role(role: str) -> list[str]:
     return _perms(role)
 
 
+def user_permissions(user: User) -> list[str]:
+    from services.rbac import permissions_for_user
+
+    return sorted(permissions_for_user(user))
+
+
 def create_access_token(user_id: int, username: str, role: str) -> str:
     from services.system_settings import get_config
 
@@ -72,11 +78,11 @@ def decode_token(token: str) -> dict:
 
 
 def get_user_by_id(user_id: int) -> Optional[User]:
-    return User.objects.filter(id=user_id).first()
+    return User.objects.select_related("custom_role").filter(id=user_id).first()
 
 
 def get_user_by_username(username: str) -> Optional[User]:
-    return User.objects.filter(username=username).first()
+    return User.objects.select_related("custom_role").filter(username=username).first()
 
 
 def authenticate_user(username: str, password: str) -> Optional[User]:
@@ -130,10 +136,11 @@ def upsert_ldap_user(
         user.auth_source = "ldap"
         if not getattr(user, "role_locked", False):
             user.role = role
-        if allowed_groups is not None:
-            user.allowed_groups = allowed_groups
-        if allowed_sites is not None:
-            user.allowed_sites = allowed_sites
+        if not getattr(user, "scope_locked", False):
+            if allowed_groups is not None:
+                user.allowed_groups = allowed_groups
+            if allowed_sites is not None:
+                user.allowed_sites = allowed_sites
         user.is_active = True
         user.password_hash = placeholder_hash
         user.save()
@@ -197,7 +204,33 @@ def change_password(user: User, current_password: str, new_password: str) -> Non
 
 
 def list_users() -> list[User]:
-    return list(User.objects.order_by("id"))
+    return list(User.objects.select_related("custom_role").order_by("id"))
+
+
+def user_public_dict(user: User) -> dict:
+    from services.object_scope import scope_public
+    from services.rbac import permissions_for_user
+
+    custom_role = None
+    if getattr(user, "custom_role_id", None) and user.custom_role:
+        custom_role = {
+            "id": user.custom_role.id,
+            "slug": user.custom_role.slug,
+            "label": user.custom_role.label,
+        }
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "is_active": user.is_active,
+        "auth_source": user.auth_source or "local",
+        "role_locked": bool(getattr(user, "role_locked", False)),
+        "scope_locked": bool(getattr(user, "scope_locked", False)),
+        "custom_role_id": user.custom_role_id,
+        "custom_role": custom_role,
+        "permissions": sorted(permissions_for_user(user)),
+        **scope_public(user),
+    }
 
 
 def create_user(username: str, password: str, role: str) -> User:
@@ -220,8 +253,11 @@ def update_user(
     is_active: Optional[bool] = None,
     password: Optional[str] = None,
     role_locked: Optional[bool] = None,
+    scope_locked: Optional[bool] = None,
     allowed_groups: Optional[list[str]] = None,
     allowed_sites: Optional[list[str]] = None,
+    custom_role_id: Optional[int] = None,
+    clear_custom_role: bool = False,
 ) -> User:
     user = get_user_by_id(user_id)
     if not user:
@@ -234,6 +270,8 @@ def update_user(
         user.is_active = is_active
     if role_locked is not None:
         user.role_locked = role_locked
+    if scope_locked is not None:
+        user.scope_locked = scope_locked
     if password and user.auth_source == "ldap":
         raise ValueError("LDAP-пользователи не могут иметь локальный пароль")
     if password:
@@ -242,8 +280,20 @@ def update_user(
         user.allowed_groups = [g.strip() for g in allowed_groups if str(g).strip()]
     if allowed_sites is not None:
         user.allowed_sites = [s.strip() for s in allowed_sites if str(s).strip()]
+    if clear_custom_role:
+        user.custom_role_id = None
+    elif custom_role_id is not None:
+        from core.models import CustomRole
+
+        if custom_role_id == 0:
+            user.custom_role_id = None
+        else:
+            cr = CustomRole.objects.filter(id=custom_role_id).first()
+            if not cr:
+                raise ValueError("Пользовательская роль не найдена")
+            user.custom_role_id = cr.id
     user.save()
-    return user
+    return get_user_by_id(user.id) or user
 
 
 def delete_user(user_id: int) -> None:
@@ -258,4 +308,6 @@ def user_has_permission(user: User, permission: str) -> bool:
         from services.api_keys import api_key_has_permission
 
         return api_key_has_permission(user, permission)
-    return has_permission(user.role, permission)
+    from services.rbac import user_has_role_permission
+
+    return user_has_role_permission(user, permission)

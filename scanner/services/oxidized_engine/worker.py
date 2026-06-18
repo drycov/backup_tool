@@ -124,11 +124,9 @@ class Worker:
             )
         from services.mikrotik_backup import run_mikrotik_backups
 
-        model_key = (node.model_name or "").lower().replace("_", "").replace("-", "")
-        is_routeros = model_key in ("routeros", "mikrotik", "ros") or model_key.startswith(
-            "mikrotik"
-        )
-        if is_routeros:
+        from services.vendor_catalog import is_routeros_family
+
+        if is_routeros_family(node.model_name):
             binary_ok = run_mikrotik_backups(node)
         else:
             binary_ok = True

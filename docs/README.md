@@ -21,6 +21,7 @@ Backup Tools — платформа для **сканирования сети**
 | [Аутентификация](authentication.md) | JWT, RBAC, LDAP / Active Directory |
 | [API](api.md) | REST-эндпоинты Scanner |
 | [Эксплуатация](operations.md) | Команды, мониторинг, резервное копирование, troubleshooting |
+| [Интеграции](integrations.md) | API keys, Ansible, CI, NetBox |
 
 ## Дополнительные материалы
 
