@@ -8,7 +8,7 @@ import jwt
 from django.conf import settings
 
 from core.models import User
-from services.rbac import ROLE_ADMIN, ROLE_OPERATOR, ROLE_VIEWER, VALID_ROLES, has_permission
+from services.rbac import ROLE_ADMIN, ROLE_VIEWER, VALID_ROLES, has_permission
 
 logger = logging.getLogger(__name__)
 
@@ -117,11 +117,12 @@ def upsert_ldap_user(username: str, role: str) -> User:
 def seed_default_admin() -> None:
     password = settings.ADMIN_PASSWORD or "changeme"
     username = settings.ADMIN_USERNAME
+    default_password = not settings.ADMIN_PASSWORD
 
     if not User.objects.exists():
-        if not settings.ADMIN_PASSWORD:
+        if default_password:
             logger.warning(
-                "auth | ADMIN_PASSWORD не задан — создан %s / changeme",
+                "auth | ADMIN_PASSWORD не задан — создан %s / changeme (смена при первом входе)",
                 username,
             )
         User.objects.create(
@@ -130,6 +131,7 @@ def seed_default_admin() -> None:
             role=ROLE_ADMIN,
             is_active=True,
             auth_source="local",
+            must_change_password=default_password,
         )
         logger.info("auth | создан администратор: %s", username)
         return
@@ -139,6 +141,7 @@ def seed_default_admin() -> None:
         env_admin.password_hash = hash_password(settings.ADMIN_PASSWORD)
         env_admin.role = ROLE_ADMIN
         env_admin.is_active = True
+        env_admin.must_change_password = False
         env_admin.save()
         logger.info("auth | учётная запись %s синхронизирована из .env", username)
         return
@@ -150,8 +153,21 @@ def seed_default_admin() -> None:
             role=ROLE_ADMIN,
             is_active=True,
             auth_source="local",
+            must_change_password=False,
         )
         logger.info("auth | создан администратор из .env: %s", username)
+
+
+def change_password(user: User, current_password: str, new_password: str) -> None:
+    if user.auth_source == "ldap":
+        raise ValueError("Смена пароля недоступна для LDAP-пользователей")
+    if not verify_password(current_password, user.password_hash):
+        raise ValueError("Неверный текущий пароль")
+    if len(new_password) < 8:
+        raise ValueError("Новый пароль должен быть не короче 8 символов")
+    user.password_hash = hash_password(new_password)
+    user.must_change_password = False
+    user.save(update_fields=["password_hash", "must_change_password"])
 
 
 def list_users() -> list[User]:

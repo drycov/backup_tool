@@ -68,6 +68,7 @@ class User(models.Model):
     is_active = models.BooleanField(default=True)
     auth_source = models.CharField(max_length=16, default="local")
     role_locked = models.BooleanField(default=False)
+    must_change_password = models.BooleanField(default=False)
     allowed_groups = LegacyJSONField(default=list, blank=True)
     allowed_sites = LegacyJSONField(default=list, blank=True)
     created_at = models.DateTimeField(null=True, blank=True)
@@ -184,6 +185,10 @@ class ScanConfig(models.Model):
     scan_concurrency = models.PositiveIntegerField(default=50)
     discover_max_hosts = models.PositiveIntegerField(default=4096)
     discover_ping_workers = models.PositiveIntegerField(default=100)
+    schedule_enabled = models.BooleanField(default=False)
+    schedule_interval_hours = models.PositiveIntegerField(default=24)
+    schedule_discover = models.BooleanField(default=True)
+    schedule_last_run_at = models.DateTimeField(null=True, blank=True)
     ovn_user = models.CharField(max_length=128, default="satcoadm")
     ovn_pass = models.CharField(max_length=256, blank=True, default="")
     us_user = models.CharField(max_length=128, default="satcoadm")
@@ -223,6 +228,40 @@ class AuditEvent(models.Model):
     class Meta:
         db_table = "audit_events"
         ordering = ["-created_at"]
+
+
+class BackgroundTask(models.Model):
+    """Персистентная очередь фоновых задач (degrade, compliance, scheduled scan)."""
+
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+
+    TASK_DEGRADE_CHECK = "degrade.check"
+    TASK_COMPLIANCE_REPORT = "compliance.report"
+    TASK_SCHEDULED_SCAN = "scan.scheduled"
+    TASK_AUDIT_PURGE = "audit.purge"
+
+    task_type = models.CharField(max_length=64, db_index=True)
+    status = models.CharField(max_length=16, default=STATUS_PENDING, db_index=True)
+    payload = models.JSONField(default=dict, blank=True)
+    correlation_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    scheduled_at = models.DateTimeField(db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    last_error = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "background_tasks"
+        ordering = ["scheduled_at", "id"]
+        indexes = [
+            models.Index(fields=["status", "scheduled_at"]),
+            models.Index(fields=["task_type", "status"]),
+        ]
 
 
 class AlertState(models.Model):

@@ -1,0 +1,25 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"core/migrations/*" = ["E501"]
+"services/inventory.py" = ["E402", "I001"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "backup_tools.settings"
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["services"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+fail_under = 28

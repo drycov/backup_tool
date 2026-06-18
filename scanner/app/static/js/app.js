@@ -16,7 +16,7 @@ const PAGE_TITLES = {
 };
 
 function qs(sel) { return document.querySelector(sel); }
-function qsa(sel) { return document.querySelectorAll(sel); }
+function qsa(sel) { return Array.from(document.querySelectorAll(sel)); }
 
 function can(permission) {
   return currentUser?.permissions?.includes(permission);

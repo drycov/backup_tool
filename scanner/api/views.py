@@ -4,7 +4,6 @@ from django.conf import settings
 from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-
 from pydantic import ValidationError
 
 from api.helpers import (
@@ -16,8 +15,13 @@ from api.helpers import (
     require_permission,
 )
 from core.models import User
-from services import auth, scan_job
+from services import auth, ldap_settings, scan_job
 from services.audit import (
+    ACTION_AUTH_LOGIN,
+    ACTION_AUTH_LOGIN_FAILED,
+    ACTION_AUTH_LOGIN_LDAP,
+    ACTION_COMPLIANCE_EXPORT,
+    ACTION_COMPLIANCE_REPORT_SEND,
     ACTION_CREDENTIAL_CREATE,
     ACTION_CREDENTIAL_DELETE,
     ACTION_CREDENTIAL_UPDATE,
@@ -25,24 +29,28 @@ from services.audit import (
     ACTION_OXIDIZED_FETCH,
     ACTION_SCAN_DISCOVER,
     ACTION_SCAN_RUN,
+    ACTION_SETTINGS_UPDATE,
+    ACTION_USER_SCOPE_UPDATE,
+    audit_events_to_csv,
     list_audit_events,
+    log_audit,
     log_audit_user,
 )
-from services.compliance import compliance_to_csv, compute_compliance_summary
-from services.scan_history import get_scan_history, get_scan_trends
+from services.compliance import compliance_to_csv, compliance_to_pdf, compute_compliance_summary
 from services.inventory import (
     OXIDIZED_SOURCE_URL,
+    add_credential_profile,
     add_device,
+    bulk_update_devices,
+    cleanup_discovered_devices,
+    delete_credential_profile,
     devices_for_oxidized_source,
     load_inventory,
     mask_inventory_for_role,
     reimport_network_inventory,
     remove_device,
     save_inventory,
-    add_credential_profile,
-    delete_credential_profile,
     update_credential_profile,
-    cleanup_discovered_devices,
     update_oxidized_credentials,
 )
 from services.ldap_auth import auth_methods
@@ -57,7 +65,6 @@ from services.oxidized_client import (
     get_nodes,
 )
 from services.oxidized_proxy import (
-    OXIDIZED_PROXY_PREFIX,
     embed_block_headers,
     hop_headers,
     oxidized_base_url,
@@ -65,9 +72,12 @@ from services.oxidized_proxy import (
     rewrite_proxy_location,
     upstream_target,
 )
+from services.scan_history import get_scan_history, get_scan_trends
 from services.schemas import (
     BackupNotifyTestRequest,
     BackupSettingsUpdate,
+    BulkDeviceUpdate,
+    ChangePasswordRequest,
     CredentialProfile,
     CredentialProfileCreate,
     CredentialProfileUpdate,
@@ -84,7 +94,6 @@ from services.schemas import (
     ScanSettingsUpdate,
     ScanStartResponse,
 )
-from services import ldap_settings
 
 _HOP_HEADERS = hop_headers()
 _EMBED_BLOCK_HEADERS = embed_block_headers()
@@ -158,7 +167,15 @@ def login_view(request: HttpRequest) -> JsonResponse:
         return error_response(exc.detail, exc.status)
     user = auth.authenticate_user(body.get("username", ""), body.get("password", ""))
     if not user:
+        log_audit(
+            str(body.get("username", "")).strip()[:64],
+            ACTION_AUTH_LOGIN_FAILED,
+            request=request,
+        )
         return error_response("Неверный логин или пароль", status=401)
+
+    login_action = ACTION_AUTH_LOGIN_LDAP if (user.auth_source or "") == "ldap" else ACTION_AUTH_LOGIN
+    log_audit_user(user, login_action, request=request)
 
     token = auth.create_access_token(user.id, user.username, user.role)
     response = json_response(
@@ -170,6 +187,7 @@ def login_view(request: HttpRequest) -> JsonResponse:
                 "username": user.username,
                 "role": user.role,
                 "permissions": auth.permissions_for_role(user.role),
+                "must_change_password": bool(getattr(user, "must_change_password", False)),
             },
         }
     )
@@ -178,10 +196,31 @@ def login_view(request: HttpRequest) -> JsonResponse:
         value=token,
         httponly=True,
         samesite="Lax",
+        secure=getattr(settings, "BEHIND_HTTPS_PROXY", False),
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
     return response
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def change_password_view(request: HttpRequest) -> JsonResponse:
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    try:
+        body = parse_json_body(request)
+        payload = ChangePasswordRequest.model_validate(body)
+        auth.change_password(user, payload.current_password, payload.new_password)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    except ValidationError as exc:
+        return error_response(str(exc))
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    return json_response({"ok": True, "must_change_password": False})
 
 
 @csrf_exempt
@@ -205,6 +244,7 @@ def auth_me(request: HttpRequest) -> JsonResponse:
             "permissions": auth.permissions_for_role(user.role),
             "auth_source": user.auth_source or "local",
             "role_locked": bool(getattr(user, "role_locked", False)),
+            "must_change_password": bool(getattr(user, "must_change_password", False)),
             **scope_public(user),
         }
     )
@@ -280,6 +320,20 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
         except ValueError as exc:
             return error_response(
                 str(exc), status=404 if "не найден" in str(exc) else 400
+            )
+        if "allowed_groups" in body or "allowed_sites" in body:
+            from services.object_scope import scope_public as _scope_public
+
+            sp = _scope_public(updated)
+            log_audit_user(
+                request.api_user,
+                ACTION_USER_SCOPE_UPDATE,
+                target=updated.username,
+                detail=(
+                    f"groups={sp.get('allowed_groups') or 'all'}, "
+                    f"sites={sp.get('allowed_sites') or 'all'}"
+                ),
+                request=request,
             )
         from services.object_scope import scope_public
 
@@ -635,9 +689,9 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
         return denied
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
         return error_response("Доступно только для python engine", status=501)
+    from services.git_diff_html import render_git_diff_html, render_side_by_side_html
     from services.oxidized_engine import get_manager
     from services.oxidized_engine.exceptions import NodeNotFound
-    from services.git_diff_html import render_git_diff_html, render_side_by_side_html
 
     oid = request.GET.get("oid", "")
     oid2 = request.GET.get("oid2") or None
@@ -698,6 +752,40 @@ def health(request: HttpRequest) -> JsonResponse:
     return json_response(payload)
 
 
+def health_ready(request: HttpRequest) -> JsonResponse:
+    from services.database import is_database_available
+
+    checks: dict[str, object] = {"database": False, "oxidized_worker": False}
+    try:
+        checks["database"] = is_database_available()
+    except Exception as exc:
+        checks["database_error"] = str(exc)
+
+    try:
+        ox = check_health()
+        checks["oxidized_worker"] = bool(ox.get("reachable"))
+        checks["oxidized_engine"] = ox.get("engine")
+        checks["oxidized_nodes"] = ox.get("nodes_count", 0)
+        if not ox.get("reachable"):
+            checks["oxidized_error"] = ox.get("error")
+    except Exception as exc:
+        checks["oxidized_error"] = str(exc)
+
+    ready = bool(checks["database"]) and bool(checks["oxidized_worker"])
+    status_code = 200 if ready else 503
+    return json_response({"status": "ready" if ready else "not_ready", "checks": checks}, status=status_code)
+
+
+def metrics_view(request: HttpRequest) -> HttpResponse:
+    if not getattr(settings, "METRICS_ENABLED", True):
+        return HttpResponse("metrics disabled", status=404)
+    from services.metrics import metrics_response, refresh_all_gauges
+
+    refresh_all_gauges()
+    body, content_type = metrics_response()
+    return HttpResponse(body, content_type=content_type)
+
+
 @csrf_exempt
 def inventory_dispatch(request: HttpRequest) -> JsonResponse:
     try:
@@ -721,6 +809,42 @@ def inventory_dispatch(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_EDIT_DEVICES)
+def bulk_update_devices_view(request: HttpRequest) -> JsonResponse:
+    user: User = request.api_user
+    try:
+        body = parse_json_body(request)
+        payload = BulkDeviceUpdate.model_validate(body)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    except ValidationError as exc:
+        return error_response(str(exc))
+
+    from services.object_scope import device_in_scope
+
+    inventory = load_inventory()
+    device_map = {d.name: d for d in inventory.devices}
+    for name in payload.names:
+        device = device_map.get(name)
+        if not device:
+            return error_response(f"Device '{name}' not found", status=404)
+        if not device_in_scope(user, device):
+            return error_response(f"Нет доступа к устройству {name}", status=403)
+
+    try:
+        updated = bulk_update_devices(
+            payload.names,
+            enabled=payload.enabled,
+            maintenance=payload.maintenance,
+            group=payload.group,
+        )
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    return json_response(mask_inventory_for_role(updated, user.role, user=user))
+
+
+@csrf_exempt
 @require_permission(auth.PERMISSION_EDIT_DEVICES)
 def inventory_devices_dispatch(request: HttpRequest) -> JsonResponse:
     user: User = request.api_user
@@ -730,7 +854,6 @@ def inventory_devices_dispatch(request: HttpRequest) -> JsonResponse:
         inventory = add_device(Device(**device.model_dump()))
         return json_response(mask_inventory_for_role(inventory, user.role, user=user))
     return error_response("Method not allowed", status=405)
-
 
 
 @csrf_exempt
@@ -891,11 +1014,50 @@ def compliance_export_view(request: HttpRequest) -> HttpResponse:
         state=request.GET.get("state", "").strip(),
         user=user,
     )
-    csv_text = compliance_to_csv(summary)
+    fmt = (request.GET.get("format") or "csv").lower()
     stamp = summary["generated_at"].strftime("%Y%m%d-%H%M%S")
-    response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = f'attachment; filename="compliance-{stamp}.csv"'
+    if fmt == "pdf":
+        pdf_bytes = bytes(compliance_to_pdf(summary))
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="compliance-{stamp}.pdf"'
+    else:
+        csv_text = compliance_to_csv(summary)
+        response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="compliance-{stamp}.csv"'
+    log_audit_user(
+        user,
+        ACTION_COMPLIANCE_EXPORT,
+        target=fmt,
+        detail=f"compliance_pct={summary.get('compliance_pct', 0)}",
+        request=request,
+    )
     return response
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def compliance_report_send_view(request: HttpRequest) -> JsonResponse:
+    from services.compliance_report import send_scoped_compliance_report
+
+    user: User = request.api_user
+    critical = request.GET.get("critical") or None
+    result = send_scoped_compliance_report(
+        user,
+        site=request.GET.get("site", "").strip(),
+        role=request.GET.get("role", "").strip(),
+        critical=critical,
+        group=request.GET.get("group", "").strip(),
+        state=request.GET.get("state", "").strip(),
+    )
+    log_audit_user(
+        user,
+        ACTION_COMPLIANCE_REPORT_SEND,
+        detail=f"ok={result.get('ok')}",
+        request=request,
+    )
+    status = 200 if result.get("ok") else 400
+    return json_response(result, status=status)
 
 
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
@@ -932,6 +1094,20 @@ def audit_events_view(request: HttpRequest) -> JsonResponse:
         offset = 0
     action = request.GET.get("action", "").strip()
     return json_response(list_audit_events(limit=limit, offset=offset, action=action))
+
+
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def audit_export_view(request: HttpRequest) -> HttpResponse:
+    try:
+        limit = int(request.GET.get("limit", "10000"))
+    except ValueError:
+        limit = 10000
+    action = request.GET.get("action", "").strip()
+    csv_text = audit_events_to_csv(limit=limit, action=action)
+    response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="audit-export.csv"'
+    log_audit_user(request.api_user, "audit.export", target=action or "all", request=request)
+    return response
 
 
 @csrf_exempt
@@ -983,6 +1159,7 @@ def oxidized_settings_dispatch(request: HttpRequest) -> JsonResponse:
             return error_response(str(exc))
         except ValueError as exc:
             return error_response(str(exc))
+        log_audit_user(user, ACTION_SETTINGS_UPDATE, target="oxidized", request=request)
         return json_response(saved)
     return error_response("Method not allowed", status=405)
 
@@ -1028,6 +1205,7 @@ def backup_settings_dispatch(request: HttpRequest) -> JsonResponse:
             return error_response(str(exc))
         except ValueError as exc:
             return error_response(str(exc))
+        log_audit_user(user, ACTION_SETTINGS_UPDATE, target="backup", request=request)
         return json_response(saved)
     return error_response("Method not allowed", status=405)
 
@@ -1082,6 +1260,7 @@ def ldap_settings_dispatch(request: HttpRequest) -> JsonResponse:
             return error_response(str(exc))
         except ValueError as exc:
             return error_response(str(exc))
+        log_audit_user(request.api_user, ACTION_SETTINGS_UPDATE, target="ldap", request=request)
         return json_response(saved)
     return error_response("Method not allowed", status=405)
 
@@ -1134,6 +1313,7 @@ def git_settings_dispatch(request: HttpRequest) -> JsonResponse:
             return error_response(str(exc))
         except ValueError as exc:
             return error_response(str(exc))
+        log_audit_user(user, ACTION_SETTINGS_UPDATE, target="git", request=request)
         return json_response(saved)
     return error_response("Method not allowed", status=405)
 
@@ -1162,6 +1342,7 @@ def scan_settings_dispatch(request: HttpRequest) -> JsonResponse:
             return error_response(str(exc))
         except ValueError as exc:
             return error_response(str(exc))
+        log_audit_user(user, ACTION_SETTINGS_UPDATE, target="scan", request=request)
         return json_response(saved)
     return error_response("Method not allowed", status=405)
 

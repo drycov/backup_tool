@@ -18,6 +18,14 @@ ACTION_OXIDIZED_FETCH = "oxidized.fetch"
 ACTION_OXIDIZED_BACKUP_ALL = "oxidized.backup_all"
 ACTION_SCAN_RUN = "scan.run"
 ACTION_SCAN_DISCOVER = "scan.discover"
+ACTION_SCAN_SCHEDULED = "scan.scheduled"
+ACTION_SETTINGS_UPDATE = "settings.update"
+ACTION_AUTH_LOGIN = "auth.login"
+ACTION_AUTH_LOGIN_LDAP = "auth.login_ldap"
+ACTION_AUTH_LOGIN_FAILED = "auth.login_failed"
+ACTION_USER_SCOPE_UPDATE = "user.scope_update"
+ACTION_COMPLIANCE_EXPORT = "compliance.export"
+ACTION_COMPLIANCE_REPORT_SEND = "compliance.report_send"
 
 
 def _client_ip(request: HttpRequest | None) -> str:
@@ -79,16 +87,65 @@ def list_audit_events(
         "total": total,
         "limit": limit,
         "offset": offset,
-        "items": [
-            {
-                "id": row.id,
-                "username": row.username,
-                "action": row.action,
-                "target": row.target,
-                "detail": row.detail,
-                "ip_address": row.ip_address,
-                "created_at": row.created_at,
-            }
-            for row in rows
-        ],
+        "items": [_audit_row_dict(row) for row in rows],
     }
+
+
+def _audit_row_dict(row: AuditEvent) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "username": row.username,
+        "action": row.action,
+        "target": row.target,
+        "detail": row.detail,
+        "ip_address": row.ip_address,
+        "created_at": row.created_at,
+    }
+
+
+def audit_events_to_csv(
+    *,
+    limit: int = 10000,
+    action: str = "",
+) -> str:
+    import csv
+    import io
+
+    limit = max(1, min(limit, 50000))
+    qs = AuditEvent.objects.all()
+    if action:
+        qs = qs.filter(action=action)
+    rows = qs.order_by("-created_at")[:limit]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        ["id", "created_at", "username", "action", "target", "detail", "ip_address"]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                row.id,
+                row.created_at.isoformat() if row.created_at else "",
+                row.username,
+                row.action,
+                row.target,
+                row.detail,
+                row.ip_address,
+            ]
+        )
+    return buf.getvalue()
+
+
+def purge_old_audit_events() -> dict[str, int]:
+    from datetime import timedelta
+
+    from django.conf import settings
+    from django.utils import timezone as dj_tz
+
+    retention_days = int(getattr(settings, "AUDIT_RETENTION_DAYS", 0) or 0)
+    if retention_days <= 0:
+        return {"deleted": 0, "retention_days": retention_days, "skipped": 1}
+    cutoff = dj_tz.now() - timedelta(days=retention_days)
+    deleted, _ = AuditEvent.objects.filter(created_at__lt=cutoff).delete()
+    logger.info("audit | purge | deleted=%s retention_days=%s", deleted, retention_days)
+    return {"deleted": deleted, "retention_days": retention_days}

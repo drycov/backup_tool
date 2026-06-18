@@ -47,12 +47,8 @@ def initialize() -> None:
     else:
         logger.info("oxidized | ruby engine mode — config synced, worker in oxidized container")
 
-    from services.degradation_monitor import start_degradation_monitor
+    from services.task_worker import start_inline_task_worker
 
-    start_degradation_monitor()
-
-    from services.compliance_report import start_compliance_report_scheduler
-
-    start_compliance_report_scheduler()
+    start_inline_task_worker()
 
     _initialized = True

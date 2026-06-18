@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import datetime
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class ScanStatus(str, Enum):
@@ -299,6 +300,9 @@ class ScanSettingsUpdate(BaseModel):
     scan_concurrency: int = 50
     discover_max_hosts: int = 4096
     discover_ping_workers: int = 100
+    schedule_enabled: bool = False
+    schedule_interval_hours: int = 24
+    schedule_discover: bool = True
     ovn_user: str = "satcoadm"
     ovn_pass: Optional[str] = None
     us_user: str = "satcoadm"
@@ -330,3 +334,15 @@ class LdapTestResponse(BaseModel):
     ok: bool
     message: str
     role: Optional[str] = None
+
+
+class BulkDeviceUpdate(BaseModel):
+    names: list[str] = Field(min_length=1)
+    enabled: Optional[bool] = None
+    maintenance: Optional[bool] = None
+    group: Optional[str] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)

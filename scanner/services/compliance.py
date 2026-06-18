@@ -243,6 +243,64 @@ def compliance_to_csv(summary: dict[str, Any] | None = None) -> str:
     return buf.getvalue()
 
 
+def _pdf_text(value: Any) -> str:
+    return str(value or "").encode("latin-1", errors="replace").decode("latin-1")
+
+
+def compliance_to_pdf(summary: dict[str, Any] | None = None) -> bytes:
+    from fpdf import FPDF
+
+    data = summary or compute_compliance_summary()
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=12)
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 8, _pdf_text("Backup Tools - Compliance report"), ln=True)
+    pdf.set_font("Helvetica", size=10)
+    generated = data.get("generated_at")
+    if generated:
+        pdf.cell(0, 6, _pdf_text(f"Generated: {generated.isoformat()}"), ln=True)
+    pdf.cell(0, 6, _pdf_text(f"Compliance: {data.get('compliance_pct', 0)}%"), ln=True)
+    pdf.cell(0, 6, _pdf_text(f"Devices (enabled): {data.get('total_enabled', 0)}"), ln=True)
+    filters = data.get("filters") or {}
+    if any(filters.values()):
+        pdf.cell(
+            0,
+            6,
+            _pdf_text(
+                "Filters: "
+                + ", ".join(f"{k}={v}" for k, v in filters.items() if v)
+            ),
+            ln=True,
+        )
+    pdf.ln(2)
+
+    col_widths = (38, 28, 22, 18, 18, 22, 38)
+    headers = ("name", "ip", "group", "site", "state", "reach", "last_backup")
+    pdf.set_font("Helvetica", "B", 8)
+    for idx, header in enumerate(headers):
+        pdf.cell(col_widths[idx], 6, header, border=1)
+    pdf.ln()
+
+    pdf.set_font("Helvetica", size=7)
+    for node in data.get("nodes") or []:
+        last_backup = node.get("last_backup_at")
+        last_txt = last_backup.isoformat() if hasattr(last_backup, "isoformat") else str(last_backup or "")
+        row = (
+            node.get("name", ""),
+            node.get("ip", ""),
+            node.get("group", ""),
+            node.get("site", ""),
+            node.get("state", ""),
+            node.get("reachability", "") or "",
+            last_txt,
+        )
+        for idx, cell in enumerate(row):
+            pdf.cell(col_widths[idx], 5, _pdf_text(cell)[:40], border=1)
+        pdf.ln()
+    return pdf.output()
+
+
 def collect_degradation_issues() -> dict[str, list[dict[str, Any]]]:
     summary = compute_compliance_summary()
     buckets: dict[str, list[dict[str, Any]]] = {

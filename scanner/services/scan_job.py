@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Callable, Optional
 
+from services.correlation import correlation_context, get_correlation_id, new_correlation_id
 from services.inventory import load_inventory_async
 from services.schemas import ScanSummary
 from services.scanner import apply_device_names, discover_and_enrich, scan_devices
@@ -38,6 +39,7 @@ class ScanLogEntry:
 class ScanJob:
     id: str
     discover: bool
+    correlation_id: str = ""
     status: str = "running"
     phase: ScanPhase = ScanPhase.DISCOVERY
     message: str = ""
@@ -101,6 +103,14 @@ def _set_progress(
 
 
 async def _run_scan_job(job: ScanJob) -> None:
+    global _last_scan, _last_scan_at
+
+    cid = job.correlation_id or new_correlation_id()
+    with correlation_context(cid):
+        await _run_scan_job_inner(job)
+
+
+async def _run_scan_job_inner(job: ScanJob) -> None:
     global _last_scan, _last_scan_at
 
     try:
@@ -222,7 +232,17 @@ async def _run_scan_job(job: ScanJob) -> None:
         job.progress_total = summary.total
         job.finished_at = datetime.now(timezone.utc)
         append_job_log(job, job.message, "success")
-        logger.info("scan_job | completed | job_id=%s", job.id)
+        logger.info(
+            "scan_job | completed | job_id=%s corr=%s",
+            job.id,
+            get_correlation_id(),
+        )
+        try:
+            from services.metrics import refresh_compliance_gauges
+
+            refresh_compliance_gauges()
+        except Exception:
+            pass
         try:
             from services.scan_history import persist_scan_run_async
 
@@ -236,7 +256,11 @@ async def _run_scan_job(job: ScanJob) -> None:
             logger.exception("scan_job | failed to persist history")
 
     except Exception as exc:
-        logger.exception("scan_job | failed | job_id=%s", job.id)
+        logger.exception(
+            "scan_job | failed | job_id=%s corr=%s",
+            job.id,
+            get_correlation_id(),
+        )
         job.status = "failed"
         job.phase = ScanPhase.FAILED
         job.error = str(exc)
@@ -269,6 +293,7 @@ def start_scan(discover: bool = False) -> ScanJob:
         job = ScanJob(
             id=uuid.uuid4().hex[:12],
             discover=discover,
+            correlation_id=get_correlation_id() or new_correlation_id(),
             phase=ScanPhase.DISCOVERY if discover else ScanPhase.SCAN,
             message="Запуск…" if discover else "Подготовка к сканированию…",
         )

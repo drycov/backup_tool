@@ -22,6 +22,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "backup_tools.middleware.CorrelationIdMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
 
@@ -79,6 +80,21 @@ AUTH_COOKIE_NAME = os.environ.get("AUTH_COOKIE_NAME", "backup_tools_token")
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
+BEHIND_HTTPS_PROXY = os.environ.get("BEHIND_HTTPS_PROXY", "").lower() in ("1", "true", "yes")
+if BEHIND_HTTPS_PROXY:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
+else:
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+
+if len(SECRET_KEY) < 32 and not DEBUG:
+    import warnings
+
+    warnings.warn(
+        "JWT_SECRET короче 32 байт — задайте криптостойкий секрет в production",
+        stacklevel=1,
+    )
+
 OXIDIZED_URL = os.environ.get("OXIDIZED_URL", "http://oxidized:8888").rstrip("/")
 OXIDIZED_ENGINE = os.environ.get("OXIDIZED_ENGINE", "python").lower()
 OXIDIZED_INTERVAL = int(os.environ.get("OXIDIZED_INTERVAL", "3600"))
@@ -130,3 +146,6 @@ MK_BACKUP_RSC_DIR = os.environ.get("MK_BACKUP_RSC_DIR", "/var/lib/oxidized/rsc")
 MK_BACKUP_TIMEOUT = int(os.environ.get("MK_BACKUP_TIMEOUT", "300"))
 PURGE_OLD_BACKUP = os.environ.get("PURGE_OLD_BACKUP", "true")
 PURGE_N_PIECE = int(os.environ.get("PURGE_N_PIECE", "10"))
+
+AUDIT_RETENTION_DAYS = int(os.environ.get("AUDIT_RETENTION_DAYS", "365"))
+METRICS_ENABLED = os.environ.get("METRICS_ENABLED", "true").lower() not in ("0", "false", "no")

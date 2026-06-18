@@ -194,6 +194,12 @@
                       <button type="button" class="btn btn-tool btn-sm" id="btn-compliance-export" title="Экспорт CSV">
                         <i class="fas fa-file-csv"></i> CSV
                       </button>
+                      <button type="button" class="btn btn-tool btn-sm" id="btn-compliance-export-pdf" title="Экспорт PDF">
+                        <i class="fas fa-file-pdf"></i> PDF
+                      </button>
+                      <button type="button" class="btn btn-tool btn-sm" id="btn-compliance-send" title="Отправить отчёт (scope + фильтры)" data-permission="inventory:read">
+                        <i class="fas fa-paper-plane"></i>
+                      </button>
                       <span class="badge text-bg-light" id="compliance-generated-at">—</span>
                     </div>
                   </div>
@@ -338,6 +344,15 @@
             <div class="card card-outline card-success">
               <div class="card-header">
                 <h3 class="card-title">Устройства <span class="badge text-bg-secondary ms-1" id="devices-count-badge" style="display:none;"></span></h3>
+                <div class="card-tools d-none flex-wrap gap-1 align-items-center" id="devices-bulk-toolbar" data-permission="inventory:devices">
+                  <span class="text-muted small me-1" id="devices-bulk-count">0 выбрано</span>
+                  <button type="button" class="btn btn-outline-success btn-sm" id="btn-bulk-enable">Вкл.</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-bulk-disable">Выкл.</button>
+                  <button type="button" class="btn btn-outline-warning btn-sm" id="btn-bulk-maint-on">Maint on</button>
+                  <button type="button" class="btn btn-outline-warning btn-sm" id="btn-bulk-maint-off">Maint off</button>
+                  <select id="bulk-group-select" class="form-select form-select-sm" style="width:auto; min-width:6rem;"></select>
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="btn-bulk-group">Группа</button>
+                </div>
                 <div class="card-tools">
                   <button class="btn btn-primary btn-sm" id="btn-add-device" data-permission="inventory:devices">
                     <i class="fas fa-plus me-1"></i> Добавить
@@ -347,7 +362,12 @@
               <div class="card-body table-responsive p-0">
                 <table class="table table-hover table-striped">
                   <thead>
-                    <tr><th>Имя</th><th>IP</th><th>Model</th><th>Group</th><th>Теги</th><th>Порты</th><th>On</th><th></th></tr>
+                    <tr>
+                      <th style="width:2rem;" data-permission="inventory:devices">
+                        <input type="checkbox" class="form-check-input" id="devices-select-all" title="Выбрать все">
+                      </th>
+                      <th>Имя</th><th>IP</th><th>Model</th><th>Group</th><th>Теги</th><th>Порты</th><th>On</th><th></th>
+                    </tr>
                   </thead>
                   <tbody id="devices-table"></tbody>
                 </table>
@@ -486,6 +506,9 @@
           <!-- Settings -->
           <div id="page-settings" class="page d-none">
             <div id="settings-alert" class="page-alert"></div>
+            <div id="settings-unsaved-banner" class="alert alert-warning py-2 small d-none" role="status">
+              <i class="fas fa-exclamation-circle me-1"></i> Есть несохранённые изменения на этой вкладке.
+            </div>
 
             <div class="row g-3 settings-layout">
               <div class="col-lg-3 col-xl-2">
@@ -1262,6 +1285,26 @@
                                   <input type="number" id="scan-ping-workers" class="form-control form-control-sm" min="1" max="1000">
                                 </div>
                               </div>
+                              <h6 class="settings-subheading mt-3">Расписание scan</h6>
+                              <div class="row g-3">
+                                <div class="col-md-4">
+                                  <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="scan-schedule-enabled">
+                                    <label class="form-check-label" for="scan-schedule-enabled">Периодический scan</label>
+                                  </div>
+                                </div>
+                                <div class="col-md-4">
+                                  <label class="form-label" for="scan-schedule-interval">Интервал (часы)</label>
+                                  <input type="number" id="scan-schedule-interval" class="form-control form-control-sm" min="1" max="168" value="24">
+                                </div>
+                                <div class="col-md-4">
+                                  <div class="form-check form-switch mt-4">
+                                    <input class="form-check-input" type="checkbox" id="scan-schedule-discover" checked>
+                                    <label class="form-check-label" for="scan-schedule-discover">С discovery</label>
+                                  </div>
+                                </div>
+                              </div>
+                              <p class="text-muted small mb-0" id="scan-schedule-last-run"></p>
                               <h6 class="settings-subheading mt-3">Seed credentials (import)</h6>
                               <div class="row g-3">
                                 <div class="col-md-3">
@@ -1460,6 +1503,33 @@
   </div>
 
   <!-- Device modal -->
+  <div class="modal fade" id="password-change-modal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Смена пароля</h5>
+        </div>
+        <form id="password-change-form">
+          <div class="modal-body">
+            <p class="text-muted small">Администратор создан с паролем по умолчанию. Задайте новый пароль для продолжения работы.</p>
+            <div class="mb-3">
+              <label class="form-label" for="pw-change-current">Текущий пароль</label>
+              <input type="password" id="pw-change-current" class="form-control" autocomplete="current-password" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="pw-change-new">Новый пароль</label>
+              <input type="password" id="pw-change-new" class="form-control" autocomplete="new-password" minlength="8" required>
+            </div>
+            <div id="password-change-alert"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Сохранить пароль</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="modal fade" id="device-modal" tabindex="-1">
     <div class="modal-dialog modal-lg">
       <div class="modal-content">

@@ -1,133 +1,85 @@
 # Web-интерфейс
 
-URL: **http://&lt;host&gt;:8000/ui**
+URL: **http://&lt;host&gt;:8000/ui** (в production — HTTPS через reverse proxy, см. [deploy/HTTPS.md](../deploy/HTTPS.md))
 
-SPA на AdminLTE 3. Аутентификация через JWT (cookie). Разделы и кнопки скрываются по RBAC (`data-permission`).
+SPA на **AdminLTE 4** / Bootstrap 5. Аутентификация через JWT (cookie). Разделы и кнопки скрываются по RBAC (`data-permission`).
+
+Deep-link настройки: `#settings/backup`, `#settings/groups`, `#settings/service` и т.д.
 
 ## Разделы навигации
 
 | Раздел | ID | Мин. роль | Описание |
 |--------|-----|-----------|----------|
-| Dashboard | `dashboard` | viewer | Сводка: устройства, scan, Oxidized health |
-| Инвентарь | `inventory` | viewer | Устройства, подсети, import network |
+| Dashboard | `dashboard` | viewer | Сводка: устройства, scan, Oxidized health, compliance |
+| Инвентарь | `inventory` | viewer | Устройства, подсети, bulk-операции |
 | Scan | `scan` | operator | Scan / Discovery, прогресс, результаты |
 | Oxidized | `oxidized` | viewer | Узлы, fetch, sync, diff, MikroTik files |
-| Oxidized Web | `oxidized-ui` | viewer | Proxy Ruby UI (external) или справка |
-| Настройки | `settings` | mixed | Бэкап, уведомления, группы, LDAP, сервис |
-| Пользователи | `users` | admin | CRUD пользователей, RBAC matrix |
+| Oxidized Web | `oxidized-ui` | viewer | Встроенный UI (python) или proxy (external) |
+| Настройки | `settings` | mixed | Боковое меню: бэкап, Git, уведомления, группы, LDAP, сервис |
+| Журнал | `audit` | admin | Audit log |
+| Пользователи | `users` | admin | CRUD, RBAC matrix, object scope |
 
-**Глобальный поиск** в шапке фильтрует таблицы по имени, IP, группе, модели (Esc — очистить).
+**Глобальный поиск** в шапке фильтрует таблицы (Esc — очистить).
+
+**Object scope** — banner в шапке для operator/viewer с ограничением по `allowed_groups` / `allowed_sites`.
 
 ## Dashboard
 
-- Карточки: устройства, online/offline scan, Oxidized nodes, engine title
-- **Compliance бэкапов** — процент OK, счётчики по состояниям, таблица проблемных устройств (`GET /api/compliance/summary`)
-- Быстрые ссылки на Scan и Oxidized
-- Health из `/api/oxidized/health`
-
-См. [compliance.md](compliance.md).
+- Stat-плитки: устройства, подсети, scan, Oxidized
+- **Compliance бэкапов** — фильтры site/role/group/state/critical
+- Экспорт: **CSV**, **PDF** (`GET /api/compliance/export?format=pdf`)
+- Рассылка с учётом scope и фильтров: **POST /api/compliance/report/send`
 
 ## Инвентарь
 
-- Таблица устройств: имя, IP, группа, модель, enabled, порты
-- **Добавить устройство** (operator+)
-- **Import network inventory** (admin, `inventory:write`)
-- **Cleanup discovered** — удалить устройства `discovered-*` (admin)
-- Редактирование inline / modal
-
-## Scan
-
-- **Scan** — проверка известных устройств
-- **Scan + Discovery** — ping sweep + добавление новых
-- Live progress bar, лог job
-- Таблица результатов с фильтром по статусу
-
-## Oxidized
-
-- Engine badge: Python Oxidized / Ruby Oxidized
-- Таблица узлов: status, last, mtime
-- **Fetch** — принудительный сбор (operator+)
-- **Sync** — sync credentials/source
-- **Backup all** — очередь всех узлов (python only)
-- Клик по узлу: конфиг, Git versions, diff
-- **MikroTik files** — binary/export список и скачивание (routeros)
+- Таблица устройств с чекбоксами (operator+)
+- **Bulk**: enable/disable, maintenance on/off, смена группы → `POST /inventory/devices/bulk`
+- Подсети для discovery, modal редактирования устройства
 
 ## Настройки
 
-Вкладки: **Бэкап**, **Git**, **Уведомления**, **Группы**, **LDAP**, **Сервис**.
+Макет: **вертикальное меню слева** + контент справа. Секции оформлены карточками `.settings-section`.
 
-### Вкладка «Бэкап» (`oxidized:read/write`)
+| Вкладка | Права | API |
+|---------|-------|-----|
+| Бэкап | `oxidized:read/write` | `PUT /api/settings/oxidized`, `PUT /api/settings/backup` |
+| Git | `oxidized:read/write` | `PUT /api/settings/git` |
+| Уведомления | `oxidized:read/write` | `PUT /api/settings/backup` (notify-поля) |
+| Группы | credentials + policies | credentials CRUD, `PUT /api/policies/groups` |
+| LDAP | `users:manage` | `PUT /api/settings/ldap`, `POST /api/settings/ldap/test` |
+| Сервис | `inventory:write` | scan settings, maintenance window, import |
 
-**Oxidized worker** — interval, threads, timeout, retries, SSH port, default model, group models, resolve DNS.
+При несохранённых изменениях показывается предупреждение; смена вкладки — с подтверждением.
 
-Сохранение → `PUT /api/settings/oxidized` → запись `oxidized/config` + reload engine.
+### Окно обслуживания (вкладка «Сервис»)
 
-**MikroTik binary/export** — binary, export, hide sensitive, encrypt password, purge, каталоги.
+UTC-часы и дни недели; устройства с флагом `maintenance` пропускают scheduled backup в окне.
 
-Сохранение → `PUT /api/settings/backup` (только MikroTik-поля).
+## Безопасность
 
-> `OXIDIZED_ENGINE` только из `.env` (read-only в UI).
+- При первом входе admin с паролем по умолчанию (`changeme`) — **обязательная смена пароля**
+- `JWT_SECRET` ≥ 32 символов в production
+- За HTTPS: `BEHIND_HTTPS_PROXY=true` в `.env`
 
-### Вкладка «Git» (`oxidized:read/write`)
+## Health
 
-Remote URL, ветка, Gitea token/user, commit author, source token, Oxidized public URL.
-
-Сохранение → `PUT /api/settings/git`. SSH-ключи — `oxidized-ssh/`, не редактируются в UI.
-
-### Вкладка «Уведомления» (`oxidized:read/write`)
-
-Telegram + SMTP; три блока: **ошибки**, **отчёты**, **деградация** (stale/offline/overdue).
-
-Параметры деградации: stale (дней), cooldown (ч), интервал проверки (сек).
-
-| Кнопка | Действие |
-|--------|----------|
-| Сохранить уведомления | `PUT /api/settings/backup` |
-| Тест отчёта / ошибки / деградации | `POST test-notify` с `kind` и полями формы |
-| Проверить деградацию | `POST /api/settings/backup/degrade-check` |
-
-Тест использует галочки и chat ID из формы; token/password — из поля или БД.
-
-См. [notifications.md](notifications.md).
-
-### Вкладка «Группы»
-
-SSH credentials и model per group. UI: **Настройки → Группы**.
-
-Подробнее: [groups.md](groups.md).
-
-- Профиль `ovn` → группа `hex` (после import network_inventory)
-- Редактирование паролей — только admin (`credentials:write`)
-
-### Вкладка «LDAP» (`users:manage`)
-
-Настройки LDAP/AD, тест bind.
-
-### Вкладка «Сервис» (`inventory:write`)
-
-- Import network inventory
-- Cleanup discovered devices
-- **Scan / discovery** — concurrency, max hosts, ping workers → `PUT /api/settings/scan`
-- **Seed credentials** — OVN/US user/password для import (не путать с группами Oxidized)
-
-## Oxidized Web
-
-- **external**: iframe `/oxidized-proxy/nodes`
-- **python**: информационная страница + ссылка на раздел Oxidized
+| Endpoint | Назначение |
+|----------|------------|
+| `GET /health` | Liveness |
+| `GET /health/ready` | Readiness: БД + Oxidized worker (503 если не готов) |
 
 ## Первый запуск — чеклист
 
-1. Войти как admin
-2. **Настройки → Группы** — проверить credentials hex/us
-3. **Инвентарь → Import** — загрузить подсети
-4. **Scan + Discovery**
-5. **Oxidized → Sync**
-6. **Настройки → Git** — remote URL, token (если нужен push)
-7. **Настройки → Бэкап** — interval, MikroTik options
-8. (опц.) **Уведомления** — Telegram/SMTP + тест + degrade
+1. Войти как admin (сменить пароль при запросе)
+2. **Настройки → Группы** — credentials hex/us
+3. **Инвентарь** — подсети, scan/discovery
+4. **Oxidized → Sync**
+5. **Настройки → Git** и **Бэкап**
+6. (опц.) **Уведомления** + compliance-отчёт
 
 ## Связанные документы
 
-- [Аутентификация](authentication.md) — роли и права
-- [API](api.md) — REST для автоматизации
-- [Типы движков](engines.md) — Python vs Ruby
+- [Аутентификация](authentication.md)
+- [API](api.md)
+- [Compliance](compliance.md)
+- [HTTPS / reverse proxy](../deploy/HTTPS.md)

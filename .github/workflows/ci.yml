@@ -23,11 +23,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run smoke tests
-        run: pytest -q
+      - name: Ruff lint
+        run: ruff check api/views.py api/urls.py services/auth.py services/compliance.py services/compliance_report.py services/inventory.py services/schemas.py backup_tools/settings.py tests/
+
+      - name: Collect static
+        run: python manage.py collectstatic --noinput
+
+      - name: Run tests with coverage
+        run: pytest --cov=services --cov-report=term-missing
         env:
           ADMIN_PASSWORD: pytest-admin-pass
-          JWT_SECRET: pytest-secret
+          JWT_SECRET: pytest-ci-secret-minimum-32-chars-long
 
       - name: Compile check
         run: python -m compileall -q api services core

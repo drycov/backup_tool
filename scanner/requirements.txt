@@ -10,6 +10,11 @@ PyJWT>=2.9
 bcrypt>=4.2
 ldap3>=2.9
 
+fpdf2>=2.8
+prometheus-client>=0.21
+
 # Dev / CI
 pytest>=8.0
 pytest-django>=4.9
+pytest-cov>=6.0
+ruff>=0.9

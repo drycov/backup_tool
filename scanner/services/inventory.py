@@ -296,6 +296,41 @@ def cleanup_discovered_devices() -> tuple[int, Inventory]:
     return deleted, load_inventory()
 
 
+def bulk_update_devices(
+    names: list[str],
+    *,
+    enabled: bool | None = None,
+    maintenance: bool | None = None,
+    group: str | None = None,
+) -> Inventory:
+    if not names:
+        raise ValueError("names обязателен")
+    if enabled is None and maintenance is None and group is None:
+        raise ValueError("Укажите enabled, maintenance и/или group")
+
+    unique_names = list(dict.fromkeys(n.strip() for n in names if n and n.strip()))
+    if not unique_names:
+        raise ValueError("names обязателен")
+
+    with transaction.atomic():
+        rows = list(DeviceModel.objects.filter(name__in=unique_names))
+        found = {row.name for row in rows}
+        missing = [n for n in unique_names if n not in found]
+        if missing:
+            raise ValueError(f"Устройства не найдены: {', '.join(missing[:5])}")
+
+        for row in rows:
+            if enabled is not None:
+                row.enabled = enabled
+            if maintenance is not None:
+                row.maintenance = maintenance
+            if group is not None:
+                row.group = group.strip() or row.group
+            row.save()
+
+    return load_inventory()
+
+
 def update_credential_profile(name: str, creds: CredentialProfileUpdate) -> Inventory:
     profile = CredentialProfileModel.objects.filter(name=name).first()
     if not profile:

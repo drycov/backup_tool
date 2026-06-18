@@ -80,6 +80,65 @@ def send_compliance_report(*, force: bool = False) -> dict:
     return {"ok": ok, "messages": messages or ["Нет активных каналов"]}
 
 
+def send_scoped_compliance_report(
+    user,
+    *,
+    site: str = "",
+    role: str = "",
+    critical: str | None = None,
+    group: str = "",
+    state: str = "",
+) -> dict:
+    """Отправить compliance-отчёт с учётом object scope и фильтров дашборда."""
+    if not is_database_available():
+        return {"ok": False, "message": "База данных недоступна"}
+
+    cfg = get_config()
+    if not cfg.compliance_report_telegram and not cfg.compliance_report_email:
+        return {"ok": False, "message": "Compliance-отчёт отключён в настройках"}
+
+    summary = compute_compliance_summary(
+        site=site,
+        role=role,
+        critical=critical,
+        group=group,
+        state=state,
+        user=user,
+    )
+    filters = summary.get("filters") or {}
+    active_filters = [f"{k}={v}" for k, v in filters.items() if v]
+    scope_note = ""
+    if user is not None:
+        from services.object_scope import has_object_scope, scope_public
+
+        if has_object_scope(user):
+            sp = scope_public(user)
+            scope_note = (
+                f"Scope: groups={sp.get('allowed_groups') or 'all'}, "
+                f"sites={sp.get('allowed_sites') or 'all'}"
+            )
+
+    body = build_compliance_report_body(summary)
+    if active_filters or scope_note:
+        body = "\n".join(
+            filter(
+                None,
+                [
+                    body.splitlines()[0],
+                    f"Фильтры: {', '.join(active_filters)}" if active_filters else "",
+                    scope_note,
+                    "",
+                    *body.splitlines()[1:],
+                ],
+            )
+        )
+
+    subject = f"Backup Tools: compliance {summary.get('compliance_pct', 0)}% (scoped)"
+    messages = notify_compliance_report(subject, body)
+    ok = bool(messages) and all(not m.startswith("Ошибка:") for m in messages)
+    return {"ok": ok, "messages": messages or ["Нет активных каналов"]}
+
+
 def _should_send_now(hour_utc: int) -> bool:
     now = datetime.now(timezone.utc)
     if now.hour != max(0, min(23, hour_utc)):
@@ -116,10 +175,5 @@ def _loop() -> None:
 
 
 def start_compliance_report_scheduler() -> None:
-    global _thread
-    if _thread and _thread.is_alive():
-        return
-    _stop.clear()
-    _thread = threading.Thread(target=_loop, name="compliance-report", daemon=True)
-    _thread.start()
-    logger.info("compliance | report scheduler started")
+    """Deprecated: используйте task_worker + task_queue."""
+    logger.warning("compliance | start_compliance_report_scheduler deprecated — use task worker")

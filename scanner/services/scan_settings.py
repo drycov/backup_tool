@@ -20,6 +20,9 @@ class ScanConfigData:
     scan_concurrency: int
     discover_max_hosts: int
     discover_ping_workers: int
+    schedule_enabled: bool
+    schedule_interval_hours: int
+    schedule_discover: bool
     ovn_user: str
     ovn_pass: str
     us_user: str
@@ -31,6 +34,13 @@ def _defaults_from_env() -> dict[str, Any]:
         "scan_concurrency": max(1, int(os.environ.get("SCAN_CONCURRENCY", "50"))),
         "discover_max_hosts": max(1, int(os.environ.get("DISCOVER_MAX_HOSTS", "4096"))),
         "discover_ping_workers": max(1, int(os.environ.get("DISCOVER_PING_WORKERS", "100"))),
+        "schedule_enabled": os.environ.get("SCAN_SCHEDULE_ENABLED", "").lower()
+        in ("1", "true", "yes"),
+        "schedule_interval_hours": max(
+            1, int(os.environ.get("SCAN_SCHEDULE_INTERVAL_HOURS", "24"))
+        ),
+        "schedule_discover": os.environ.get("SCAN_SCHEDULE_DISCOVER", "true").lower()
+        not in ("0", "false", "no"),
         "ovn_user": os.environ.get("OVN_USER", "satcoadm").strip() or "satcoadm",
         "ovn_pass": os.environ.get("OVN_PASS", ""),
         "us_user": os.environ.get("US_USER", "satcoadm").strip() or "satcoadm",
@@ -43,6 +53,9 @@ def _row_to_data(row: ScanConfig) -> ScanConfigData:
         scan_concurrency=row.scan_concurrency or 50,
         discover_max_hosts=row.discover_max_hosts or 4096,
         discover_ping_workers=row.discover_ping_workers or 100,
+        schedule_enabled=bool(row.schedule_enabled),
+        schedule_interval_hours=row.schedule_interval_hours or 24,
+        schedule_discover=bool(row.schedule_discover),
         ovn_user=row.ovn_user or "satcoadm",
         ovn_pass=row.ovn_pass or "",
         us_user=row.us_user or "satcoadm",
@@ -80,10 +93,15 @@ def get_config() -> ScanConfigData:
 
 def get_config_public() -> dict[str, Any]:
     cfg = get_config()
+    row = ScanConfig.objects.filter(pk=1).first() if is_database_available() else None
     return {
         "scan_concurrency": cfg.scan_concurrency,
         "discover_max_hosts": cfg.discover_max_hosts,
         "discover_ping_workers": cfg.discover_ping_workers,
+        "schedule_enabled": cfg.schedule_enabled,
+        "schedule_interval_hours": cfg.schedule_interval_hours,
+        "schedule_discover": cfg.schedule_discover,
+        "schedule_last_run_at": row.schedule_last_run_at if row else None,
         "ovn_user": cfg.ovn_user,
         "ovn_pass_set": bool(cfg.ovn_pass),
         "us_user": cfg.us_user,
@@ -131,6 +149,15 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
     row.scan_concurrency = concurrency
     row.discover_max_hosts = max_hosts
     row.discover_ping_workers = ping_workers
+    if "schedule_enabled" in payload:
+        row.schedule_enabled = bool(payload.get("schedule_enabled"))
+    if "schedule_interval_hours" in payload:
+        interval = int(payload.get("schedule_interval_hours", row.schedule_interval_hours))
+        if interval < 1 or interval > 168:
+            raise ValueError("schedule_interval_hours должен быть от 1 до 168")
+        row.schedule_interval_hours = interval
+    if "schedule_discover" in payload:
+        row.schedule_discover = bool(payload.get("schedule_discover"))
     row.ovn_user = str(payload.get("ovn_user", row.ovn_user)).strip() or "satcoadm"
     row.ovn_pass = ovn_pass
     row.us_user = str(payload.get("us_user", row.us_user)).strip() or "satcoadm"

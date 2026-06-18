@@ -19,6 +19,8 @@ let oxidizedLogsRawData = null;
 let oxidizedSettingsCache = null;
 let groupPoliciesCache = [];
 const SETTINGS_TAB_STORAGE_KEY = "backup-tools-settings-tab";
+let settingsStateBaseline = "";
+const selectedDeviceNames = new Set();
 
 const SCAN_PHASE_LABELS = {
   idle: "Ожидание",
@@ -89,7 +91,7 @@ function smallBoxTheme(theme) {
 }
 
 function qs(sel) { return document.querySelector(sel); }
-function qsa(sel) { return document.querySelectorAll(sel); }
+function qsa(sel) { return Array.from(document.querySelectorAll(sel)); }
 
 function escapeHtml(text) {
   return String(text)
@@ -337,6 +339,12 @@ function syncSettingsActiveTab() {
 
 function initSettingsTabs() {
   qsa("#settings-tab-nav a[data-bs-toggle='tab']").forEach(link => {
+    link.addEventListener("hide.bs.tab", e => {
+      if (!isSettingsDirty()) return;
+      if (!confirm("Есть несохранённые изменения. Переключить вкладку без сохранения?")) {
+        e.preventDefault();
+      }
+    });
     link.addEventListener("shown.bs.tab", e => {
       const id = e.target.getAttribute("href")?.slice(1);
       if (!id) return;
@@ -346,8 +354,68 @@ function initSettingsTabs() {
       if (location.hash !== next) {
         history.replaceState(null, "", next);
       }
+      updateSettingsDirtyUi();
     });
   });
+  qsa("#page-settings input, #page-settings select, #page-settings textarea").forEach(el => {
+    el.addEventListener("input", updateSettingsDirtyUi);
+    el.addEventListener("change", updateSettingsDirtyUi);
+  });
+}
+
+function getSettingsStatePayload() {
+  const parts = {};
+  if (qs("#oxidized-settings-form")) parts.oxidized = collectOxidizedSettingsForm();
+  if (qs("#backup-settings-form")) parts.backup = collectBackupSettingsForm();
+  if (qs("#git-settings-form")) {
+    parts.git = {
+      git_remote_url: qs("#git-remote-url")?.value,
+      git_branch: qs("#git-branch")?.value,
+      git_gitea_user: qs("#git-gitea-user")?.value,
+      git_commit_user: qs("#git-commit-user")?.value,
+      git_commit_email: qs("#git-commit-email")?.value,
+      git_public_url: qs("#git-public-url")?.value,
+    };
+  }
+  if (qs("#notify-settings-form")) parts.notify = collectNotifySettingsForm();
+  if (qs("#ldap-settings-form")) {
+    parts.ldap = {
+      enabled: qs("#ldap-enabled")?.checked,
+      server: qs("#ldap-server")?.value,
+      directory_type: qs("#ldap-directory-type")?.value,
+    };
+  }
+  if (qs("#scan-settings-form")) {
+    parts.scan = {
+      scan_concurrency: qs("#scan-concurrency")?.value,
+      scan_discover_max: qs("#scan-discover-max")?.value,
+      schedule_enabled: qs("#scan-schedule-enabled")?.checked,
+    };
+  }
+  parts.maintenance = collectMaintenanceSettingsOnly();
+  return JSON.stringify(parts);
+}
+
+function refreshSettingsBaseline() {
+  settingsStateBaseline = getSettingsStatePayload();
+  updateSettingsDirtyUi();
+}
+
+function isSettingsDirty() {
+  if (!settingsStateBaseline || !qs("#page-settings") || qs("#page-settings").classList.contains("d-none")) {
+    return false;
+  }
+  return getSettingsStatePayload() !== settingsStateBaseline;
+}
+
+function updateSettingsDirtyUi() {
+  const banner = qs("#settings-unsaved-banner");
+  if (!banner) return;
+  banner.classList.toggle("d-none", !isSettingsDirty());
+}
+
+function markSettingsSaved() {
+  refreshSettingsBaseline();
 }
 
 function navigateToSettingsTab(tabId, opts = {}) {
@@ -709,6 +777,35 @@ async function login(username, password) {
   currentUser = data.user;
   showApp();
   await bootstrapApp();
+  if (currentUser?.must_change_password) {
+    showPasswordChangeModal();
+  }
+}
+
+function showPasswordChangeModal() {
+  const cur = qs("#pw-change-current");
+  const neu = qs("#pw-change-new");
+  if (cur) cur.value = "";
+  if (neu) neu.value = "";
+  showModal("password-change-modal");
+}
+
+async function submitPasswordChange(e) {
+  e.preventDefault();
+  try {
+    await api("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({
+        current_password: qs("#pw-change-current").value,
+        new_password: qs("#pw-change-new").value,
+      }),
+    });
+    currentUser = await api("/api/auth/me");
+    hideModal("password-change-modal");
+    showAlert("settings-alert", "Пароль обновлён", "success");
+  } catch (err) {
+    showAlert("password-change-alert", err.message, "error");
+  }
 }
 
 async function logout() {
@@ -987,8 +1084,18 @@ async function loadComplianceDashboard() {
 }
 
 async function exportComplianceCsv() {
+  await downloadComplianceExport("csv");
+}
+
+async function exportCompliancePdf() {
+  await downloadComplianceExport("pdf");
+}
+
+async function downloadComplianceExport(format) {
   try {
-    const res = await fetch(`/api/compliance/export${complianceFilterQuery()}`, { credentials: "include" });
+    const q = complianceFilterQuery();
+    const sep = q ? "&" : "?";
+    const res = await fetch(`/api/compliance/export${q}${sep}format=${format}`, { credentials: "include" });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(err.detail || res.statusText);
@@ -996,13 +1103,28 @@ async function exportComplianceCsv() {
     const blob = await res.blob();
     const cd = res.headers.get("content-disposition") || "";
     const match = cd.match(/filename="([^"]+)"/);
-    const filename = match ? match[1] : "compliance.csv";
+    const filename = match ? match[1] : `compliance.${format}`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  } catch (e) {
+    showAlert("dashboard-alert", e.message, "error");
+  }
+}
+
+async function sendComplianceReport() {
+  try {
+    const res = await fetch(`/api/compliance/report/send${complianceFilterQuery()}`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || data.detail || res.statusText);
+    const msg = (data.messages || []).join("; ") || "Отправлено";
+    showAlert("dashboard-alert", msg, data.ok ? "success" : "warning");
   } catch (e) {
     showAlert("dashboard-alert", e.message, "error");
   }
@@ -1151,6 +1273,40 @@ function renderNetworksTable() {
   });
 }
 
+function updateDevicesBulkUi() {
+  const toolbar = qs("#devices-bulk-toolbar");
+  const countEl = qs("#devices-bulk-count");
+  const n = selectedDeviceNames.size;
+  if (toolbar && can("inventory:devices")) {
+    toolbar.classList.toggle("d-none", !n);
+    toolbar.classList.toggle("d-flex", !!n);
+  }
+  if (countEl) countEl.textContent = `${n} выбрано`;
+  const selectAll = qs("#devices-select-all");
+  if (selectAll) {
+    const visible = qsa("#devices-table .device-select-cb");
+    selectAll.checked = visible.length > 0 && visible.every(cb => cb.checked);
+    selectAll.indeterminate = visible.some(cb => cb.checked) && !selectAll.checked;
+  }
+}
+
+async function runBulkDeviceUpdate(payload) {
+  if (!can("inventory:devices") || !selectedDeviceNames.size) return;
+  try {
+    inventory = await api("/inventory/devices/bulk", {
+      method: "POST",
+      body: JSON.stringify({ names: [...selectedDeviceNames], ...payload }),
+    });
+    selectedDeviceNames.clear();
+    updateDevicesBulkUi();
+    renderDevicesTable();
+    loadHealth();
+    showAlert("inventory-alert", "Массовое обновление выполнено", "success");
+  } catch (e) {
+    showAlert("inventory-alert", e.message, "error");
+  }
+}
+
 function renderDevicesTable() {
   const tbody = qs("#devices-table");
   if (!tbody) return;
@@ -1161,18 +1317,28 @@ function renderDevicesTable() {
   );
 
   updateSearchCountBadge(filtered.length, devices.length, "devices-count-badge");
+  const bulkGroup = qs("#bulk-group-select");
+  if (bulkGroup) {
+    const groups = getGroupNames();
+    bulkGroup.innerHTML = (groups.length ? groups : ["default"]).map(g =>
+      `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`
+    ).join("");
+  }
 
+  const colSpan = can("inventory:devices") ? 9 : 8;
   if (!devices.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Нет устройств</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center text-muted">Нет устройств</td></tr>`;
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = searchEmptyRow(8, query);
+    tbody.innerHTML = searchEmptyRow(colSpan, query);
     return;
   }
 
+  const showBulk = can("inventory:devices");
   tbody.innerHTML = filtered.map(d => `
     <tr>
+      ${showBulk ? `<td><input type="checkbox" class="form-check-input device-select-cb" data-name="${escapeHtml(d.name)}" ${selectedDeviceNames.has(d.name) ? "checked" : ""}></td>` : ""}
       <td><strong>${escapeHtml(d.name)}</strong></td>
       <td>${escapeHtml(d.ip)}</td>
       <td><span class="oxidized-model-label">${escapeHtml(formatOxidizedModelLabel(d.model))}</span></td>
@@ -1186,6 +1352,15 @@ function renderDevicesTable() {
       </td>
     </tr>
   `).join("");
+
+  tbody.querySelectorAll(".device-select-cb").forEach(cb => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) selectedDeviceNames.add(cb.dataset.name);
+      else selectedDeviceNames.delete(cb.dataset.name);
+      updateDevicesBulkUi();
+    });
+  });
+  updateDevicesBulkUi();
 
   tbody.querySelectorAll(".btn-edit-device").forEach(btn => {
     btn.addEventListener("click", () => openDeviceModal(btn.dataset.name));
@@ -1224,6 +1399,7 @@ async function loadSettings() {
     await loadGroupPolicies();
     populateGroupPolicyModelSelect();
   }
+  refreshSettingsBaseline();
 }
 
 function updateDiscoveredCountBadge() {
@@ -1312,6 +1488,7 @@ async function saveOxidizedSettings(e) {
     });
     fillOxidizedSettingsForm(saved);
     showAlert("settings-alert", "Настройки Oxidized сохранены", "success");
+    markSettingsSaved();
     renderSettingsCredentials();
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
@@ -1539,6 +1716,7 @@ async function saveMaintenanceSettings() {
     backupSettingsCache = saved;
     fillBackupSettingsForm(saved);
     showAlert("settings-alert", "Окно обслуживания сохранено", "success");
+    markSettingsSaved();
   } catch (e) {
     showAlert("settings-alert", e.message, "error");
   }
@@ -1628,6 +1806,7 @@ async function saveGitSettings(e) {
     });
     fillGitSettingsForm(saved);
     showAlert("settings-alert", "Настройки Git сохранены", "success");
+    markSettingsSaved();
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
   }
@@ -1638,6 +1817,15 @@ function fillScanSettingsForm(cfg) {
   if (qs("#scan-concurrency")) qs("#scan-concurrency").value = cfg.scan_concurrency ?? 50;
   if (qs("#scan-discover-max")) qs("#scan-discover-max").value = cfg.discover_max_hosts ?? 4096;
   if (qs("#scan-ping-workers")) qs("#scan-ping-workers").value = cfg.discover_ping_workers ?? 100;
+  if (qs("#scan-schedule-enabled")) qs("#scan-schedule-enabled").checked = !!cfg.schedule_enabled;
+  if (qs("#scan-schedule-interval")) qs("#scan-schedule-interval").value = cfg.schedule_interval_hours ?? 24;
+  if (qs("#scan-schedule-discover")) qs("#scan-schedule-discover").checked = cfg.schedule_discover !== false;
+  const lastRun = qs("#scan-schedule-last-run");
+  if (lastRun) {
+    lastRun.textContent = cfg.schedule_last_run_at
+      ? `Последний scheduled scan: ${formatDate(cfg.schedule_last_run_at)}`
+      : "Scheduled scan ещё не выполнялся";
+  }
   if (qs("#scan-ovn-user")) qs("#scan-ovn-user").value = cfg.ovn_user || "satcoadm";
   if (qs("#scan-us-user")) qs("#scan-us-user").value = cfg.us_user || "satcoadm";
   const ovnPass = qs("#scan-ovn-pass");
@@ -1663,6 +1851,9 @@ function collectScanSettingsForm() {
     scan_concurrency: parseInt(qs("#scan-concurrency")?.value, 10) || 50,
     discover_max_hosts: parseInt(qs("#scan-discover-max")?.value, 10) || 4096,
     discover_ping_workers: parseInt(qs("#scan-ping-workers")?.value, 10) || 100,
+    schedule_enabled: !!qs("#scan-schedule-enabled")?.checked,
+    schedule_interval_hours: parseInt(qs("#scan-schedule-interval")?.value, 10) || 24,
+    schedule_discover: !!qs("#scan-schedule-discover")?.checked,
     ovn_user: qs("#scan-ovn-user")?.value.trim() || "satcoadm",
     ovn_pass: ovnVal || (scanSettingsCache?.ovn_pass_set ? SETTINGS_PASSWORD_MASK : ""),
     us_user: qs("#scan-us-user")?.value.trim() || "satcoadm",
@@ -1689,6 +1880,7 @@ async function saveScanSettings(e) {
     });
     fillScanSettingsForm(saved);
     showAlert("settings-alert", "Настройки scan сохранены", "success");
+    markSettingsSaved();
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
   }
@@ -1704,6 +1896,7 @@ async function saveBackupSettings(e) {
     });
     fillBackupSettingsForm(saved);
     showAlert("settings-alert", "Настройки MikroTik backup сохранены", "success");
+    markSettingsSaved();
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
   }
@@ -1719,6 +1912,7 @@ async function saveNotifySettings(e) {
     });
     fillBackupSettingsForm(saved);
     showAlert("settings-alert", "Настройки уведомлений сохранены", "success");
+    markSettingsSaved();
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
   }
@@ -2081,6 +2275,7 @@ async function saveLdapSettings(e) {
     });
     fillLdapForm(saved);
     showAlert("settings-alert", "Настройки LDAP сохранены", "success");
+    markSettingsSaved();
     updateLoginAuthHint(saved);
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
@@ -3375,6 +3570,26 @@ function bindEvents() {
   bindMaintenanceDayToggles();
   initSettingsTabs();
   window.addEventListener("hashchange", handleRouteHash);
+  qs("#password-change-form")?.addEventListener("submit", submitPasswordChange);
+
+  qs("#devices-select-all")?.addEventListener("change", e => {
+    const checked = e.target.checked;
+    qsa("#devices-table .device-select-cb").forEach(cb => {
+      cb.checked = checked;
+      if (checked) selectedDeviceNames.add(cb.dataset.name);
+      else selectedDeviceNames.delete(cb.dataset.name);
+    });
+    updateDevicesBulkUi();
+  });
+  qs("#btn-bulk-enable")?.addEventListener("click", () => runBulkDeviceUpdate({ enabled: true }));
+  qs("#btn-bulk-disable")?.addEventListener("click", () => runBulkDeviceUpdate({ enabled: false }));
+  qs("#btn-bulk-maint-on")?.addEventListener("click", () => runBulkDeviceUpdate({ maintenance: true }));
+  qs("#btn-bulk-maint-off")?.addEventListener("click", () => runBulkDeviceUpdate({ maintenance: false }));
+  qs("#btn-bulk-group")?.addEventListener("click", () => {
+    const group = qs("#bulk-group-select")?.value;
+    if (group) runBulkDeviceUpdate({ group });
+  });
+
   const addDeviceBtn = qs("#btn-add-device");
   if (addDeviceBtn) addDeviceBtn.addEventListener("click", () => openDeviceModal());
 
@@ -3422,6 +3637,8 @@ function bindEvents() {
   qs("#btn-test-compliance-report")?.addEventListener("click", testComplianceReport);
   qs("#btn-degrade-check-now")?.addEventListener("click", runDegradeCheckNow);
   qs("#btn-compliance-export")?.addEventListener("click", exportComplianceCsv);
+  qs("#btn-compliance-export-pdf")?.addEventListener("click", exportCompliancePdf);
+  qs("#btn-compliance-send")?.addEventListener("click", sendComplianceReport);
   qs("#btn-compliance-apply")?.addEventListener("click", () => loadComplianceDashboard());
   qs("#group-policy-form")?.addEventListener("submit", saveGroupPolicyForm);
   qs("#btn-backup-data")?.addEventListener("click", runBackupData);
@@ -3644,6 +3861,9 @@ async function init() {
     showApp();
     await bootstrapApp();
     handleRouteHash();
+    if (currentUser?.must_change_password) {
+      showPasswordChangeModal();
+    }
   } catch {
     showLogin();
   }

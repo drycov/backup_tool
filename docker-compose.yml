@@ -54,6 +54,29 @@ services:
     labels:
       - com.backup-tools.service=scanner
 
+  scanner-worker:
+    profiles:
+      - worker
+    image: backup-tools-scanner:${SCANNER_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    command: ["python", "manage.py", "run_task_worker", "--poll", "30"]
+    env_file:
+      - .env
+    environment:
+      TASK_WORKER_INLINE: "false"
+    volumes:
+      - ${STACK_PATH:-.}/inventory:/data/inventory
+      - ${STACK_PATH:-.}/oxidized:/data/oxidized
+      - oxidized-data:/var/lib/oxidized
+      - ${STACK_PATH:-.}/oxidized-ssh:/home/oxidized/.ssh:ro
+    networks:
+      - backup-net
+    depends_on:
+      scanner:
+        condition: service_healthy
+    labels:
+      - com.backup-tools.service=scanner-worker
+
   oxidized:
     profiles:
       - external

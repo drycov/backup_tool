@@ -105,10 +105,5 @@ def _loop() -> None:
 
 
 def start_degradation_monitor() -> None:
-    global _thread
-    if _thread and _thread.is_alive():
-        return
-    _stop.clear()
-    _thread = threading.Thread(target=_loop, name="degradation-monitor", daemon=True)
-    _thread.start()
-    logger.info("degrade | monitor started | interval=%ss", _check_interval_sec())
+    """Deprecated: используйте task_worker + task_queue."""
+    logger.warning("degrade | start_degradation_monitor deprecated — use task worker")

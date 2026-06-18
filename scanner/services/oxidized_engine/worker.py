@@ -36,6 +36,19 @@ class Worker:
         self.nodes.load()
         self._nodes_count = len(self.nodes)
 
+    def queue_depth(self) -> int:
+        if not self._nodes_count:
+            self.reload()
+        now = time.time()
+        running = sum(1 for node in self.nodes if node.running)
+        due = 0
+        for node in self.nodes:
+            if node.running:
+                continue
+            if node.nexted or node.due(now, self._node_interval(node)):
+                due += 1
+        return running + due
+
     def work(self) -> None:
         if not self._nodes_count:
             self.reload()
@@ -94,6 +107,9 @@ class Worker:
         if stored:
             node.modified()
             self.hooks.post_store(node, job, self.output.last_commit)
+            from services.metrics import record_backup_success
+
+            record_backup_success(group=node.group or "default", model=node.model_name or "unknown")
             logger.info(
                 "oxidized | Configuration updated for %s/%s",
                 node.group,
