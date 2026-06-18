@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+cd /app
+export PYTHONPATH=/app${PYTHONPATH:+:$PYTHONPATH}
+
 OX_REPO="${OXIDIZED_GIT_REPO:-/var/lib/oxidized}"
 mkdir -p "$OX_REPO"
 
