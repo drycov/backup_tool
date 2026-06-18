@@ -17,6 +17,11 @@ PERMISSION_RUN_SCAN = "scan:run"
 PERMISSION_OXIDIZED_READ = "oxidized:read"
 PERMISSION_OXIDIZED_WRITE = "oxidized:write"
 PERMISSION_MANAGE_USERS = "users:manage"
+PERMISSION_COMPLIANCE_READ = "compliance:read"
+PERMISSION_SETTINGS_NOTIFY = "settings:notify"
+PERMISSION_AUDIT_READ = "audit:read"
+PERMISSION_API_KEYS_MANAGE = "api_keys:manage"
+PERMISSION_SETTINGS_READ = "settings:read"
 
 PERMISSION_LABELS: dict[str, str] = {
     PERMISSION_VIEW_INVENTORY: "Инвентарь — чтение",
@@ -29,6 +34,11 @@ PERMISSION_LABELS: dict[str, str] = {
     PERMISSION_OXIDIZED_READ: "Oxidized — чтение",
     PERMISSION_OXIDIZED_WRITE: "Oxidized — fetch/sync",
     PERMISSION_MANAGE_USERS: "Пользователи — управление",
+    PERMISSION_COMPLIANCE_READ: "Compliance — чтение и экспорт",
+    PERMISSION_SETTINGS_NOTIFY: "Настройки — тест уведомлений",
+    PERMISSION_AUDIT_READ: "Аудит — чтение и экспорт",
+    PERMISSION_API_KEYS_MANAGE: "API keys — управление",
+    PERMISSION_SETTINGS_READ: "Настройки — чтение",
 }
 
 ROLE_LABELS: dict[str, str] = {
@@ -48,6 +58,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_VIEW_INVENTORY,
         PERMISSION_SCAN_READ,
         PERMISSION_OXIDIZED_READ,
+        PERMISSION_COMPLIANCE_READ,
+        PERMISSION_SETTINGS_READ,
     },
     ROLE_OPERATOR: {
         PERMISSION_VIEW_INVENTORY,
@@ -56,6 +68,9 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_RUN_SCAN,
         PERMISSION_OXIDIZED_READ,
         PERMISSION_OXIDIZED_WRITE,
+        PERMISSION_COMPLIANCE_READ,
+        PERMISSION_SETTINGS_NOTIFY,
+        PERMISSION_SETTINGS_READ,
     },
     ROLE_ADMIN: set(PERMISSION_LABELS.keys()),
 }

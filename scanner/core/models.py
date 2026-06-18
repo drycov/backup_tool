@@ -42,6 +42,7 @@ class Device(models.Model):
     role = models.CharField(max_length=128, blank=True, default="", db_index=True)
     critical = models.BooleanField(default=False, db_index=True)
     maintenance = models.BooleanField(default=False, db_index=True)
+    tags = LegacyJSONField(default=list, blank=True)
 
     class Meta:
         db_table = "devices"
@@ -99,6 +100,7 @@ class LdapConfig(models.Model):
     default_role = models.CharField(max_length=32, default="viewer")
     fallback_local = models.BooleanField(default=True)
     connect_timeout = models.PositiveIntegerField(default=10)
+    scope_mappings = LegacyJSONField(default=list, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -262,6 +264,27 @@ class BackgroundTask(models.Model):
             models.Index(fields=["status", "scheduled_at"]),
             models.Index(fields=["task_type", "status"]),
         ]
+
+
+class ApiKey(models.Model):
+    """API-ключи для автоматизации (CI, Ansible) без cookie JWT."""
+
+    name = models.CharField(max_length=64, unique=True, db_index=True)
+    key_prefix = models.CharField(max_length=16)
+    key_hash = models.CharField(max_length=128)
+    role = models.CharField(max_length=32, default="viewer")
+    permissions = LegacyJSONField(default=list, blank=True)
+    allowed_groups = LegacyJSONField(default=list, blank=True)
+    allowed_sites = LegacyJSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "api_keys"
+        ordering = ["name"]
 
 
 class AlertState(models.Model):

@@ -23,6 +23,7 @@ class Device(BaseModel):
     role: str = ""
     critical: bool = False
     maintenance: bool = False
+    tags: list[str] = Field(default_factory=list)
 
 
 class DeviceCreate(BaseModel):
@@ -36,6 +37,7 @@ class DeviceCreate(BaseModel):
     role: str = ""
     critical: bool = False
     maintenance: bool = False
+    tags: list[str] = Field(default_factory=list)
 
 
 class CredentialProfile(BaseModel):
@@ -197,6 +199,7 @@ class LdapConfigPublic(BaseModel):
     fallback_local: bool = True
     connect_timeout: int = 10
     configured: bool = False
+    scope_mappings: list[dict] = Field(default_factory=list)
 
 
 class LdapConfigUpdate(BaseModel):
@@ -216,6 +219,7 @@ class LdapConfigUpdate(BaseModel):
     default_role: str = "viewer"
     fallback_local: bool = True
     connect_timeout: int = 10
+    scope_mappings: list[dict] = Field(default_factory=list)
 
 
 class LdapTestRequest(BaseModel):
@@ -346,3 +350,11 @@ class BulkDeviceUpdate(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8)
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    role: str = "viewer"
+    permissions: list[str] = Field(default_factory=list)
+    allowed_groups: list[str] = Field(default_factory=list)
+    allowed_sites: list[str] = Field(default_factory=list)

@@ -35,6 +35,7 @@ class LdapConfigData:
     default_role: str
     fallback_local: bool
     connect_timeout: int
+    scope_mappings: list[dict]
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -94,6 +95,7 @@ def _row_to_data(row: LdapConfig) -> LdapConfigData:
         default_role=row.default_role or "viewer",
         fallback_local=row.fallback_local,
         connect_timeout=row.connect_timeout or 10,
+        scope_mappings=list(row.scope_mappings or []),
     )
 
 
@@ -112,7 +114,7 @@ def ensure_initialized() -> None:
 
 def get_config() -> LdapConfigData:
     if not is_database_available():
-        return LdapConfigData(**_defaults_from_env())
+        return LdapConfigData(**{**_defaults_from_env(), "scope_mappings": []})
     try:
         row = LdapConfig.objects.filter(pk=1).first()
         if not row:
@@ -122,7 +124,7 @@ def get_config() -> LdapConfigData:
     except Exception as exc:
         logger.warning("ldap | read failed: %s", exc)
         reset_availability_cache()
-        return LdapConfigData(**_defaults_from_env())
+        return LdapConfigData(**{**_defaults_from_env(), "scope_mappings": []})
 
 
 def ldap_configured() -> bool:
@@ -149,6 +151,7 @@ def get_config_public() -> dict[str, Any]:
         "default_role": cfg.default_role,
         "fallback_local": cfg.fallback_local,
         "connect_timeout": cfg.connect_timeout,
+        "scope_mappings": cfg.scope_mappings,
         "configured": ldap_configured(),
         "storage": "database" if is_database_available() else "env",
     }
@@ -195,6 +198,10 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
     row.default_role = default_role
     row.fallback_local = bool(payload.get("fallback_local", row.fallback_local))
     row.connect_timeout = timeout
+    if "scope_mappings" in payload:
+        from services.ldap_scope import validate_scope_mappings
+
+        row.scope_mappings = validate_scope_mappings(payload.get("scope_mappings") or [])
     row.save()
     logger.info("ldap | настройки сохранены через UI (enabled=%s)", row.enabled)
     return get_config_public()

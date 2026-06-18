@@ -83,10 +83,7 @@ def run_degradation_check() -> dict[str, int]:
             )
             continue
         label = _KIND_LABELS.get(kind, kind)
-        lines = [f"{d['name']} ({d['ip']}) — {d.get('state_label', '')}" for d in devices[:50]]
-        if len(devices) > 50:
-            lines.append(f"… и ещё {len(devices) - 50}")
-        notify_degradation(label, lines, stale_days=cfg.stale_days_threshold)
+        notify_degradation(label, devices, stale_days=cfg.stale_days_threshold)
         notify_degradation_webhook(kind, devices)
         _mark_notified(alert_key, len(devices))
         sent += 1

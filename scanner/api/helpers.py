@@ -46,9 +46,15 @@ def parse_json_body(request: HttpRequest) -> dict:
 
 
 def token_from_request(request: HttpRequest) -> str:
+    api_key = request.headers.get("X-API-Key", "").strip()
+    if api_key:
+        return api_key
     auth_header = request.headers.get("Authorization", "")
     if auth_header.lower().startswith("bearer "):
-        return auth_header[7:].strip()
+        token = auth_header[7:].strip()
+        if token.startswith("bk_"):
+            return token
+        return token
     cookie_token = request.COOKIES.get(settings.AUTH_COOKIE_NAME)
     if cookie_token:
         return cookie_token
@@ -57,6 +63,13 @@ def token_from_request(request: HttpRequest) -> str:
 
 def get_current_user(request: HttpRequest) -> User:
     token = token_from_request(request)
+    if token.startswith("bk_"):
+        from services.api_keys import authenticate_api_key
+
+        user = authenticate_api_key(token)
+        if not user:
+            raise ApiError("Недействительный API key", status=401)
+        return user
     try:
         payload = auth.decode_token(token)
     except ValueError as exc:

@@ -36,7 +36,12 @@ from services.audit import (
     log_audit,
     log_audit_user,
 )
-from services.compliance import compliance_to_csv, compliance_to_pdf, compute_compliance_summary
+from services.compliance import (
+    compliance_to_csv,
+    compliance_to_pdf,
+    compute_compliance_by_site,
+    compute_compliance_summary,
+)
 from services.inventory import (
     OXIDIZED_SOURCE_URL,
     add_credential_profile,
@@ -984,7 +989,7 @@ def get_latest_scan_view(request: HttpRequest) -> JsonResponse:
     return json_response(summary)
 
 
-@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+@require_permission(auth.PERMISSION_COMPLIANCE_READ)
 def compliance_summary_view(request: HttpRequest) -> JsonResponse:
     critical = request.GET.get("critical") or None
     if critical == "":
@@ -1002,7 +1007,7 @@ def compliance_summary_view(request: HttpRequest) -> JsonResponse:
     )
 
 
-@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+@require_permission(auth.PERMISSION_COMPLIANCE_READ)
 def compliance_export_view(request: HttpRequest) -> HttpResponse:
     critical = request.GET.get("critical") or None
     user: User = request.api_user
@@ -1082,7 +1087,7 @@ def scan_trends_view(request: HttpRequest) -> JsonResponse:
     return json_response(get_scan_trends(days=days))
 
 
-@require_permission(auth.PERMISSION_MANAGE_USERS)
+@require_permission(auth.PERMISSION_AUDIT_READ)
 def audit_events_view(request: HttpRequest) -> JsonResponse:
     try:
         limit = int(request.GET.get("limit", "100"))
@@ -1096,7 +1101,7 @@ def audit_events_view(request: HttpRequest) -> JsonResponse:
     return json_response(list_audit_events(limit=limit, offset=offset, action=action))
 
 
-@require_permission(auth.PERMISSION_MANAGE_USERS)
+@require_permission(auth.PERMISSION_AUDIT_READ)
 def audit_export_view(request: HttpRequest) -> HttpResponse:
     try:
         limit = int(request.GET.get("limit", "10000"))
@@ -1212,7 +1217,7 @@ def backup_settings_dispatch(request: HttpRequest) -> JsonResponse:
 
 @csrf_exempt
 @require_http_methods(["POST"])
-@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+@require_permission(auth.PERMISSION_SETTINGS_NOTIFY)
 def backup_settings_test_notify(request: HttpRequest) -> JsonResponse:
     from services.backup_notifications import send_test_notification
     from services.backup_settings import PASSWORD_MASK
@@ -1404,4 +1409,93 @@ def backup_data_view(request: HttpRequest) -> JsonResponse:
     from services.backup_data import run_backup_data
 
     return json_response(run_backup_data())
+
+
+@require_permission(auth.PERMISSION_COMPLIANCE_READ)
+def compliance_by_site_view(request: HttpRequest) -> JsonResponse:
+    user: User = request.api_user
+    return json_response(compute_compliance_by_site(user=user))
+
+
+def openapi_json_view(request: HttpRequest) -> JsonResponse:
+    from services.openapi_spec import build_openapi_spec
+
+    return json_response(build_openapi_spec())
+
+
+def api_docs_view(request: HttpRequest) -> HttpResponse:
+    html = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Backup Tools API</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css"/>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+  SwaggerUIBundle({ url: '/api/openapi.json', dom_id: '#swagger-ui' });
+</script>
+</body>
+</html>"""
+    return HttpResponse(html, content_type="text/html; charset=utf-8")
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_API_KEYS_MANAGE)
+def api_keys_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import api_keys
+    from services.schemas import ApiKeyCreate
+
+    user: User = request.api_user
+    if request.method == "GET":
+        return json_response({"items": api_keys.list_api_keys()})
+    if request.method == "POST":
+        try:
+            body = parse_json_body(request)
+            payload = ApiKeyCreate.model_validate(body)
+            row, raw_key = api_keys.create_api_key(
+                name=payload.name,
+                role=payload.role,
+                permissions=payload.permissions,
+                allowed_groups=payload.allowed_groups,
+                allowed_sites=payload.allowed_sites,
+                created_by=user.username,
+            )
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc), status=400)
+        result = api_keys._public_row(row)  # noqa: SLF001
+        result["key"] = raw_key
+        return json_response(result, status=201)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_API_KEYS_MANAGE)
+def api_key_detail(request: HttpRequest, key_id: int) -> JsonResponse:
+    from services import api_keys
+
+    if request.method == "DELETE":
+        try:
+            api_keys.delete_api_key(key_id)
+        except ValueError as exc:
+            return error_response(str(exc), status=404)
+        return json_response({"status": "ok"})
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_API_KEYS_MANAGE)
+def api_key_revoke(request: HttpRequest, key_id: int) -> JsonResponse:
+    from services import api_keys
+
+    try:
+        api_keys.revoke_api_key(key_id)
+    except ValueError as exc:
+        return error_response(str(exc), status=404)
+    return json_response({"status": "ok"})
 

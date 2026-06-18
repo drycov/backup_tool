@@ -160,8 +160,26 @@ def authenticate_ldap(username: str, password: str) -> Optional[dict]:
                 _, member_of = _search_user_dn(cfg, username)
 
         role = _map_role_from_groups(cfg, member_of)
-        logger.info("ldap | вход %s, role=%s, groups=%d", username, role, len(member_of))
-        return {"username": username, "role": role, "groups": member_of}
+        from services.ldap_scope import resolve_scope_from_ldap_groups
+
+        allowed_groups, allowed_sites = resolve_scope_from_ldap_groups(
+            member_of, cfg.scope_mappings
+        )
+        logger.info(
+            "ldap | вход %s, role=%s, groups=%d, scope_groups=%s, scope_sites=%s",
+            username,
+            role,
+            len(member_of),
+            allowed_groups or "inherit",
+            allowed_sites or "inherit",
+        )
+        return {
+            "username": username,
+            "role": role,
+            "groups": member_of,
+            "allowed_groups": allowed_groups,
+            "allowed_sites": allowed_sites,
+        }
     except Exception as exc:
         logger.warning("ldap | ошибка для %s: %s", username, exc)
         return None

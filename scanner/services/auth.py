@@ -23,6 +23,11 @@ PERMISSION_RUN_SCAN = "scan:run"
 PERMISSION_OXIDIZED_READ = "oxidized:read"
 PERMISSION_OXIDIZED_WRITE = "oxidized:write"
 PERMISSION_MANAGE_USERS = "users:manage"
+PERMISSION_COMPLIANCE_READ = "compliance:read"
+PERMISSION_SETTINGS_NOTIFY = "settings:notify"
+PERMISSION_AUDIT_READ = "audit:read"
+PERMISSION_API_KEYS_MANAGE = "api_keys:manage"
+PERMISSION_SETTINGS_READ = "settings:read"
 
 
 def hash_password(password: str) -> str:
@@ -77,7 +82,12 @@ def authenticate_user(username: str, password: str) -> Optional[User]:
     if ldap_configured():
         ldap_info = authenticate_ldap(username, password)
         if ldap_info:
-            return upsert_ldap_user(ldap_info["username"], ldap_info["role"])
+            return upsert_ldap_user(
+                ldap_info["username"],
+                ldap_info["role"],
+                allowed_groups=ldap_info.get("allowed_groups"),
+                allowed_sites=ldap_info.get("allowed_sites"),
+            )
         if not get_config().fallback_local:
             return None
 
@@ -91,7 +101,13 @@ def authenticate_user(username: str, password: str) -> Optional[User]:
     return user
 
 
-def upsert_ldap_user(username: str, role: str) -> User:
+def upsert_ldap_user(
+    username: str,
+    role: str,
+    *,
+    allowed_groups: list[str] | None = None,
+    allowed_sites: list[str] | None = None,
+) -> User:
     if role not in VALID_ROLES:
         role = ROLE_VIEWER
     placeholder_hash = hash_password(secrets.token_hex(32))
@@ -102,12 +118,18 @@ def upsert_ldap_user(username: str, role: str) -> User:
             "role": role,
             "is_active": True,
             "auth_source": "ldap",
+            "allowed_groups": allowed_groups or [],
+            "allowed_sites": allowed_sites or [],
         },
     )
     if not created:
         user.auth_source = "ldap"
         if not getattr(user, "role_locked", False):
             user.role = role
+        if allowed_groups is not None:
+            user.allowed_groups = allowed_groups
+        if allowed_sites is not None:
+            user.allowed_sites = allowed_sites
         user.is_active = True
         user.password_hash = placeholder_hash
         user.save()
@@ -228,4 +250,8 @@ def delete_user(user_id: int) -> None:
 
 
 def user_has_permission(user: User, permission: str) -> bool:
+    if getattr(user, "auth_source", "") == "apikey":
+        from services.api_keys import api_key_has_permission
+
+        return api_key_has_permission(user, permission)
     return has_permission(user.role, permission)

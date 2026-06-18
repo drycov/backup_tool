@@ -1058,6 +1058,33 @@ async function loadComplianceDashboard() {
   const genEl = qs("#compliance-generated-at");
   if (genEl) genEl.textContent = formatDate(compliance.generated_at);
 
+  const bySiteEl = qs("#dashboard-compliance-by-site");
+  if (bySiteEl) {
+    const bySite = await api("/api/compliance/by-site").catch(() => null);
+    const sites = bySite?.sites || [];
+    if (sites.length) {
+      bySiteEl.innerHTML = `
+        <div class="col-12">
+          <h6 class="text-muted mb-2">Compliance по site</h6>
+          <div class="row g-2">
+            ${sites.map(s => `
+              <div class="col-md-3 col-sm-6">
+                <div class="card card-outline card-${s.compliance_pct >= 90 ? "success" : s.compliance_pct >= 70 ? "warning" : "danger"} mb-0">
+                  <div class="card-body py-2 px-3">
+                    <div class="fw-semibold text-truncate" title="${escapeHtml(s.site)}">${escapeHtml(s.site)}</div>
+                    <div class="small text-muted">${s.ok}/${s.total} OK · ${s.failed} проблем · ${s.critical} critical</div>
+                    <div class="fs-5">${s.compliance_pct}%</div>
+                  </div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>`;
+    } else {
+      bySiteEl.innerHTML = "";
+    }
+  }
+
   const tbody = qs("#compliance-table");
   const empty = qs("#compliance-empty");
   const nodes = compliance.nodes || [];

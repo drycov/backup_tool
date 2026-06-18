@@ -50,6 +50,7 @@ def _device_from_model(record: DeviceModel) -> Device:
         role=getattr(record, "role", "") or "",
         critical=bool(getattr(record, "critical", False)),
         maintenance=bool(getattr(record, "maintenance", False)),
+        tags=list(getattr(record, "tags", None) or []),
     )
 
 
@@ -65,6 +66,7 @@ def _model_from_device(device: Device) -> DeviceModel:
         role=device.role or "",
         critical=device.critical,
         maintenance=device.maintenance,
+        tags=device.tags or [],
     )
 
 
@@ -268,6 +270,7 @@ def _upsert_device_record(device: Device, *, old_name: str | None = None) -> Non
         record.role = device.role or ""
         record.critical = device.critical
         record.maintenance = device.maintenance
+        record.tags = device.tags or []
         record.save()
     else:
         _model_from_device(device).save()

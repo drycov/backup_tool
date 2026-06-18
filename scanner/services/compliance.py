@@ -203,6 +203,38 @@ def compute_compliance_summary(
     }
 
 
+def compute_compliance_by_site(*, user=None) -> dict[str, Any]:
+    """Группировка compliance по site для дашборда."""
+    summary = compute_compliance_summary(user=user)
+    buckets: dict[str, dict[str, Any]] = {}
+    for node in summary.get("nodes") or []:
+        site = (node.get("site") or "").strip() or "(без site)"
+        bucket = buckets.setdefault(
+            site,
+            {"site": site, "total": 0, "ok": 0, "failed": 0, "critical": 0},
+        )
+        bucket["total"] += 1
+        if node.get("state") == "ok":
+            bucket["ok"] += 1
+        else:
+            bucket["failed"] += 1
+        if node.get("critical"):
+            bucket["critical"] += 1
+
+    sites = []
+    for site, bucket in sorted(buckets.items(), key=lambda x: x[0].lower()):
+        total = bucket["total"]
+        ok = bucket["ok"]
+        bucket["compliance_pct"] = round(100.0 * ok / total, 1) if total else 100.0
+        sites.append(bucket)
+
+    return {
+        "generated_at": summary.get("generated_at"),
+        "total_sites": len(sites),
+        "sites": sites,
+    }
+
+
 def compliance_to_csv(summary: dict[str, Any] | None = None) -> str:
     data = summary or compute_compliance_summary()
     buf = io.StringIO()
