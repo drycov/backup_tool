@@ -35,23 +35,50 @@ body.login-page .login-logo {
   margin-bottom: 1rem;
 }
 
-/* BS4-разметка в JS/HTML до полной миграции */
+/* BS5 / AdminLTE 4 — значки и stat-box */
+.text-bg-orange {
+  color: #fff !important;
+  background-color: #fd7e14 !important;
+}
+
+.small-box .small-box-icon.fas,
+.small-box .small-box-icon.far,
+.small-box .small-box-icon.fab,
+.small-box .small-box-icon.bi {
+  display: block;
+  line-height: 1;
+}
+
+.sidebar-wrapper .nav-icon.fas,
+.sidebar-wrapper .nav-icon.far,
+.sidebar-wrapper .nav-icon.fab {
+  font-size: 1.1rem;
+}
+
+.badge.badge-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* legacy BS4 badges (динамический JS до полной миграции) */
 .form-row {
   display: flex;
   flex-wrap: wrap;
   margin-right: calc(var(--bs-gutter-x, 0.75rem) * -0.5);
   margin-left: calc(var(--bs-gutter-x, 0.75rem) * -0.5);
 }
-.mr-1 { margin-right: 0.25rem !important; }
-.mr-2 { margin-right: 0.5rem !important; }
-.ml-1 { margin-left: 0.25rem !important; }
-.ml-2 { margin-left: 0.5rem !important; }
-.badge.badge-success { background-color: var(--bs-success); color: #fff; }
-.badge.badge-danger { background-color: var(--bs-danger); color: #fff; }
-.badge.badge-warning { background-color: var(--bs-warning); color: #212529; }
-.badge.badge-info { background-color: var(--bs-info); color: #000; }
-.badge.badge-secondary { background-color: var(--bs-secondary); color: #fff; }
-.badge.badge-light { background-color: var(--bs-light); color: #212529; }
+.mr-1, .me-1 { margin-right: 0.25rem !important; }
+.mr-2, .me-2 { margin-right: 0.5rem !important; }
+.ml-1, .ms-1 { margin-left: 0.25rem !important; }
+.ml-2, .ms-2 { margin-left: 0.5rem !important; }
+.badge.badge-success, .badge.text-bg-success { background-color: var(--bs-success) !important; color: #fff !important; }
+.badge.badge-danger, .badge.text-bg-danger { background-color: var(--bs-danger) !important; color: #fff !important; }
+.badge.badge-warning, .badge.text-bg-warning { background-color: var(--bs-warning) !important; color: #212529 !important; }
+.badge.badge-info, .badge.text-bg-info { background-color: var(--bs-info) !important; color: #000 !important; }
+.badge.badge-secondary, .badge.text-bg-secondary { background-color: var(--bs-secondary) !important; color: #fff !important; }
+.badge.badge-light, .badge.text-bg-light { background-color: var(--bs-light) !important; color: #212529 !important; }
+.badge.badge-dark, .badge.text-bg-dark { background-color: var(--bs-dark) !important; color: #fff !important; }
+.badge.badge-primary, .badge.text-bg-primary { background-color: var(--bs-primary) !important; color: #fff !important; }
 
 /* ── Layout ──────────────────────────────────────────── */
 .app-main {

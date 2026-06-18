@@ -58,6 +58,35 @@ const AUDIT_ACTION_LABELS = {
   "scan.discover": "Discovery",
 };
 
+const BADGE_THEMES = {
+  success: "text-bg-success",
+  danger: "text-bg-danger",
+  warning: "text-bg-warning",
+  info: "text-bg-info",
+  secondary: "text-bg-secondary",
+  light: "text-bg-light",
+  dark: "text-bg-dark",
+  primary: "text-bg-primary",
+  orange: "text-bg-orange",
+};
+
+function badgeCls(color, extra = "") {
+  const key = String(color || "secondary").replace(/^(badge-|text-bg-)/, "");
+  const theme = BADGE_THEMES[key] || BADGE_THEMES.secondary;
+  return extra ? `badge ${theme} ${extra}` : `badge ${theme}`;
+}
+
+function badgeSpan(label, color, extra = "") {
+  return `<span class="${badgeCls(color, extra)}">${label}</span>`;
+}
+
+function smallBoxTheme(theme) {
+  if (!theme) return BADGE_THEMES.info;
+  if (theme.startsWith("text-bg-")) return theme;
+  const raw = theme.replace(/^bg-/, "");
+  return BADGE_THEMES[raw] || `text-bg-${raw}`;
+}
+
 function qs(sel) { return document.querySelector(sel); }
 function qsa(sel) { return document.querySelectorAll(sel); }
 
@@ -268,22 +297,22 @@ function updateScopeBanner() {
   const sites = (currentUser.allowed_sites || []).join(", ") || "—";
   wrap.style.display = "";
   banner.innerHTML =
-    `<i class="fas fa-filter mr-1"></i> Ограниченный доступ: группы <strong>${escapeHtml(groups)}</strong>, sites <strong>${escapeHtml(sites)}</strong>. Видны только соответствующие устройства и узлы Oxidized.`;
+    `<i class="fas fa-filter me-1"></i> Ограниченный доступ: группы <strong>${escapeHtml(groups)}</strong>, sites <strong>${escapeHtml(sites)}</strong>. Видны только соответствующие устройства и узлы Oxidized.`;
 }
 
 function deviceTagsHtml(device) {
   const tags = [];
   if (device.maintenance) {
-    tags.push('<span class="badge badge-warning badge-tag" title="Scheduled backup paused in maintenance window"><i class="fas fa-moon"></i> maint</span>');
+    tags.push(`<span class="${badgeCls("warning", "badge-tag")}" title="Scheduled backup paused in maintenance window"><i class="fas fa-moon"></i> maint</span>`);
   }
   if (device.critical) {
-    tags.push('<span class="badge badge-danger badge-tag">critical</span>');
+    tags.push(`<span class="${badgeCls("danger", "badge-tag")}">critical</span>`);
   }
   if (device.site) {
-    tags.push(`<span class="badge badge-light border badge-tag">${escapeHtml(device.site)}</span>`);
+    tags.push(`<span class="${badgeCls("light", "border badge-tag")}">${escapeHtml(device.site)}</span>`);
   }
   if (device.role) {
-    tags.push(`<span class="badge badge-secondary badge-tag">${escapeHtml(device.role)}</span>`);
+    tags.push(`<span class="${badgeCls("secondary", "badge-tag")}">${escapeHtml(device.role)}</span>`);
   }
   return tags.length
     ? `<span class="device-tags">${tags.join(" ")}</span>`
@@ -310,12 +339,12 @@ function updateMaintenanceStatusBadge(cfg) {
   const el = qs("#bk-maint-status");
   if (!el) return;
   if (!cfg || cfg.maintenance_window_enabled === false) {
-    el.className = "badge badge-secondary mr-2 mb-1";
+    el.className = `${badgeCls("secondary")} me-2 mb-1`;
     el.textContent = "Окно выключено";
     return;
   }
   const active = isMaintenanceWindowActiveClient(cfg);
-  el.className = `badge mr-2 mb-1 ${active ? "badge-warning" : "badge-success"}`;
+  el.className = `${badgeCls(active ? "warning" : "success")} me-2 mb-1`;
   el.textContent = active
     ? `Сейчас активно (UTC ${cfg.maintenance_start_hour_utc}:00–${cfg.maintenance_end_hour_utc}:00)`
     : `Сейчас неактивно (UTC ${cfg.maintenance_start_hour_utc}:00–${cfg.maintenance_end_hour_utc}:00)`;
@@ -345,26 +374,26 @@ async function api(path, options = {}) {
 
 function badge(status) {
   const map = {
-    online: "badge-success",
-    offline: "badge-danger",
-    partial: "badge-warning",
-    success: "badge-success",
-    no_connection: "badge-secondary",
+    online: "success",
+    offline: "danger",
+    partial: "warning",
+    success: "success",
+    no_connection: "secondary",
   };
-  const cls = map[status] || "badge-secondary";
-  return `<span class="badge ${cls}">${status}</span>`;
+  return badgeSpan(status, map[status] || "secondary");
 }
 
-function smallBox(value, label, bg = "bg-info", icon = "fa-server", valueClass = "") {
+function smallBox(value, label, bg = "info", icon = "fa-server", valueClass = "") {
   const h3Class = valueClass ? ` class="${valueClass}"` : "";
+  const theme = smallBoxTheme(bg);
   return `
     <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
-      <div class="small-box ${bg}">
+      <div class="small-box ${theme}">
         <div class="inner">
           <h3${h3Class}>${value}</h3>
           <p>${label}</p>
         </div>
-        <div class="small-box-icon"><i class="fas ${icon}"></i></div>
+        <i class="small-box-icon fas ${icon}" aria-hidden="true"></i>
       </div>
     </div>
   `;
@@ -396,7 +425,7 @@ function showAlert(containerId, msg, type = "danger") {
   const icon = icons[alertType] || icons.info;
   el.innerHTML = `
     <div class="alert alert-${alertType} alert-dismissible fade show" role="alert">
-      <i class="fas ${icon} mr-1"></i>${msg}
+      <i class="fas ${icon} me-1"></i>${msg}
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
   `;
@@ -436,7 +465,7 @@ function applyEngineAwareUi() {
     } else {
       engineBanner.style.display = "";
       engineBanner.innerHTML =
-        '<i class="fas fa-info-circle mr-1"></i> Режим <strong>Ruby Oxidized</strong>: «Backup все» и MikroTik binary/export недоступны в scanner. Используйте внешний контейнер oxidized.';
+        '<i class="fas fa-info-circle me-1"></i> Режим <strong>Ruby Oxidized</strong>: «Backup все» и MikroTik binary/export недоступны в scanner. Используйте внешний контейнер oxidized.';
     }
   }
 
@@ -610,7 +639,7 @@ function renderUsersTable(users) {
 
   tbody.innerHTML = filtered.map(u => {
     const scopeBadge = u.scoped
-      ? `<span class="badge badge-warning badge-tag ml-1" title="Object scope">scope</span>`
+      ? `<span class="${badgeCls("warning", "badge-tag ms-1")}" title="Object scope">scope</span>`
       : "";
     return `
     <tr data-user-id="${u.id}">
@@ -632,7 +661,7 @@ function renderUsersTable(users) {
           value="${escapeHtml((u.allowed_sites || []).join(", "))}" placeholder="dc1"
           ${u.role === "admin" ? "disabled" : ""}>
       </td>
-      <td><span class="badge badge-${u.auth_source === "ldap" ? "info" : "secondary"}">${escapeHtml(u.auth_source || "local")}</span></td>
+      <td><span class="${badgeCls(u.auth_source === "ldap" ? "info" : "secondary")}">${escapeHtml(u.auth_source || "local")}</span></td>
       <td class="text-center">
         ${u.auth_source === "ldap"
     ? `<input type="checkbox" class="user-role-locked" data-id="${u.id}" ${u.role_locked ? "checked" : ""} title="Не обновлять роль из LDAP">`
@@ -739,7 +768,7 @@ async function loadHealth() {
       warningHtml = `
         <div class="col-12 mb-2">
           <div class="alert alert-warning py-2 mb-0">
-            <i class="fas fa-exclamation-triangle mr-1"></i>
+            <i class="fas fa-exclamation-triangle me-1"></i>
             Ruby bridge недоступен — gem-модели Oxidized не загружены. Поддерживается только <strong>routeros</strong>.
           </div>
         </div>`;
@@ -817,15 +846,15 @@ async function loadComplianceDashboard() {
   if (empty) empty.style.display = "none";
   tbody.innerHTML = nodes.map(n => `
     <tr>
-      <td><span class="badge badge-${COMPLIANCE_BADGE[n.state] || "secondary"}">${escapeHtml(n.state_label)}</span></td>
+      <td><span class="${badgeCls(COMPLIANCE_BADGE[n.state] || "secondary")}">${escapeHtml(n.state_label)}</span></td>
       <td>${escapeHtml(n.name)}</td>
       <td>${escapeHtml(n.ip)}</td>
       <td>${escapeHtml(n.group)}</td>
       <td>${escapeHtml(n.site || "—")}</td>
       <td>${escapeHtml(n.role || "—")}</td>
-      <td>${n.critical ? '<span class="badge badge-danger">yes</span>' : '<span class="badge badge-light">no</span>'}</td>
+      <td>${n.critical ? badgeSpan("yes", "danger") : badgeSpan("no", "light")}</td>
       <td class="text-sm">${formatDate(n.last_backup_at) || "—"}</td>
-      <td>${n.reachability ? `<span class="badge badge-${n.reachability === "online" ? "success" : "danger"}">${escapeHtml(n.reachability)}</span>` : "—"}</td>
+      <td>${n.reachability ? badgeSpan(n.reachability, n.reachability === "online" ? "success" : "danger") : "—"}</td>
     </tr>
   `).join("");
 }
@@ -883,9 +912,9 @@ function renderScanTrends(trends) {
       }).join("")}
     </div>
     <div class="small text-muted mt-2">
-      <span class="badge badge-success mr-1">online</span>
-      <span class="badge badge-warning mr-1">partial</span>
-      <span class="badge badge-danger">offline</span>
+      ${badgeSpan("online", "success", "me-1")}
+      ${badgeSpan("partial", "warning", "me-1")}
+      ${badgeSpan("offline", "danger")}
     </div>`;
 }
 
@@ -904,8 +933,8 @@ async function loadScanHistory() {
   tbody.innerHTML = items.map(row => `
     <tr>
       <td class="text-sm">${formatDate(row.scanned_at)}</td>
-      <td>${row.discover ? '<span class="badge badge-info">discovery</span>' : "scan"}</td>
-      <td><span class="badge badge-${row.status === "completed" ? "success" : "danger"}">${escapeHtml(row.status)}</span></td>
+      <td>${row.discover ? badgeSpan("discovery", "info") : "scan"}</td>
+      <td>${badgeSpan(row.status, row.status === "completed" ? "success" : "danger")}</td>
       <td>${row.online}</td>
       <td>${row.offline}</td>
       <td>${row.partial}</td>
@@ -1023,7 +1052,7 @@ function renderDevicesTable() {
       <td>${escapeHtml(d.group)}</td>
       <td>${deviceTagsHtml(d)}</td>
       <td>${escapeHtml((d.ports || []).join(", "))}</td>
-      <td>${d.enabled ? '<span class="badge badge-success">on</span>' : '<span class="badge badge-secondary">off</span>'}</td>
+      <td>${d.enabled ? badgeSpan("on", "success") : badgeSpan("off", "secondary")}</td>
       <td>
         ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-edit"></i></button>` : ""}
         ${can("inventory:devices") ? `<button class="btn btn-danger btn-sm btn-delete-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-trash"></i></button>` : ""}
@@ -1095,7 +1124,7 @@ function fillOxidizedSettingsForm(cfg) {
     if (n != null) {
       nodesBadge.style.display = "inline";
       nodesBadge.textContent = `${n} узлов`;
-      nodesBadge.className = `badge ml-1 ${cfg.health?.reachable ? "badge-success" : "badge-danger"}`;
+      nodesBadge.className = `${badgeCls(cfg.health?.reachable ? "success" : "danger")} ms-1`;
     } else {
       nodesBadge.style.display = "none";
     }
@@ -1788,7 +1817,7 @@ async function runBackupData() {
     const msg = res.ok ? `OK → ${res.path}` : `Ошибка: ${res.database || "unknown"}`;
     if (resultEl) {
       resultEl.textContent = msg;
-      resultEl.className = `small ml-2 ${res.ok ? "text-success" : "text-danger"}`;
+      resultEl.className = `small ms-2 ${res.ok ? "text-success" : "text-danger"}`;
     }
     showAlert("settings-alert", msg, res.ok ? "success" : "error");
   } catch (e) {
@@ -1904,7 +1933,7 @@ function showLdapTestResult(result) {
   if (!el) return;
   const cls = result.ok ? "text-success" : "text-danger";
   const icon = result.ok ? "check-circle" : "times-circle";
-  el.innerHTML = `<span class="${cls}"><i class="fas fa-${icon} mr-1"></i>${escapeHtml(result.message)}</span>`;
+  el.innerHTML = `<span class="${cls}"><i class="fas fa-${icon} me-1"></i>${escapeHtml(result.message)}</span>`;
 }
 
 async function loadLdapSettings() {
@@ -2095,7 +2124,7 @@ function updateDeviceGroupHint() {
   if (!profile) {
     hint.innerHTML = `
       <span class="text-warning">
-        <i class="fas fa-exclamation-triangle mr-1"></i>
+        <i class="fas fa-exclamation-triangle me-1"></i>
         Нет профиля для группы «${group}».
         <a href="#" class="device-goto-settings">Добавить в настройках</a>
       </span>`;
@@ -2110,7 +2139,7 @@ function updateDeviceGroupHint() {
   const pass = canSeePass ? profile.password : "********";
   hint.innerHTML = `
     <span class="cred-preview text-muted">
-      <i class="fas fa-key mr-1"></i>
+      <i class="fas fa-key me-1"></i>
       Профиль <strong>${profile.name}</strong>:
       <code>${profile.username}</code> / <code>${pass}</code>
     </span>`;
@@ -2177,8 +2206,8 @@ function openDeviceModal(name = null) {
   const titleEl = qs("#device-modal-title");
   if (titleEl) {
     titleEl.innerHTML = name
-      ? '<i class="fas fa-edit mr-2 text-muted"></i>Изменить устройство'
-      : '<i class="fas fa-plus mr-2 text-muted"></i>Добавить устройство';
+      ? '<i class="fas fa-edit me-2 text-muted"></i>Изменить устройство'
+      : '<i class="fas fa-plus me-2 text-muted"></i>Добавить устройство';
   }
 
   updateGroupSelects(device?.group || getGroupNames()[0]);
@@ -2296,11 +2325,11 @@ function updateScanActivityPanel(panel, status, { running }) {
   const phase = status.phase || "idle";
   if (phaseBadge) {
     phaseBadge.textContent = SCAN_PHASE_LABELS[phase] || phase;
-    phaseBadge.className = `badge scan-phase-badge ${
-      status.status === "failed" ? "badge-danger"
-        : status.status === "completed" ? "badge-success"
-          : "badge-info"
-    }`;
+    phaseBadge.className = `${badgeCls(
+      status.status === "failed" ? "danger"
+        : status.status === "completed" ? "success"
+          : "info"
+    )} scan-phase-badge`;
   }
 
   if (msgEl) msgEl.textContent = status.message || "—";
@@ -2450,7 +2479,7 @@ function renderScanResults(summary) {
 
   qs("#scan-results-table").innerHTML = filtered.map(r => {
     const ports = (r.ports || []).map(p =>
-      `<span class="mr-2"><span class="port-dot ${p.open ? "port-open" : "port-closed"}"></span>${p.port}</span>`
+      `<span class="me-2"><span class="port-dot ${p.open ? "port-open" : "port-closed"}"></span>${p.port}</span>`
     ).join("");
     return `
       <tr>
@@ -2527,7 +2556,7 @@ async function loadOxidizedNodes() {
       if (health.models === "python-fallback" && isPythonEngine()) {
         modelsWarning.style.display = "";
         modelsWarning.innerHTML =
-          '<i class="fas fa-exclamation-triangle mr-1"></i> Ruby bridge недоступен — бэкап только для модели <strong>routeros</strong>.';
+          '<i class="fas fa-exclamation-triangle me-1"></i> Ruby bridge недоступен — бэкап только для модели <strong>routeros</strong>.';
       } else {
         modelsWarning.style.display = "none";
         modelsWarning.innerHTML = "";
@@ -2626,8 +2655,8 @@ function updateVersionsCompareButton() {
   btn.disabled = checked.length !== 2;
   const n = checked.length;
   btn.innerHTML = n === 2
-    ? '<i class="fas fa-columns mr-1"></i> Сравнить side-by-side'
-    : `<i class="fas fa-columns mr-1"></i> Сравнить (${n}/2)`;
+    ? '<i class="fas fa-columns me-1"></i> Сравнить side-by-side'
+    : `<i class="fas fa-columns me-1"></i> Сравнить (${n}/2)`;
   qsa("#oxidized-versions-table tr").forEach(row => row.classList.remove("version-row-selected"));
   checked.forEach(cb => cb.closest("tr")?.classList.add("version-row-selected"));
 }
@@ -2867,7 +2896,7 @@ function updateOxidizedLogsSearchBanner() {
   if (q) {
     banner.style.display = "";
     banner.innerHTML =
-      `<i class="fas fa-search mr-1"></i> Активен глобальный поиск: <code>${escapeHtml(q)}</code> — очищает фильтр в navbar`;
+      `<i class="fas fa-search me-1"></i> Активен глобальный поиск: <code>${escapeHtml(q)}</code> — очищает фильтр в navbar`;
   } else {
     banner.style.display = "none";
     banner.innerHTML = "";
@@ -2977,7 +3006,7 @@ function updateOxidizedLogBtnBadge(data) {
     btnBadge.style.display = "inline";
     btnBadge.textContent = data.truncated ? `${data.returned}+` : String(data.returned);
     const hasError = lines.some(line => classifyOxidizedLogLine(line) === "log-error");
-    btnBadge.className = `badge ml-1 ${hasError ? "badge-danger" : "badge-secondary"}`;
+    btnBadge.className = `${badgeCls(hasError ? "danger" : "secondary")} ms-1`;
   } else {
     btnBadge.style.display = "none";
   }
@@ -3127,9 +3156,9 @@ function renderBackupFileList(name, type, files) {
   return `<ul class="list-unstyled mb-0">${files.map(f => `
     <li class="mb-1">
       <a href="${backupDownloadUrl(name, type, f.name)}" class="btn btn-link btn-sm p-0" download>
-        <i class="fas fa-download mr-1"></i>${escapeHtml(f.name)}
+        <i class="fas fa-download me-1"></i>${escapeHtml(f.name)}
       </a>
-      <span class="text-muted small ml-2">${formatBytes(f.size)} · ${formatDate(f.mtime ? new Date(f.mtime * 1000).toISOString() : null)}</span>
+      <span class="text-muted small ms-2">${formatBytes(f.size)} · ${formatDate(f.mtime ? new Date(f.mtime * 1000).toISOString() : null)}</span>
     </li>
   `).join("")}</ul>`;
 }
