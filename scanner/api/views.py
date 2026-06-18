@@ -1370,6 +1370,36 @@ def security_audit_summary_view(request: HttpRequest) -> JsonResponse:
             device=request.GET.get("device", "").strip(),
             acknowledged=acknowledged,
             user=user,
+            include_findings=False,
+        )
+    )
+
+
+@require_permission(auth.PERMISSION_SECURITY_READ)
+def security_audit_findings_view(request: HttpRequest) -> JsonResponse:
+    from services.config_security_audit import list_security_findings
+
+    user: User = request.api_user
+    acknowledged = request.GET.get("acknowledged") or None
+    if acknowledged == "":
+        acknowledged = None
+    try:
+        limit = int(request.GET.get("limit", "50"))
+    except ValueError:
+        limit = 50
+    try:
+        offset = int(request.GET.get("offset", "0"))
+    except ValueError:
+        offset = 0
+    return json_response(
+        list_security_findings(
+            severity=request.GET.get("severity", "").strip(),
+            category=request.GET.get("category", "").strip(),
+            device=request.GET.get("device", "").strip(),
+            acknowledged=acknowledged,
+            user=user,
+            limit=limit,
+            offset=offset,
         )
     )
 
@@ -1387,23 +1417,26 @@ def security_audit_runs_view(request: HttpRequest) -> JsonResponse:
 
 @require_permission(auth.PERMISSION_SECURITY_READ)
 def security_audit_export_view(request: HttpRequest) -> HttpResponse:
-    from services.config_security_audit import compute_security_summary, findings_to_csv
+    from services.config_security_audit import findings_to_csv
 
     user: User = request.api_user
-    summary = compute_security_summary(
-        severity=request.GET.get("severity", "").strip(),
-        category=request.GET.get("category", "").strip(),
-        device=request.GET.get("device", "").strip(),
-        user=user,
-    )
+    acknowledged = request.GET.get("acknowledged") or None
+    if acknowledged == "":
+        acknowledged = None
+    filters = {
+        "severity": request.GET.get("severity", "").strip(),
+        "category": request.GET.get("category", "").strip(),
+        "device": request.GET.get("device", "").strip(),
+        "acknowledged": acknowledged,
+    }
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    csv_text = findings_to_csv(summary)
+    csv_text = findings_to_csv(user=user, **filters)
     response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="security-audit-{stamp}.csv"'
     log_audit_user(
         user,
         ACTION_SECURITY_EXPORT,
-        detail=f"findings={summary.get('findings_total', 0)}",
+        detail=f"filters={filters}",
         request=request,
     )
     return response

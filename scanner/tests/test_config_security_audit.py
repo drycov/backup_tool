@@ -143,4 +143,50 @@ def test_compute_security_summary_scoped_once(monkeypatch):
     assert summary["findings_total"] == 3
     assert summary["counts"]["high"] == 3
     assert summary["by_category"]["services"] == 3
+    assert summary["findings"] == []
     assert inventory_calls == 1
+
+
+@pytest.mark.django_db
+def test_list_security_findings_paginated(monkeypatch):
+    from datetime import datetime, timezone
+
+    from core.models import ConfigAuditRun, ConfigFinding
+    from services.config_security_audit import list_security_findings
+    from services.schemas import Device, Inventory
+
+    run = ConfigAuditRun.objects.create(
+        status=ConfigAuditRun.STATUS_COMPLETED,
+        triggered_by="test",
+        devices_total=1,
+        devices_scanned=1,
+        findings_count=3,
+        started_at=datetime.now(timezone.utc),
+        finished_at=datetime.now(timezone.utc),
+    )
+    for idx in range(3):
+        ConfigFinding.objects.create(
+            run=run,
+            device_name="r1",
+            device_ip="10.0.0.1",
+            device_model="routeros",
+            rule_id=f"rule-{idx}",
+            category="services",
+            severity="high",
+            title=f"finding-{idx}",
+        )
+
+    monkeypatch.setattr(
+        "services.config_security_audit.load_inventory",
+        lambda: Inventory(
+            devices=[
+                Device(name="r1", ip="10.0.0.1", model="routeros", group="default", enabled=True),
+            ]
+        ),
+    )
+
+    page = list_security_findings(user=None, limit=2, offset=0)
+    assert page["total"] == 3
+    assert len(page["items"]) == 2
+    page2 = list_security_findings(user=None, limit=2, offset=2)
+    assert len(page2["items"]) == 1

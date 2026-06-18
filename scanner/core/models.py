@@ -343,8 +343,8 @@ class BackgroundTask(models.Model):
         db_table = "background_tasks"
         ordering = ["scheduled_at", "id"]
         indexes = [
-            models.Index(fields=["status", "scheduled_at"]),
-            models.Index(fields=["task_type", "status"]),
+            models.Index(fields=["status", "scheduled_at"], name="background__status_6a0f0d_idx"),
+            models.Index(fields=["task_type", "status"], name="background__task_ty_8e2c1a_idx"),
         ]
 
 
@@ -450,6 +450,6 @@ class ConfigFinding(models.Model):
         db_table = "config_findings"
         ordering = ["-severity", "device_name"]
         indexes = [
-            models.Index(fields=["run", "severity"]),
-            models.Index(fields=["device_name", "rule_id"]),
+            models.Index(fields=["run", "severity"], name="config_find_run_sev_idx"),
+            models.Index(fields=["device_name", "rule_id"], name="config_find_dev_rule_idx"),
         ]

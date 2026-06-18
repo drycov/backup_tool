@@ -1460,9 +1460,95 @@ function securityFilterQuery() {
   return q ? `?${q}` : "";
 }
 
-async function loadSecurityAudit() {
+function securityFindingsQuery(offset = 0) {
+  const params = new URLSearchParams(securityFilterQuery().replace(/^\?/, ""));
+  params.set("limit", "50");
+  params.set("offset", String(Math.max(0, offset)));
+  const q = params.toString();
+  return q ? `?${q}` : "";
+}
+
+let securityFindingsOffset = 0;
+let securityAuditLoadSeq = 0;
+
+function renderSecurityFindingsRows(findings) {
+  const tbody = qs("#security-findings-table");
+  const empty = qs("#security-findings-empty");
+  if (!tbody) return;
+  if (!findings.length) {
+    tbody.innerHTML = "";
+    if (empty) empty.style.display = "";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  tbody.innerHTML = findings.map(f => `
+    <tr data-finding-id="${f.id}">
+      <td><span class="${badgeCls(SECURITY_SEVERITY_BADGE[f.severity] || "secondary")}">${escapeHtml(f.severity)}</span></td>
+      <td><strong>${escapeHtml(f.device_name)}</strong><div class="text-muted small">${escapeHtml(f.device_model || "")}</div></td>
+      <td>${escapeHtml(f.device_ip || "—")}</td>
+      <td>${escapeHtml(f.category)}</td>
+      <td>
+        <div>${escapeHtml(f.title)}</div>
+        <code class="small text-muted">${escapeHtml(f.rule_id)}</code>
+        ${f.remediation ? `<div class="small text-muted mt-1">${escapeHtml(f.remediation)}</div>` : ""}
+      </td>
+      <td class="text-sm"><code>${escapeHtml(f.evidence || "—")}</code>${f.line_number ? ` <span class="text-muted">:${f.line_number}</span>` : ""}</td>
+      <td class="text-nowrap">
+        ${f.acknowledged
+    ? `<span class="${badgeCls("success", "badge-tag")}">ack</span>`
+    : (can("security:run")
+      ? `<button type="button" class="btn btn-outline-success btn-sm btn-security-ack" data-id="${f.id}" title="Подтвердить"><i class="fas fa-check"></i></button>`
+      : "")}
+      </td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".btn-security-ack").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      try {
+        await api(`/api/security/audit/findings/${btn.dataset.id}/ack`, {
+          method: "POST",
+          body: JSON.stringify({ acknowledged: true }),
+        });
+        loadSecurityAudit({ keepOffset: true });
+      } catch (e) {
+        showAlert("security-alert", e.message, "error");
+      }
+    });
+  });
+}
+
+function updateSecurityFindingsPager(total, offset, limit) {
+  const pager = qs("#security-findings-pager");
+  const meta = qs("#security-findings-pager-meta");
+  const prev = qs("#btn-security-findings-prev");
+  const next = qs("#btn-security-findings-next");
+  if (!pager) return;
+  if (!total) {
+    pager.style.display = "none";
+    return;
+  }
+  pager.style.display = "";
+  const from = offset + 1;
+  const to = Math.min(offset + limit, total);
+  if (meta) meta.textContent = `Показано ${from}–${to} из ${total}`;
+  if (prev) prev.disabled = offset <= 0;
+  if (next) next.disabled = offset + limit >= total;
+}
+
+async function loadSecurityAudit(opts = {}) {
+  const loadSeq = ++securityAuditLoadSeq;
+  if (!opts.keepOffset) securityFindingsOffset = 0;
+  const alertEl = qs("#security-alert");
+  if (alertEl) alertEl.innerHTML = "";
+
   try {
-    const data = await api(`/api/security/audit/summary${securityFilterQuery()}`);
+    const [data, findingsData] = await Promise.all([
+      api(`/api/security/audit/summary${securityFilterQuery()}`),
+      api(`/api/security/audit/findings${securityFindingsQuery(securityFindingsOffset)}`),
+    ]);
+    if (loadSeq !== securityAuditLoadSeq) return;
+
     const counts = data.counts || {};
     const run = data.run;
     qs("#security-stats").innerHTML = `
@@ -1488,53 +1574,16 @@ async function loadSecurityAudit() {
       }
     }
 
-    const tbody = qs("#security-findings-table");
-    const empty = qs("#security-findings-empty");
-    const findings = data.findings || [];
-    if (!tbody) return;
-    if (!findings.length) {
-      tbody.innerHTML = "";
-      if (empty) empty.style.display = "";
-    } else {
-      if (empty) empty.style.display = "none";
-      tbody.innerHTML = findings.map(f => `
-        <tr data-finding-id="${f.id}">
-          <td><span class="${badgeCls(SECURITY_SEVERITY_BADGE[f.severity] || "secondary")}">${escapeHtml(f.severity)}</span></td>
-          <td><strong>${escapeHtml(f.device_name)}</strong><div class="text-muted small">${escapeHtml(f.device_model || "")}</div></td>
-          <td>${escapeHtml(f.device_ip || "—")}</td>
-          <td>${escapeHtml(f.category)}</td>
-          <td>
-            <div>${escapeHtml(f.title)}</div>
-            <code class="small text-muted">${escapeHtml(f.rule_id)}</code>
-            ${f.remediation ? `<div class="small text-muted mt-1">${escapeHtml(f.remediation)}</div>` : ""}
-          </td>
-          <td class="text-sm"><code>${escapeHtml(f.evidence || "—")}</code>${f.line_number ? ` <span class="text-muted">:${f.line_number}</span>` : ""}</td>
-          <td class="text-nowrap">
-            ${f.acknowledged
-    ? `<span class="${badgeCls("success", "badge-tag")}">ack</span>`
-    : (can("security:run")
-      ? `<button type="button" class="btn btn-outline-success btn-sm btn-security-ack" data-id="${f.id}" title="Подтвердить"><i class="fas fa-check"></i></button>`
-      : "")}
-          </td>
-        </tr>
-      `).join("");
-
-      tbody.querySelectorAll(".btn-security-ack").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          try {
-            await api(`/api/security/audit/findings/${btn.dataset.id}/ack`, {
-              method: "POST",
-              body: JSON.stringify({ acknowledged: true }),
-            });
-            loadSecurityAudit();
-          } catch (e) {
-            showAlert("security-alert", e.message, "error");
-          }
-        });
-      });
-    }
+    const findings = findingsData.items || [];
+    renderSecurityFindingsRows(findings);
+    updateSecurityFindingsPager(
+      findingsData.total || 0,
+      findingsData.offset || 0,
+      findingsData.limit || 50,
+    );
 
     const runsData = await api("/api/security/audit/runs?limit=10").catch(() => ({ runs: [] }));
+    if (loadSeq !== securityAuditLoadSeq) return;
     const runsBody = qs("#security-runs-table");
     if (runsBody) {
       const runs = runsData.runs || [];
@@ -1551,7 +1600,8 @@ async function loadSecurityAudit() {
         : `<tr><td colspan="6" class="text-muted text-center">Нет запусков</td></tr>`;
     }
   } catch (e) {
-    showAlert("security-alert", e.message, "error");
+    if (loadSeq !== securityAuditLoadSeq) return;
+    showAlert("security-alert", e.message || "Ошибка загрузки аудита", "error");
   }
 }
 
@@ -4382,6 +4432,14 @@ function bindEvents() {
   qs("#btn-security-refresh")?.addEventListener("click", () => loadSecurityAudit());
   qs("#security-severity-filter")?.addEventListener("change", () => loadSecurityAudit());
   qs("#security-ack-filter")?.addEventListener("change", () => loadSecurityAudit());
+  qs("#btn-security-findings-prev")?.addEventListener("click", () => {
+    securityFindingsOffset = Math.max(0, securityFindingsOffset - 50);
+    loadSecurityAudit({ keepOffset: true });
+  });
+  qs("#btn-security-findings-next")?.addEventListener("click", () => {
+    securityFindingsOffset += 50;
+    loadSecurityAudit({ keepOffset: true });
+  });
   qs("#btn-security-run")?.addEventListener("click", runSecurityAudit);
   qs("#btn-security-export")?.addEventListener("click", exportSecurityCsv);
   qs("#btn-test-notify-report")?.addEventListener("click", () => testBackupNotify("report"));

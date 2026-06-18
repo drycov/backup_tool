@@ -197,6 +197,73 @@ def _allowed_device_names(user) -> set[str] | None:
     return {d.name for d in filter_devices(user, load_inventory().devices)}
 
 
+def _apply_finding_filters(
+    qs,
+    *,
+    severity: str = "",
+    category: str = "",
+    device: str = "",
+    acknowledged: str | None = None,
+):
+    if severity:
+        qs = qs.filter(severity=severity.lower())
+    if category:
+        qs = qs.filter(category=category.lower())
+    if device:
+        qs = qs.filter(device_name=device)
+    if acknowledged == "true":
+        qs = qs.filter(acknowledged=True)
+    elif acknowledged == "false":
+        qs = qs.filter(acknowledged=False)
+    return qs
+
+
+def _scoped_findings_qs(
+    *,
+    user=None,
+    run: ConfigAuditRun | None = None,
+    severity: str = "",
+    category: str = "",
+    device: str = "",
+    acknowledged: str | None = None,
+) -> tuple[ConfigAuditRun | None, Any]:
+    if run is None:
+        run = get_latest_run()
+    if not run:
+        return None, None
+
+    allowed_names = _allowed_device_names(user)
+    scoped_qs = ConfigFinding.objects.filter(run=run)
+    if allowed_names is not None:
+        scoped_qs = scoped_qs.filter(device_name__in=allowed_names)
+
+    qs = _apply_finding_filters(
+        scoped_qs,
+        severity=severity,
+        category=category,
+        device=device,
+        acknowledged=acknowledged,
+    )
+    return run, qs
+
+
+def _scoped_findings_base_qs(
+    *,
+    user=None,
+    run: ConfigAuditRun | None = None,
+) -> tuple[ConfigAuditRun | None, Any]:
+    if run is None:
+        run = get_latest_run()
+    if not run:
+        return None, None
+
+    allowed_names = _allowed_device_names(user)
+    scoped_qs = ConfigFinding.objects.filter(run=run)
+    if allowed_names is not None:
+        scoped_qs = scoped_qs.filter(device_name__in=allowed_names)
+    return run, scoped_qs
+
+
 def compute_security_summary(
     *,
     severity: str = "",
@@ -204,9 +271,12 @@ def compute_security_summary(
     device: str = "",
     acknowledged: str | None = None,
     user=None,
+    include_findings: bool = False,
+    findings_limit: int = 100,
+    findings_offset: int = 0,
 ) -> dict[str, Any]:
-    run = get_latest_run()
-    if not run:
+    run, scoped_qs = _scoped_findings_base_qs(user=user)
+    if not run or scoped_qs is None:
         return {
             "run": None,
             "generated_at": _dt_iso(datetime.now(timezone.utc)),
@@ -218,24 +288,13 @@ def compute_security_summary(
             "rules_total": len(_all_rule_ids()),
         }
 
-    allowed_names = _allowed_device_names(user)
-    scoped_qs = ConfigFinding.objects.filter(run=run)
-    if allowed_names is not None:
-        scoped_qs = scoped_qs.filter(device_name__in=allowed_names)
-
-    qs = scoped_qs
-    if severity:
-        qs = qs.filter(severity=severity.lower())
-    if category:
-        qs = qs.filter(category=category.lower())
-    if device:
-        qs = qs.filter(device_name=device)
-    if acknowledged == "true":
-        qs = qs.filter(acknowledged=True)
-    elif acknowledged == "false":
-        qs = qs.filter(acknowledged=False)
-
-    findings = list(qs.order_by("severity", "device_name")[:500])
+    filtered_qs = _apply_finding_filters(
+        scoped_qs,
+        severity=severity,
+        category=category,
+        device=device,
+        acknowledged=acknowledged,
+    )
 
     counts = {s: 0 for s in SEVERITY_ORDER}
     for row in scoped_qs.values("severity").annotate(n=Count("id")):
@@ -249,7 +308,7 @@ def compute_security_summary(
 
     devices_with_findings = scoped_qs.values("device_name").distinct().count()
 
-    return {
+    result: dict[str, Any] = {
         "run": _run_to_dict(run),
         "generated_at": _dt_iso(run.finished_at or run.started_at),
         "devices_scanned": run.devices_scanned,
@@ -257,8 +316,56 @@ def compute_security_summary(
         "findings_total": sum(counts.values()),
         "counts": counts,
         "by_category": by_category,
-        "findings": [_finding_to_dict(f) for f in findings],
         "rules_total": len(_all_rule_ids()),
+    }
+
+    if include_findings:
+        limit = max(1, min(int(findings_limit), 500))
+        offset = max(0, int(findings_offset))
+        rows = filtered_qs.order_by("severity", "device_name", "id")[offset : offset + limit]
+        result["findings"] = [_finding_to_dict(f) for f in rows]
+    else:
+        result["findings"] = []
+
+    return result
+
+
+def list_security_findings(
+    *,
+    severity: str = "",
+    category: str = "",
+    device: str = "",
+    acknowledged: str | None = None,
+    user=None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    run, qs = _scoped_findings_qs(
+        user=user,
+        severity=severity,
+        category=category,
+        device=device,
+        acknowledged=acknowledged,
+    )
+    if not run or qs is None:
+        return {
+            "run_id": None,
+            "items": [],
+            "total": 0,
+            "limit": max(1, min(int(limit), 200)),
+            "offset": max(0, int(offset)),
+        }
+
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    total = qs.count()
+    rows = qs.order_by("severity", "device_name", "id")[offset : offset + limit]
+    return {
+        "run_id": run.id,
+        "items": [_finding_to_dict(f) for f in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 
@@ -267,8 +374,12 @@ def list_audit_runs(*, limit: int = 20) -> list[dict[str, Any]]:
     return [_run_to_dict(r) for r in ConfigAuditRun.objects.order_by("-started_at")[:limit]]
 
 
-def findings_to_csv(summary: dict[str, Any] | None = None) -> str:
-    data = summary or compute_security_summary()
+def findings_to_csv(summary: dict[str, Any] | None = None, *, user=None, **filters) -> str:
+    if summary and summary.get("findings"):
+        items = summary["findings"]
+    else:
+        _, qs = _scoped_findings_qs(user=user, **filters)
+        items = [_finding_to_dict(row) for row in (qs or []).order_by("severity", "device_name", "id")]
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
@@ -288,7 +399,7 @@ def findings_to_csv(summary: dict[str, Any] | None = None) -> str:
             "acknowledged",
         ]
     )
-    for item in data.get("findings") or []:
+    for item in items:
         writer.writerow(
             [
                 item.get("device_name", ""),

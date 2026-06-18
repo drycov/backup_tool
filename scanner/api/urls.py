@@ -128,6 +128,7 @@ urlpatterns = [
     path("api/audit", views.audit_events_view, name="audit-events"),
     path("api/audit/export", views.audit_export_view, name="audit-export"),
     path("api/security/audit/summary", views.security_audit_summary_view, name="security-audit-summary"),
+    path("api/security/audit/findings", views.security_audit_findings_view, name="security-audit-findings"),
     path("api/security/audit/runs", views.security_audit_runs_view, name="security-audit-runs"),
     path("api/security/audit/export", views.security_audit_export_view, name="security-audit-export"),
     path("api/security/audit/run", views.security_audit_run_view, name="security-audit-run"),
