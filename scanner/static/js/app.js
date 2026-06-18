@@ -226,7 +226,7 @@ function showLogin() {
   document.body.classList.add("login-page");
   document.body.classList.remove("layout-fixed", "sidebar-expand-lg", "bg-body-tertiary");
   qs("#login-screen").style.display = "block";
-  qs("#app-layout").style.display = "none";
+  qs("#app-layout").classList.add("d-none");
   currentUser = null;
 }
 
@@ -234,7 +234,7 @@ function showApp() {
   document.body.classList.remove("login-page");
   document.body.classList.add("layout-fixed", "sidebar-expand-lg", "bg-body-tertiary");
   qs("#login-screen").style.display = "none";
-  qs("#app-layout").style.display = "block";
+  qs("#app-layout").classList.remove("d-none");
   applyPermissions();
   updateNavbarUser();
   const iframe = qs("#oxidized-iframe");
@@ -364,7 +364,7 @@ function smallBox(value, label, bg = "bg-info", icon = "fa-server", valueClass =
           <h3${h3Class}>${value}</h3>
           <p>${label}</p>
         </div>
-        <div class="icon"><i class="fas ${icon}"></i></div>
+        <div class="small-box-icon"><i class="fas ${icon}"></i></div>
       </div>
     </div>
   `;
