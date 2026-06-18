@@ -215,9 +215,48 @@
 
           <!-- Dashboard -->
           <div id="page-dashboard" class="page">
-            <div class="row g-3" id="dashboard-stats"></div>
-            <div class="row g-3" id="dashboard-compliance-stats"></div>
-            <div class="row g-3 mb-3" id="dashboard-compliance-by-site"></div>
+            <div id="dashboard-alert" class="page-alert mb-2"></div>
+            <div id="dashboard-warnings" class="mb-2"></div>
+            <div class="card card-outline card-secondary mb-3">
+              <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
+                <h3 class="card-title mb-0">Статистика</h3>
+                <span class="badge text-bg-light ms-auto" id="dashboard-stats-updated">—</span>
+              </div>
+              <div class="card-body p-0 table-responsive">
+                <table class="table table-sm table-striped table-hover dashboard-stats-table mb-0">
+                  <thead>
+                    <tr>
+                      <th class="dashboard-stats-th-group">Раздел</th>
+                      <th>Показатель</th>
+                      <th class="text-end dashboard-stats-th-value">Значение</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-stats-table-body">
+                    <tr><td colspan="3" class="text-muted text-center py-3">Загрузка…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card card-outline card-secondary mb-3 d-none" id="dashboard-compliance-by-site-card">
+              <div class="card-header py-2">
+                <h3 class="card-title mb-0">Compliance по site</h3>
+              </div>
+              <div class="card-body p-0 table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead>
+                    <tr>
+                      <th>Site</th>
+                      <th class="text-end">OK</th>
+                      <th class="text-end">Всего</th>
+                      <th class="text-end">Проблемы</th>
+                      <th class="text-end">Critical</th>
+                      <th class="text-end">Compliance</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboard-compliance-by-site-table"></tbody>
+                </table>
+              </div>
+            </div>
             <div class="row g-3">
               <div class="col-lg-7">
                 <div class="card card-outline card-success">
@@ -326,7 +365,6 @@
                 </a>
               </div>
             </div>
-            <div id="dashboard-alert" class="page-alert"></div>
             <div id="dashboard-scan-activity" class="scan-activity-panel" style="display:none;">
               <div class="card card-outline card-info">
                 <div class="card-header">
@@ -353,25 +391,40 @@
           <div id="page-inventory" class="page d-none">
             <div id="inventory-alert" class="page-alert"></div>
             <div class="card card-outline card-info" id="networks-card">
-              <div class="card-header">
-                <h3 class="card-title">Подсети для discovery</h3>
+              <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h3 class="card-title mb-0">Подсети для discovery</h3>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btn-network-modal-add" data-permission="inventory:write">
+                  <i class="fas fa-plus me-1"></i> Форма подсети
+                </button>
               </div>
               <div class="card-body">
-                <div class="row align-items-end">
-                  <div class="col-md-5 mb-2">
+                <p class="text-muted small mb-2">Быстрое добавление ниже. Для полного редактирования (gateway, окружение) — клик по строке или <i class="fas fa-edit"></i>.</p>
+                <div class="row align-items-end g-2">
+                  <div class="col-lg-3 col-md-4">
+                    <label class="form-label small mb-0" for="network-input">Подсеть (CIDR)</label>
                     <input type="text" id="network-input" class="form-control" placeholder="10.216.92.0/23">
                   </div>
-                  <div class="col-md-3 mb-2">
+                  <div class="col-lg-2 col-md-3">
+                    <label class="form-label small mb-0" for="network-group">Группа</label>
                     <select id="network-group" class="form-control group-select"></select>
                   </div>
-                  <div class="col-md-2 mb-2">
+                  <div class="col-lg-2 col-md-3">
+                    <label class="form-label small mb-0" for="network-site">Site</label>
+                    <input type="text" id="network-site" class="form-control" placeholder="dc1" list="inv-site-list">
+                  </div>
+                  <div class="col-lg-2 col-md-3">
+                    <label class="form-label small mb-0" for="network-role">Role</label>
+                    <input type="text" id="network-role" class="form-control" placeholder="core">
+                  </div>
+                  <div class="col-lg-2 col-md-4">
+                    <label class="form-label small mb-0 d-none d-lg-block">&nbsp;</label>
                     <button class="btn btn-primary w-100" id="btn-add-network" data-permission="inventory:write">Добавить</button>
                   </div>
                 </div>
                 <div class="table-responsive mt-2">
-                  <table class="table table-bordered table-striped table-sm">
+                  <table class="table table-bordered table-striped table-sm table-hover">
                     <thead>
-                      <tr><th>Подсеть</th><th>Группа</th><th>Окружение</th><th>Gateway</th><th></th></tr>
+                      <tr><th>Подсеть</th><th>Группа</th><th>Site</th><th>Role</th><th>Окружение</th><th>Gateway</th><th class="text-end" style="width:5rem;"></th></tr>
                     </thead>
                     <tbody id="networks-table"></tbody>
                   </table>
@@ -1838,9 +1891,41 @@
                   </div>
                   <div class="card-body p-0 table-responsive">
                     <table class="table table-sm table-striped mb-0" id="provision-templates-table">
-                      <thead><tr><th>slug</th><th>model</th><th></th></tr></thead>
+                      <thead><tr><th>slug</th><th>scope</th><th>model</th><th></th></tr></thead>
                       <tbody></tbody>
                     </table>
+                  </div>
+                </div>
+                <div class="card card-outline card-warning mt-3" data-permission="provision:run">
+                  <div class="card-header"><h3 class="card-title mb-0">Генерация из бэкапов</h3></div>
+                  <div class="card-body">
+                    <p class="small text-muted mb-2">Анализ конфигов Oxidized по группам и сайтам. Устройства с сильным отклонением от baseline помечаются как сложные.</p>
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="prov-gen-group" placeholder="group (все)"></div>
+                      <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="prov-gen-site" placeholder="site (все)"></div>
+                      <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="prov-gen-model" placeholder="model (все)"></div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-4"><input type="number" class="form-control form-control-sm" id="prov-gen-threshold" value="0.85" min="0.5" max="1" step="0.01" title="Порог схожести"></div>
+                      <div class="col-md-4"><input type="number" class="form-control form-control-sm" id="prov-gen-min" value="2" min="2" max="50" title="Мин. устройств в кластере"></div>
+                      <div class="col-md-4 d-flex align-items-center">
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="prov-gen-upsert" checked>
+                          <label class="form-check-label small" for="prov-gen-upsert">Обновлять существующие</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="d-flex gap-2 mb-2">
+                      <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-prov-analyze">Анализ</button>
+                      <button type="button" class="btn btn-warning btn-sm" id="btn-prov-generate">Сгенерировать шаблоны</button>
+                    </div>
+                    <div id="prov-analysis-summary" class="small text-muted mb-2">—</div>
+                    <div class="table-responsive" style="max-height:200px;overflow:auto;">
+                      <table class="table table-sm mb-0" id="provision-complex-table">
+                        <thead><tr><th>Устройство</th><th>group/site</th><th>similarity</th><th>причина</th></tr></thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
                 <div class="card card-outline card-secondary mt-3" data-permission="provision:run">
@@ -1881,11 +1966,63 @@
                     <pre class="bg-light border rounded p-2 small mb-0" id="prov-preview-output" style="max-height:320px;overflow:auto;">—</pre>
                   </div>
                 </div>
+                <div class="card card-outline card-warning mt-3" data-permission="provision:run">
+                  <div class="card-header"><h3 class="card-title mb-0">Bulk provision</h3></div>
+                  <div class="card-body">
+                    <p class="small text-muted mb-2">Применение шаблона на все устройства group/site через очередь задач.</p>
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Шаблон</label>
+                        <select id="prov-bulk-template-select" class="form-control form-control-sm"></select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">group</label>
+                        <input type="text" class="form-control form-control-sm" id="prov-bulk-group" placeholder="hex">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">site</label>
+                        <input type="text" class="form-control form-control-sm" id="prov-bulk-site" placeholder="dc1">
+                      </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-3 mb-2">
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="prov-bulk-dry-run" checked>
+                        <label class="form-check-label small" for="prov-bulk-dry-run">Dry-run</label>
+                      </div>
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="prov-bulk-exclude-complex">
+                        <label class="form-check-label small" for="prov-bulk-exclude-complex">Исключить сложные</label>
+                      </div>
+                    </div>
+                    <div id="prov-bulk-preview-summary" class="small text-muted mb-2">—</div>
+                    <div class="d-flex gap-2 mb-2">
+                      <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-prov-bulk-preview">Проверить список</button>
+                      <button type="button" class="btn btn-warning btn-sm" id="btn-prov-bulk-run">Запустить bulk</button>
+                    </div>
+                    <div class="table-responsive" style="max-height:160px;overflow:auto;">
+                      <table class="table table-sm mb-0" id="provision-bulk-targets-table">
+                        <thead><tr><th>Устройство</th><th>IP</th><th>group/site</th></tr></thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
                 <div class="card card-outline card-info mt-3">
-                  <div class="card-header"><h3 class="card-title">История запусков</h3></div>
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0">История запусков</h3>
+                  </div>
                   <div class="card-body p-0 table-responsive">
                     <table class="table table-sm mb-0" id="provision-runs-table">
                       <thead><tr><th>Время</th><th>Шаблон</th><th>Устройство</th><th>Статус</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="card card-outline card-secondary mt-3">
+                  <div class="card-header"><h3 class="card-title mb-0">Bulk-задачи</h3></div>
+                  <div class="card-body p-0 table-responsive">
+                    <table class="table table-sm mb-0" id="provision-bulk-runs-table">
+                      <thead><tr><th>Время</th><th>Шаблон</th><th>scope</th><th>Прогресс</th><th>Статус</th></tr></thead>
                       <tbody></tbody>
                     </table>
                   </div>
@@ -2144,6 +2281,58 @@
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary">Сохранить пароль</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="network-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="network-form">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title" id="network-modal-title">
+              <i class="fas fa-network-wired me-2 text-muted"></i>Редактировать подсеть
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="network-modal-cidr">Подсеть (CIDR) <span class="text-danger">*</span></label>
+              <input type="text" id="network-modal-cidr" class="form-control" placeholder="10.216.92.0/23" required>
+            </div>
+            <div class="form-group">
+              <label for="network-modal-group">Группа Oxidized</label>
+              <select id="network-modal-group" class="form-control group-select"></select>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="network-modal-site">Site</label>
+                  <input type="text" id="network-modal-site" class="form-control" placeholder="dc1" list="inv-site-list">
+                  <small class="text-muted">Назначается новым устройствам при discovery</small>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-group">
+                  <label for="network-modal-role">Role</label>
+                  <input type="text" id="network-modal-role" class="form-control" placeholder="core">
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="network-modal-environment">Окружение</label>
+              <input type="text" id="network-modal-environment" class="form-control" placeholder="production">
+            </div>
+            <div class="form-group mb-0">
+              <label for="network-modal-gateway">Gateway</label>
+              <input type="text" id="network-modal-gateway" class="form-control" placeholder="10.216.92.1">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
           </div>
         </form>
       </div>
@@ -2466,6 +2655,6 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
   <script defer src="/static/js/ui-shell.js"></script>
   <script defer src="/static/js/config-editor.js"></script>
-  <script defer src="/static/js/app.js?v=20260618-2"></script>
+  <script defer src="/static/js/app.js?v=20260618-3"></script>
 </body>
 </html>

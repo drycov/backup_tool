@@ -305,6 +305,12 @@ def _paths() -> dict:
             "get": {"tags": ["admin"], "summary": "List provision templates"},
             "post": {"tags": ["admin"], "summary": "Create provision template"},
         },
+        "/api/provisioning/templates/generate": {
+            "post": {"tags": ["admin"], "summary": "Generate provision templates from device configs"},
+        },
+        "/api/provisioning/analysis": {
+            "get": {"tags": ["admin"], "summary": "Analyze device config clusters and complex devices"},
+        },
         "/api/provisioning/templates/{id}": {
             "get": {"tags": ["admin"], "summary": "Get provision template"},
             "put": {"tags": ["admin"], "summary": "Update provision template"},
@@ -318,5 +324,14 @@ def _paths() -> dict:
         },
         "/api/provisioning/runs": {
             "get": {"tags": ["admin"], "summary": "Provision run history"},
+        },
+        "/api/provisioning/bulk": {
+            "get": {"tags": ["admin"], "summary": "List bulk provision runs or preview targets"},
+        },
+        "/api/provisioning/bulk/run": {
+            "post": {"tags": ["admin"], "summary": "Start bulk provision via task queue"},
+        },
+        "/api/provisioning/bulk/{id}": {
+            "get": {"tags": ["admin"], "summary": "Get bulk provision run status"},
         },
     }

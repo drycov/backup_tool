@@ -1,6 +1,7 @@
 const API = "";
 let inventory = null;
 let editingDeviceName = null;
+let editingNetworkKey = null;
 let oxidizedPublicUrl = "http://localhost:8888";
 let oxidizedProxyUrl = "/oxidized-proxy/nodes";
 let oxidizedEngine = "python";
@@ -630,6 +631,79 @@ function smallBox(value, label, bg = "info", icon = "fa-server", valueClass = ""
       </div>
     </div>
   `;
+}
+
+const dashboardStatsState = {
+  warningHtml: "",
+  platform: [],
+  scan: [],
+  compliance: [],
+  sites: [],
+};
+
+function dashboardStatItem(label, value, tone = "") {
+  return { label, value, tone };
+}
+
+function dashboardStatValueHtml(value, tone) {
+  if (typeof value === "string" && value.includes("<")) return value;
+  const cls = tone ? `dashboard-stat-value dashboard-stat-value--${tone}` : "dashboard-stat-value";
+  return `<span class="${cls}">${escapeHtml(String(value))}</span>`;
+}
+
+function renderDashboardStatsTable() {
+  const tbody = qs("#dashboard-stats-table-body");
+  if (!tbody) return;
+
+  const sections = [
+    { key: "platform", title: "Платформа" },
+    { key: "scan", title: "Сканирование" },
+    { key: "compliance", title: "Compliance" },
+  ];
+
+  const rows = [];
+  for (const sec of sections) {
+    const items = dashboardStatsState[sec.key] || [];
+    if (!items.length) continue;
+    items.forEach((item, idx) => {
+      rows.push(`
+        <tr>
+          <td class="dashboard-stats-group">${idx === 0 ? escapeHtml(sec.title) : ""}</td>
+          <td class="dashboard-stats-label">${escapeHtml(item.label)}</td>
+          <td class="text-end">${dashboardStatValueHtml(item.value, item.tone)}</td>
+        </tr>
+      `);
+    });
+  }
+
+  tbody.innerHTML = rows.length
+    ? rows.join("")
+    : `<tr><td colspan="3" class="text-muted text-center py-3">Нет данных</td></tr>`;
+
+  const warnEl = qs("#dashboard-warnings");
+  if (warnEl) warnEl.innerHTML = dashboardStatsState.warningHtml || "";
+
+  const siteCard = qs("#dashboard-compliance-by-site-card");
+  const siteBody = qs("#dashboard-compliance-by-site-table");
+  const sites = dashboardStatsState.sites || [];
+  if (siteCard && siteBody) {
+    if (sites.length) {
+      siteCard.classList.remove("d-none");
+      siteBody.innerHTML = sites.map(s => `
+        <tr>
+          <td><strong>${escapeHtml(s.site)}</strong></td>
+          <td class="text-end">${s.ok}</td>
+          <td class="text-end">${s.total}</td>
+          <td class="text-end">${s.failed}</td>
+          <td class="text-end">${s.critical}</td>
+          <td class="text-end"><span class="${badgeCls(s.compliance_pct >= 90 ? "success" : s.compliance_pct >= 70 ? "warning" : "danger")}">${s.compliance_pct}%</span></td>
+        </tr>
+      `).join("");
+    } else {
+      siteCard.classList.add("d-none");
+      siteBody.innerHTML = "";
+    }
+  }
 }
 
 function formatDate(d, short = false) {
@@ -1349,38 +1423,39 @@ async function loadHealth(opts = {}) {
       api("/api/scan/trends?days=30").catch(() => ({ points: [] })),
     ]);
 
-    let warningHtml = "";
+    dashboardStatsState.warningHtml = "";
     if (oxHealth.models === "python-fallback") {
-      warningHtml = `
-        <div class="col-12 mb-2">
-          <div class="alert alert-warning py-2 mb-0">
-            <i class="fas fa-exclamation-triangle me-1"></i>
-            Ruby bridge недоступен — без gem доступны Python-модели: ${nativeModelsHintHtml()}. Остальные — через Ruby Oxidized.
-          </div>
+      dashboardStatsState.warningHtml = `
+        <div class="alert alert-warning py-2 mb-0">
+          <i class="fas fa-exclamation-triangle me-1"></i>
+          Ruby bridge недоступен — без gem доступны Python-модели: ${nativeModelsHintHtml()}. Остальные — через Ruby Oxidized.
         </div>`;
     }
 
     const latest = trends.latest || {};
-    const statsEl = qs("#dashboard-stats");
-    if (statsEl) {
-      statsEl.innerHTML = `
-      ${warningHtml}
-      <div class="col-12 stats-row">
-        <div class="row">
-          ${smallBox(health.inventory_devices, "Устройств", "bg-info", "fa-hdd")}
-          ${smallBox(health.networks, "Подсетей", "bg-secondary", "fa-network-wired")}
-          ${smallBox(oxHealth.reachable ? "OK" : "OFF", "Oxidized", oxHealth.reachable ? "bg-success" : "bg-danger", "fa-database")}
-          ${smallBox(oxHealth.nodes_count || 0, "Узлов Oxidized", "bg-primary", "fa-server")}
-          ${smallBox(latest.online ?? "—", "Online (scan)", "bg-success", "fa-check-circle")}
-          ${smallBox(latest.offline ?? "—", "Offline (scan)", "bg-danger", "fa-times-circle")}
-          ${smallBox(formatDate(health.last_scan), "Последний scan", "bg-warning", "fa-clock", "text-sm")}
-        </div>
-      </div>
-    `;
-    }
+    dashboardStatsState.platform = [
+      dashboardStatItem("Устройств в inventory", health.inventory_devices ?? "—"),
+      dashboardStatItem("Подсетей", health.networks ?? "—"),
+      dashboardStatItem(
+        "Oxidized",
+        oxHealth.reachable ? "OK" : "OFF",
+        oxHealth.reachable ? "success" : "danger",
+      ),
+      dashboardStatItem("Узлов Oxidized", oxHealth.nodes_count || 0),
+    ];
+    dashboardStatsState.scan = [
+      dashboardStatItem("Online (последний scan)", latest.online ?? "—", "success"),
+      dashboardStatItem("Offline (последний scan)", latest.offline ?? "—", "danger"),
+      dashboardStatItem("Последний scan", formatDate(health.last_scan) || "—"),
+    ];
+
+    const updatedEl = qs("#dashboard-stats-updated");
+    if (updatedEl) updatedEl.textContent = formatDate(new Date().toISOString());
+
+    renderDashboardStatsTable();
     renderScanTrends(trends);
     if (includeCompliance) {
-      loadComplianceDashboard();
+      await loadComplianceDashboard();
     }
   } catch (e) {
     showAlert("dashboard-alert", e.message, "error");
@@ -1460,48 +1535,21 @@ async function loadComplianceDashboard() {
   if (!compliance) return;
 
   const counts = compliance.counts || {};
-  qs("#dashboard-compliance-stats").innerHTML = `
-    <div class="col-12 stats-row">
-      <div class="row">
-        ${smallBox(`${compliance.compliance_pct}%`, "Compliance", compliance.compliance_pct >= 90 ? "bg-success" : "bg-warning", "fa-shield-alt")}
-        ${smallBox(counts.ok || 0, "OK", "bg-success", "fa-check")}
-        ${smallBox(counts.failed || 0, "Ошибки бэкапа", "bg-danger", "fa-exclamation-triangle")}
-        ${smallBox(counts.overdue || 0, "Просрочено", "bg-warning", "fa-hourglass-half")}
-        ${smallBox(counts.stale || 0, `Stale >${compliance.stale_days_threshold}д`, "bg-orange", "fa-pause-circle")}
-        ${smallBox(counts.unreachable || 0, "Offline", "bg-dark", "fa-unlink")}
-        ${smallBox(counts.never || 0, "Нет бэкапа", "bg-secondary", "fa-question-circle")}
-      </div>
-    </div>
-  `;
+  const pct = compliance.compliance_pct ?? 0;
+  dashboardStatsState.compliance = [
+    dashboardStatItem("Compliance", `${pct}%`, pct >= 90 ? "success" : pct >= 70 ? "warning" : "danger"),
+    dashboardStatItem("OK", counts.ok || 0, "success"),
+    dashboardStatItem("Ошибки бэкапа", counts.failed || 0, counts.failed ? "danger" : ""),
+    dashboardStatItem("Просрочено", counts.overdue || 0, counts.overdue ? "warning" : ""),
+    dashboardStatItem(`Stale >${compliance.stale_days_threshold}д`, counts.stale || 0, counts.stale ? "warning" : ""),
+    dashboardStatItem("Offline", counts.unreachable || 0, counts.unreachable ? "danger" : ""),
+    dashboardStatItem("Нет бэкапа", counts.never || 0, counts.never ? "secondary" : ""),
+  ];
+  dashboardStatsState.sites = complianceBySiteFromNodes(compliance.nodes);
+  renderDashboardStatsTable();
 
   const genEl = qs("#compliance-generated-at");
   if (genEl) genEl.textContent = formatDate(compliance.generated_at);
-
-  const bySiteEl = qs("#dashboard-compliance-by-site");
-  if (bySiteEl) {
-    const sites = complianceBySiteFromNodes(compliance.nodes);
-    if (sites.length) {
-      bySiteEl.innerHTML = `
-        <div class="col-12">
-          <h6 class="text-muted mb-2">Compliance по site</h6>
-          <div class="row g-2">
-            ${sites.map(s => `
-              <div class="col-md-3 col-sm-6">
-                <div class="card card-outline card-${s.compliance_pct >= 90 ? "success" : s.compliance_pct >= 70 ? "warning" : "danger"} mb-0">
-                  <div class="card-body py-2 px-3">
-                    <div class="fw-semibold text-truncate" title="${escapeHtml(s.site)}">${escapeHtml(s.site)}</div>
-                    <div class="small text-muted">${s.ok}/${s.total} OK · ${s.failed} проблем · ${s.critical} critical</div>
-                    <div class="fs-5">${s.compliance_pct}%</div>
-                  </div>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-        </div>`;
-    } else {
-      bySiteEl.innerHTML = "";
-    }
-  }
 
   const tbody = qs("#compliance-table");
   const empty = qs("#compliance-empty");
@@ -1727,13 +1775,15 @@ let provisionTemplatesCache = [];
 
 async function loadProvisionPage() {
   try {
-    const [tplRes, runsRes] = await Promise.all([
+    const [tplRes, runsRes, bulkRes] = await Promise.all([
       api("/api/provisioning/templates"),
       api("/api/provisioning/runs?limit=30"),
+      api("/api/provisioning/bulk?limit=20"),
     ]);
     provisionTemplatesCache = tplRes.items || [];
     renderProvisionTemplates(provisionTemplatesCache);
     renderProvisionRuns(runsRes.items || []);
+    renderProvisionBulkRuns(bulkRes.items || []);
     fillProvisionSelects();
   } catch (e) {
     showAlert("provision-alert", e.message, "error");
@@ -1744,18 +1794,30 @@ function renderProvisionTemplates(rows) {
   const tbody = qs("#provision-templates-table tbody");
   if (!tbody) return;
   if (!rows?.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Нет шаблонов</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="text-muted">Нет шаблонов</td></tr>';
     return;
   }
-  tbody.innerHTML = rows.map(t => `
+  tbody.innerHTML = rows.map(t => {
+    const scope = [t.scope_group, t.scope_site].filter(Boolean).join(" / ") || "—";
+    const srcBadge = t.source === "generated"
+      ? '<span class="badge badge-warning ml-1">auto</span>'
+      : "";
+    const complexCount = (t.meta?.complex_devices || []).length;
+    const complexBadge = complexCount
+      ? `<span class="badge badge-danger ml-1" title="сложные устройства">${complexCount}</span>`
+      : "";
+    return `
     <tr>
-      <td><code>${escapeHtml(t.slug)}</code><div class="small text-muted">${escapeHtml(t.name)}</div></td>
+      <td><code>${escapeHtml(t.slug)}</code>${srcBadge}${complexBadge}
+        <div class="small text-muted">${escapeHtml(t.name)}</div></td>
+      <td class="small">${escapeHtml(scope)}</td>
       <td>${escapeHtml(t.model)}</td>
       <td class="text-nowrap">
         <button type="button" class="btn btn-link btn-sm p-0 btn-prov-edit" data-id="${t.id}">edit</button>
         ${can("provision:run") ? `<button type="button" class="btn btn-link btn-sm text-danger p-0 btn-prov-del" data-id="${t.id}">del</button>` : ""}
       </td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   tbody.querySelectorAll(".btn-prov-edit").forEach(btn => {
     btn.addEventListener("click", () => {
       const t = provisionTemplatesCache.find(x => String(x.id) === btn.dataset.id);
@@ -1796,21 +1858,196 @@ function renderProvisionRuns(rows) {
     </tr>`).join("");
 }
 
+function provisionGenParams() {
+  return {
+    group: qs("#prov-gen-group")?.value?.trim() || "",
+    site: qs("#prov-gen-site")?.value?.trim() || "",
+    model: qs("#prov-gen-model")?.value?.trim() || "",
+    threshold: parseFloat(qs("#prov-gen-threshold")?.value || "0.85"),
+    min_devices: parseInt(qs("#prov-gen-min")?.value || "2", 10),
+  };
+}
+
+function renderProvisionComplexDevices(items) {
+  const tbody = qs("#provision-complex-table tbody");
+  if (!tbody) return;
+  if (!items?.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-muted">Сложных устройств не найдено</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(d => `
+    <tr>
+      <td><code>${escapeHtml(d.name)}</code></td>
+      <td class="small">${escapeHtml(d.group || "")} / ${escapeHtml(d.site || "")}</td>
+      <td>${d.similarity != null ? (d.similarity * 100).toFixed(0) + "%" : "—"}</td>
+      <td class="small text-muted">${escapeHtml(d.reason || "")}</td>
+    </tr>`).join("");
+}
+
+async function provisionAnalyze() {
+  const p = provisionGenParams();
+  const q = new URLSearchParams();
+  if (p.group) q.set("group", p.group);
+  if (p.site) q.set("site", p.site);
+  if (p.model) q.set("model", p.model);
+  q.set("threshold", String(p.threshold));
+  q.set("min_devices", String(p.min_devices));
+  const res = await api(`/api/provisioning/analysis?${q}`);
+  const clusters = res.clusters || [];
+  const ready = clusters.filter(c => c.template_body && !c.skipped_reason);
+  const skipped = clusters.filter(c => c.skipped_reason);
+  const summaryEl = qs("#prov-analysis-summary");
+  if (summaryEl) {
+    summaryEl.textContent =
+      `Кластеров: ${clusters.length}, готовых к шаблону: ${ready.length}, пропущено: ${skipped.length}, сложных устройств: ${(res.complex_devices || []).length}`;
+  }
+  renderProvisionComplexDevices(res.complex_devices || []);
+  return res;
+}
+
+async function provisionGenerateFromConfigs() {
+  const p = provisionGenParams();
+  const upsert = qs("#prov-gen-upsert")?.checked !== false;
+  const res = await api("/api/provisioning/templates/generate", {
+    method: "POST",
+    body: JSON.stringify({
+      group: p.group,
+      site: p.site,
+      model: p.model,
+      complexity_threshold: p.threshold,
+      min_devices: p.min_devices,
+      upsert,
+    }),
+  });
+  const created = (res.created || []).length;
+  const updated = (res.updated || []).length;
+  showAlert(
+    "provision-alert",
+    `Создано: ${created}, обновлено: ${updated}, пропущено: ${(res.skipped || []).length}`,
+    "success"
+  );
+  renderProvisionComplexDevices(
+    (res.clusters || []).flatMap(c =>
+      (c.complex_devices || []).map(d => ({
+        ...d,
+        group: c.group,
+        site: c.site,
+      }))
+    )
+  );
+  loadProvisionPage();
+}
+
 function fillProvisionSelects() {
   const tplSel = qs("#prov-template-select");
+  const bulkTplSel = qs("#prov-bulk-template-select");
   const devSel = qs("#prov-device-select");
-  if (tplSel) {
-    tplSel.innerHTML = provisionTemplatesCache
-      .filter(t => t.is_active !== false)
-      .map(t => `<option value="${t.id}">${escapeHtml(t.slug)} (${escapeHtml(t.model)})</option>`)
-      .join("");
-  }
+  const tplOptions = provisionTemplatesCache
+    .filter(t => t.is_active !== false)
+    .map(t => `<option value="${t.id}">${escapeHtml(t.slug)} (${escapeHtml(t.model)})</option>`)
+    .join("");
+  if (tplSel) tplSel.innerHTML = tplOptions;
+  if (bulkTplSel) bulkTplSel.innerHTML = tplOptions;
   if (devSel && inventory?.devices) {
     devSel.innerHTML = inventory.devices
       .filter(d => d.enabled)
       .map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.ip)})</option>`)
       .join("");
   }
+}
+
+function provisionBulkParams() {
+  return {
+    template_id: parseInt(qs("#prov-bulk-template-select")?.value || "0", 10),
+    group: qs("#prov-bulk-group")?.value?.trim() || "",
+    site: qs("#prov-bulk-site")?.value?.trim() || "",
+    dry_run: qs("#prov-bulk-dry-run")?.checked !== false,
+    exclude_complex: qs("#prov-bulk-exclude-complex")?.checked === true,
+  };
+}
+
+function renderProvisionBulkTargets(devices) {
+  const tbody = qs("#provision-bulk-targets-table tbody");
+  if (!tbody) return;
+  if (!devices?.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Нет устройств</td></tr>';
+    return;
+  }
+  tbody.innerHTML = devices.map(d => `
+    <tr>
+      <td><code>${escapeHtml(d.name)}</code></td>
+      <td class="small">${escapeHtml(d.ip || "")}</td>
+      <td class="small">${escapeHtml(d.group || "")} / ${escapeHtml(d.site || "")}</td>
+    </tr>`).join("");
+}
+
+function renderProvisionBulkRuns(rows) {
+  const tbody = qs("#provision-bulk-runs-table tbody");
+  if (!tbody) return;
+  if (!rows?.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Нет bulk-задач</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const scope = [r.scope_group, r.scope_site].filter(Boolean).join(" / ") || "—";
+    const progress = `${r.devices_completed || 0}/${r.devices_total || 0}`;
+    const statusCls = r.status === "completed" ? "success" : r.status === "failed" ? "danger" : "secondary";
+    return `
+    <tr>
+      <td class="small text-nowrap">${escapeHtml((r.created_at || "").replace("T", " ").slice(0, 19))}</td>
+      <td><code>${escapeHtml(r.template_slug || "—")}</code>${r.dry_run ? ' <span class="badge badge-secondary">dry</span>' : ""}</td>
+      <td class="small">${escapeHtml(scope)}</td>
+      <td>${escapeHtml(progress)}${r.devices_failed ? ` <span class="text-danger">(${r.devices_failed} err)</span>` : ""}</td>
+      <td><span class="${badgeCls(statusCls)}">${escapeHtml(r.status)}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+async function provisionBulkPreview() {
+  const p = provisionBulkParams();
+  if (!p.template_id) throw new Error("Выберите шаблон");
+  if (!p.group && !p.site) throw new Error("Укажите group или site");
+  const q = new URLSearchParams({
+    action: "preview",
+    template_id: String(p.template_id),
+    exclude_complex: String(p.exclude_complex),
+  });
+  if (p.group) q.set("group", p.group);
+  if (p.site) q.set("site", p.site);
+  const res = await api(`/api/provisioning/bulk?${q}`);
+  const summaryEl = qs("#prov-bulk-preview-summary");
+  if (summaryEl) {
+    summaryEl.textContent = `Устройств: ${res.device_count}${res.skipped_complex?.length ? `, исключено сложных: ${res.skipped_complex.length}` : ""}`;
+  }
+  renderProvisionBulkTargets(res.devices || []);
+  return res;
+}
+
+async function provisionBulkRun() {
+  const p = provisionBulkParams();
+  if (!p.template_id) throw new Error("Выберите шаблон");
+  if (!p.group && !p.site) throw new Error("Укажите group или site");
+  if (!p.dry_run && !confirm(`Применить шаблон на группу ${p.group || "*"} / site ${p.site || "*"}?`)) return;
+  const res = await api("/api/provisioning/bulk/run", {
+    method: "POST",
+    body: JSON.stringify({
+      template_id: p.template_id,
+      group: p.group,
+      site: p.site,
+      dry_run: p.dry_run,
+      exclude_complex: p.exclude_complex,
+      async: true,
+    }),
+  });
+  showAlert(
+    "provision-alert",
+    res.task_id
+      ? `Bulk поставлен в очередь (#${res.id}, ${res.devices_total} устройств)`
+      : `Bulk завершён: ${res.devices_completed}/${res.devices_total}`,
+    "success"
+  );
+  loadProvisionPage();
+  return res;
 }
 
 async function provisionPreview() {
@@ -2011,38 +2248,128 @@ function renderNetworksTable() {
   const networks = inventory?.networks || [];
   const query = globalSearchQuery;
   const filtered = networks.filter(n =>
-    matchesSearch([n.network, n.group_name, n.environment_name, n.gateway], query)
+    matchesSearch([n.network, n.group_name, n.site, n.role, n.environment_name, n.gateway], query)
   );
 
   if (!networks.length) {
-    netsTable.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Нет подсетей</td></tr>`;
+    netsTable.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Нет подсетей</td></tr>`;
     return;
   }
   if (!filtered.length) {
-    netsTable.innerHTML = searchEmptyRow(5, query);
+    netsTable.innerHTML = searchEmptyRow(7, query);
     return;
   }
 
-  netsTable.innerHTML = filtered.map(n => `
-    <tr>
-      <td>${escapeHtml(n.network)}</td>
+  const canWrite = can("inventory:write");
+  const canEdit = can("inventory:write") || can("inventory:devices");
+
+  netsTable.innerHTML = filtered.map(n => {
+    const netKey = encodeURIComponent(n.network);
+    return `
+    <tr data-network="${netKey}" class="${canEdit ? "network-row-editable" : ""}" title="${canEdit ? "Нажмите для редактирования" : ""}">
+      <td><code class="network-cidr-link">${escapeHtml(n.network)}</code></td>
       <td>${escapeHtml(n.group_name)}</td>
+      <td>${escapeHtml(n.site || "—")}</td>
+      <td>${escapeHtml(n.role || "—")}</td>
       <td>${escapeHtml(n.environment_name || "—")}</td>
       <td>${escapeHtml(n.gateway || "—")}</td>
-      <td>
-        ${can("inventory:write") ? `<button class="btn btn-danger btn-sm btn-remove-network" data-network="${escapeHtml(n.network)}"><i class="fas fa-trash"></i></button>` : ""}
+      <td class="text-nowrap text-end">
+        ${canEdit ? `<button type="button" class="btn btn-primary btn-sm btn-edit-network" data-network="${netKey}" title="Изменить"><i class="fas fa-edit"></i></button>` : ""}
+        ${canWrite ? `<button type="button" class="btn btn-danger btn-sm btn-remove-network" data-network="${netKey}" title="Удалить"><i class="fas fa-trash"></i></button>` : ""}
       </td>
-    </tr>
-  `).join("");
+    </tr>`;
+  }).join("");
+
+  function networkKeyFromEl(el) {
+    const raw = el?.dataset?.network;
+    return raw ? decodeURIComponent(raw) : "";
+  }
+
+  netsTable.querySelectorAll("tr[data-network]").forEach(row => {
+    row.addEventListener("click", e => {
+      if (!canEdit) return;
+      if (e.target.closest("button")) return;
+      openNetworkModal(networkKeyFromEl(row));
+    });
+  });
+
+  netsTable.querySelectorAll(".btn-edit-network").forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.stopPropagation();
+      openNetworkModal(networkKeyFromEl(btn));
+    });
+  });
 
   netsTable.querySelectorAll(".btn-remove-network").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const network = btn.dataset.network;
+    btn.addEventListener("click", async e => {
+      e.stopPropagation();
+      const network = networkKeyFromEl(btn);
+      if (!confirm(`Удалить подсеть ${network}?`)) return;
       inventory.networks = inventory.networks.filter(n => n.network !== network);
       await api("/inventory", { method: "PUT", body: JSON.stringify(inventory) });
       loadInventory();
     });
   });
+}
+
+function openNetworkModal(networkKey = null) {
+  if (networkKey && !(can("inventory:write") || can("inventory:devices"))) return;
+  editingNetworkKey = networkKey;
+  const net = networkKey ? inventory?.networks?.find(n => n.network === networkKey) : null;
+  const titleEl = qs("#network-modal-title");
+  if (titleEl) {
+    titleEl.innerHTML = networkKey
+      ? '<i class="fas fa-edit me-2 text-muted"></i>Редактировать подсеть'
+      : '<i class="fas fa-plus me-2 text-muted"></i>Добавить подсеть';
+  }
+  updateGroupSelects(net?.group_name || getGroupNames()[0]);
+  const groupSel = qs("#network-modal-group");
+  if (groupSel && net?.group_name) groupSel.value = net.group_name;
+  qs("#network-modal-cidr").value = net?.network || "";
+  qs("#network-modal-site").value = net?.site || "";
+  qs("#network-modal-role").value = net?.role || "";
+  qs("#network-modal-environment").value = net?.environment_name || "";
+  qs("#network-modal-gateway").value = net?.gateway || "";
+  refreshSiteDatalists();
+  showModal("network-modal");
+}
+
+function closeNetworkModal() {
+  hideModal("network-modal");
+  editingNetworkKey = null;
+}
+
+async function saveNetwork() {
+  const entry = {
+    network: qs("#network-modal-cidr").value.trim(),
+    group_name: qs("#network-modal-group").value.trim() || "default",
+    site: qs("#network-modal-site")?.value.trim() || "",
+    role: qs("#network-modal-role")?.value.trim() || "",
+    environment_name: qs("#network-modal-environment").value.trim() || null,
+    gateway: qs("#network-modal-gateway").value.trim() || null,
+  };
+  if (!entry.network) {
+    showAlert("inventory-alert", "Укажите подсеть (CIDR)", "error");
+    return;
+  }
+  try {
+    if (!inventory) inventory = await api("/inventory");
+    const wasEdit = !!editingNetworkKey;
+    if (editingNetworkKey) {
+      inventory.networks = inventory.networks.filter(n => n.network !== editingNetworkKey);
+    }
+    if (inventory.networks.some(n => n.network === entry.network)) {
+      showAlert("inventory-alert", "Такая подсеть уже есть", "error");
+      return;
+    }
+    inventory.networks.push(entry);
+    await api("/inventory", { method: "PUT", body: JSON.stringify(inventory) });
+    closeNetworkModal();
+    loadInventory();
+    showAlert("inventory-alert", wasEdit ? "Подсеть обновлена" : "Подсеть добавлена", "success");
+  } catch (e) {
+    showAlert("inventory-alert", e.message, "error");
+  }
 }
 
 function updateDevicesBulkUi() {
@@ -4833,17 +5160,33 @@ function bindEvents() {
       const group = qs("#network-group").value;
       if (!net) return;
       inventory = await api("/inventory");
+      if (inventory.networks.some(n => n.network === net)) {
+        showAlert("inventory-alert", "Такая подсеть уже есть", "error");
+        return;
+      }
       inventory.networks.push({
         network: net,
         group_name: group,
+        site: qs("#network-site")?.value.trim() || "",
+        role: qs("#network-role")?.value.trim() || "",
         environment_name: null,
         gateway: null,
       });
       await api("/inventory", { method: "PUT", body: JSON.stringify(inventory) });
       qs("#network-input").value = "";
+      if (qs("#network-site")) qs("#network-site").value = "";
+      if (qs("#network-role")) qs("#network-role").value = "";
       loadInventory();
+      showAlert("inventory-alert", "Подсеть добавлена", "success");
     });
   }
+
+  qs("#network-form")?.addEventListener("submit", async e => {
+    e.preventDefault();
+    await saveNetwork();
+  });
+
+  qs("#btn-network-modal-add")?.addEventListener("click", () => openNetworkModal());
 
   qs("#btn-scan")?.addEventListener("click", () => runScan(false));
   qs("#btn-scan-discover")?.addEventListener("click", () => runScan(true));
@@ -5012,6 +5355,21 @@ function bindEvents() {
   qs("#btn-topology-netbox")?.addEventListener("click", () => loadNetboxTopology());
 
   qs("#btn-provision-refresh")?.addEventListener("click", () => loadProvisionPage());
+  qs("#btn-prov-analyze")?.addEventListener("click", async () => {
+    try {
+      await provisionAnalyze();
+    } catch (e) {
+      showAlert("provision-alert", e.message, "error");
+    }
+  });
+  qs("#btn-prov-generate")?.addEventListener("click", async () => {
+    if (!confirm("Сгенерировать шаблоны из конфигов Oxidized?")) return;
+    try {
+      await provisionGenerateFromConfigs();
+    } catch (e) {
+      showAlert("provision-alert", e.message, "error");
+    }
+  });
   qs("#provision-template-form")?.addEventListener("submit", async e => {
     e.preventDefault();
     try {
@@ -5040,6 +5398,20 @@ function bindEvents() {
   qs("#btn-prov-apply")?.addEventListener("click", async () => {
     try {
       await provisionApply();
+    } catch (e) {
+      showAlert("provision-alert", e.message, "error");
+    }
+  });
+  qs("#btn-prov-bulk-preview")?.addEventListener("click", async () => {
+    try {
+      await provisionBulkPreview();
+    } catch (e) {
+      showAlert("provision-alert", e.message, "error");
+    }
+  });
+  qs("#btn-prov-bulk-run")?.addEventListener("click", async () => {
+    try {
+      await provisionBulkRun();
     } catch (e) {
       showAlert("provision-alert", e.message, "error");
     }

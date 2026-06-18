@@ -34,6 +34,10 @@ def _template_row_public(row: ProvisionTemplate) -> dict[str, Any]:
         "description": row.description or "",
         "model": row.model,
         "body": row.body,
+        "scope_group": row.scope_group or "",
+        "scope_site": row.scope_site or "",
+        "source": row.source or ProvisionTemplate.SOURCE_MANUAL,
+        "meta": row.meta if isinstance(row.meta, dict) else {},
         "is_active": row.is_active,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
@@ -242,6 +246,7 @@ def run_provision(
     triggered_by: str = "",
     correlation_id: str = "",
     user=None,
+    bulk_run_id: int | None = None,
 ) -> dict[str, Any]:
     preview = preview_provision(
         template_id=template_id,
@@ -265,6 +270,7 @@ def run_provision(
         rendered_config=preview["rendered_config"],
         triggered_by=triggered_by[:64],
         correlation_id=correlation_id[:64],
+        bulk_run_id=bulk_run_id,
         started_at=now,
     )
 

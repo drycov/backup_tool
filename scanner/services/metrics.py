@@ -85,6 +85,7 @@ def refresh_task_queue_depth() -> None:
             BackgroundTask.TASK_DEGRADE_CHECK,
             BackgroundTask.TASK_COMPLIANCE_REPORT,
             BackgroundTask.TASK_SCHEDULED_SCAN,
+            BackgroundTask.TASK_PROVISION_BULK,
         ):
             count = BackgroundTask.objects.filter(
                 task_type=task_type,

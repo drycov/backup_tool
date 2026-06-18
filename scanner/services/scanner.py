@@ -536,6 +536,8 @@ async def discover_and_enrich(
         group_name = (
             entry.group_name if hasattr(entry, "group_name") else default_group
         )
+        subnet_site = (getattr(entry, "site", None) or "").strip()
+        subnet_role = (getattr(entry, "role", None) or "").strip()
 
         if on_progress:
             on_progress(idx - 1, len(network_entries), subnet)
@@ -604,6 +606,11 @@ async def discover_and_enrich(
         for device in probe_results:
             if device is None:
                 continue
+
+            if subnet_site:
+                device.site = subnet_site
+            if subnet_role:
+                device.role = subnet_role
 
             await add_device_async(device)
             saved_devices.append(device)

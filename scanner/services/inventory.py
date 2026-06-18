@@ -100,6 +100,8 @@ def _network_from_model(record: NetworkModel) -> NetworkEntry:
         group_name=record.group_name,
         environment_name=record.environment_name,
         gateway=record.gateway,
+        site=getattr(record, "site", "") or "",
+        role=getattr(record, "role", "") or "",
     )
 
 
@@ -204,6 +206,8 @@ def _save_inventory_to_db(inventory: Inventory) -> None:
                 group_name=net.group_name,
                 environment_name=net.environment_name,
                 gateway=net.gateway,
+                site=net.site or "",
+                role=net.role or "",
             )
             for net in inventory.networks
         ]

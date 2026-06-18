@@ -5,6 +5,8 @@
 ## Возможности
 
 - **Шаблоны** — Jinja2 с переменными из инвентаря (`device.name`, `device.ip`, `site`, `group`, `role`, `tags`)
+- **Автогенерация** — шаблоны из конфигов Oxidized по кластерам `group` + `site` + `model`; baseline — наиболее типичный конфиг; outlier-устройства помечаются как «сложные»
+- **Bulk provision** — применение шаблона на все устройства `group`/`site` через персистентную task queue (`provision.bulk`)
 - **Preview** — рендер без применения (dry-run)
 - **Apply** — push конфигурации на устройство с записью в `provision_runs` и audit
 - **Модели**:
@@ -27,6 +29,12 @@
 | Метод | URL | Права |
 |-------|-----|-------|
 | GET/POST | `/api/provisioning/templates` | `provision:read` / POST: `provision:run` |
+| GET | `/api/provisioning/analysis` | `provision:read` — анализ кластеров без сохранения |
+| POST | `/api/provisioning/templates/generate` | `provision:run` — создать/обновить шаблоны из бэкапов |
+| GET | `/api/provisioning/bulk?action=preview` | `provision:read` — список устройств для bulk |
+| POST | `/api/provisioning/bulk/run` | `provision:run` — запуск bulk (async по умолчанию) |
+| GET | `/api/provisioning/bulk` | `provision:read` — история bulk-задач |
+| GET | `/api/provisioning/bulk/{id}` | `provision:read` — статус bulk-задачи |
 | GET/PUT/DELETE | `/api/provisioning/templates/{id}` | read / run |
 | POST | `/api/provisioning/preview` | `provision:read` |
 | POST | `/api/provisioning/run` | `provision:run` |
@@ -52,9 +60,44 @@ curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/run \
 
 Уберите `"dry_run": true` или передайте `"dry_run": false`. Требуется роль operator/admin.
 
+### Анализ конфигов (без сохранения)
+
+```bash
+curl -s -b cookies.txt "http://scanner:8000/api/provisioning/analysis?group=hex&threshold=0.85&min_devices=2"
+```
+
+Ответ: `clusters` (по group/site/model), `complex_devices` — устройства с отклонением от baseline.
+
+### Генерация шаблонов
+
+```bash
+curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/templates/generate \
+  -H "Content-Type: application/json" \
+  -d '{"group":"hex","site":"dc1","complexity_threshold":0.85,"min_devices":2,"upsert":true}'
+```
+
+Создаёт шаблоны с префиксом slug `gen-...`, поля `source=generated`, `meta` с baseline и списком сложных устройств.
+
+### Bulk provision
+
+```bash
+# Preview целевых устройств
+curl -s -b cookies.txt "http://scanner:8000/api/provisioning/bulk?action=preview&template_id=1&group=hex&site=dc1&exclude_complex=true"
+
+# Запуск в очередь (dry-run)
+curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/bulk/run \
+  -H "Content-Type: application/json" \
+  -d '{"template_id":1,"group":"hex","site":"dc1","dry_run":true,"exclude_complex":true,"async":true}'
+
+# Статус задачи
+curl -s -b cookies.txt http://scanner:8000/api/provisioning/bulk/5
+```
+
+Задача выполняется worker'ом (`TASK_WORKER_ENABLED`). Каждое устройство получает запись в `provision_runs` с привязкой к `provision_bulk_runs`.
+
 ## Web UI
 
-**Провижионинг** в боковом меню: шаблоны, preview, история запусков.
+**Провижионинг** в боковом меню: шаблоны, **Генерация из бэкапов**, **Bulk provision**, preview, история запусков и bulk-задач.
 
 ## RBAC
 
@@ -70,6 +113,8 @@ Object scope применяется: operator видит только устро
 - `provision.preview` — preview конфигурации
 - `provision.apply` — успешное применение
 - `provision.template_create` / `update` / `delete`
+- `provision.template_generate` — автогенерация из конфигов
+- `provision.bulk` — массовое применение шаблона
 
 ## Ограничения
 

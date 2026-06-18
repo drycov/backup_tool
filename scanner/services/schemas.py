@@ -68,6 +68,8 @@ class NetworkEntry(BaseModel):
     group_name: str = "default"
     environment_name: Optional[str] = None
     gateway: Optional[str] = None
+    site: str = ""
+    role: str = ""
 
 
 class Inventory(BaseModel):

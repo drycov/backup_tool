@@ -1,0 +1,403 @@
+"""Автогенерация шаблонов провижионинга из конфигов Oxidized."""
+
+from __future__ import annotations
+
+import difflib
+import logging
+import re
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any
+
+from services.inventory import load_inventory
+from services.object_scope import filter_devices
+from services.oxidized_client import get_node_config
+from services.schemas import Device
+
+logger = logging.getLogger(__name__)
+
+# Ниже порога — устройство считается «сложным» (outlier)
+DEFAULT_COMPLEXITY_THRESHOLD = 0.85
+MIN_DEVICES_PER_CLUSTER = 2
+
+_VOLATILE_PATTERNS = (
+    r"^\s*/system\s+clock",
+    r"^\s*/system\s+resource",
+    r"^\s*/system\s+note",
+    r"uptime",
+    r"last-?changed",
+    r"build-?time",
+    r"^\s*#\s*by\s+backup",
+    r"^\s*!\s*last\s+configuration",
+    r"^\s*ntp\s+clock-period",
+)
+
+_IP_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}(?:/\d{1,2})?\b")
+
+
+@dataclass
+class DeviceConfigSample:
+    device: Device
+    raw: str
+    normalized: str
+    error: str = ""
+
+
+@dataclass
+class ClusterAnalysis:
+    group: str
+    site: str
+    model: str
+    devices: list[DeviceConfigSample] = field(default_factory=list)
+    baseline_device: str = ""
+    baseline_similarity: float = 0.0
+    simple_devices: list[str] = field(default_factory=list)
+    complex_devices: list[dict[str, Any]] = field(default_factory=list)
+    template_body: str = ""
+    skipped_reason: str = ""
+
+    @property
+    def device_count(self) -> int:
+        return len([d for d in self.devices if d.raw and not d.error])
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "group": self.group,
+            "site": self.site,
+            "model": self.model,
+            "device_count": self.device_count,
+            "baseline_device": self.baseline_device,
+            "baseline_similarity": round(self.baseline_similarity, 4),
+            "simple_devices": self.simple_devices,
+            "complex_devices": self.complex_devices,
+            "template_body": self.template_body,
+            "skipped_reason": self.skipped_reason,
+            "devices": [
+                {
+                    "name": d.device.name,
+                    "ip": d.device.ip,
+                    "has_config": bool(d.raw),
+                    "error": d.error,
+                }
+                for d in self.devices
+            ],
+        }
+
+
+def _is_volatile_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return True
+    for pattern in _VOLATILE_PATTERNS:
+        if re.search(pattern, stripped, re.I):
+            return True
+    return False
+
+
+def normalize_config_for_compare(text: str, device: Device) -> str:
+    """Нормализация для сравнения: убрать volatile строки и device-specific значения."""
+    if not text:
+        return ""
+    lines_out: list[str] = []
+    for raw_line in text.splitlines():
+        if _is_volatile_line(raw_line):
+            continue
+        line = raw_line.strip()
+        if device.name:
+            line = re.sub(re.escape(device.name), "<NAME>", line, flags=re.I)
+        if device.ip:
+            line = line.replace(device.ip.split("/")[0], "<IP>")
+        line = _IP_RE.sub("<IP>", line)
+        line = re.sub(r"\s+", " ", line).strip()
+        if line:
+            lines_out.append(line.lower())
+    return "\n".join(lines_out)
+
+
+def similarity_ratio(norm_a: str, norm_b: str) -> float:
+    if not norm_a and not norm_b:
+        return 1.0
+    if not norm_a or not norm_b:
+        return 0.0
+    return difflib.SequenceMatcher(None, norm_a, norm_b).ratio()
+
+
+def _load_device_config(device: Device) -> DeviceConfigSample:
+    text, err = get_node_config(device.name)
+    if err:
+        return DeviceConfigSample(device=device, raw="", normalized="", error=err)
+    if not text or not str(text).strip():
+        return DeviceConfigSample(device=device, raw="", normalized="", error="нет конфига")
+    raw = str(text)
+    return DeviceConfigSample(
+        device=device,
+        raw=raw,
+        normalized=normalize_config_for_compare(raw, device),
+    )
+
+
+def _pick_baseline(samples: list[DeviceConfigSample]) -> tuple[DeviceConfigSample, float]:
+    valid = [s for s in samples if s.normalized]
+    if not valid:
+        raise ValueError("Нет конфигов для сравнения")
+    if len(valid) == 1:
+        return valid[0], 1.0
+
+    best: DeviceConfigSample | None = None
+    best_avg = -1.0
+    for candidate in valid:
+        scores = [
+            similarity_ratio(candidate.normalized, other.normalized)
+            for other in valid
+            if other.device.name != candidate.device.name
+        ]
+        avg = sum(scores) / len(scores) if scores else 1.0
+        if avg > best_avg:
+            best_avg = avg
+            best = candidate
+    assert best is not None
+    return best, best_avg
+
+
+def _classify_devices(
+    samples: list[DeviceConfigSample],
+    baseline: DeviceConfigSample,
+    *,
+    threshold: float,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    simple: list[str] = []
+    complex_list: list[dict[str, Any]] = []
+    for sample in samples:
+        if not sample.normalized or sample.error:
+            complex_list.append(
+                {
+                    "name": sample.device.name,
+                    "similarity": 0.0,
+                    "reason": sample.error or "пустой конфиг",
+                    "complex": True,
+                }
+            )
+            continue
+        sim = similarity_ratio(sample.normalized, baseline.normalized)
+        if sample.device.name == baseline.device.name:
+            simple.append(sample.device.name)
+            continue
+        if sim >= threshold:
+            simple.append(sample.device.name)
+        else:
+            complex_list.append(
+                {
+                    "name": sample.device.name,
+                    "similarity": round(sim, 4),
+                    "reason": f"отклонение от baseline ({sim:.0%} < {threshold:.0%})",
+                    "complex": True,
+                }
+            )
+    return simple, complex_list
+
+
+def raw_config_to_jinja_template(raw: str, device: Device) -> str:
+    """Преобразовать baseline-конфиг в Jinja2 с подстановкой полей устройства."""
+    body = raw
+    replacements = [
+        (device.name, "{{ device.name }}"),
+        (device.ip.split("/")[0] if device.ip else "", "{{ device.ip }}"),
+        (device.site or "", "{{ site }}"),
+        (device.group or "", "{{ group }}"),
+        (device.role or "", "{{ role }}"),
+    ]
+    for old, new in replacements:
+        if old and len(old) >= 2:
+            body = re.sub(re.escape(old), new, body, flags=re.I)
+    # Оставшиеся уникальные IP → переменная
+    body = _IP_RE.sub("{{ device.ip }}", body)
+    header = (
+        f"# Generated baseline from {device.name}\n"
+        f"# scope: group={device.group or '*'} site={device.site or '*'}\n"
+    )
+    return header + body.strip() + "\n"
+
+
+def _cluster_key(device: Device) -> tuple[str, str, str]:
+    return (device.group or "default", device.site or "", (device.model or "routeros").lower())
+
+
+def _slug_for_cluster(group: str, site: str, model: str) -> str:
+    parts = ["gen"]
+    for part in (group, site, model):
+        slug = re.sub(r"[^a-z0-9]+", "-", part.lower()).strip("-")
+        if slug:
+            parts.append(slug[:24])
+    return "-".join(parts)[:63]
+
+
+def analyze_clusters(
+    *,
+    group: str = "",
+    site: str = "",
+    model: str = "",
+    user=None,
+    complexity_threshold: float = DEFAULT_COMPLEXITY_THRESHOLD,
+    min_devices: int = MIN_DEVICES_PER_CLUSTER,
+) -> list[ClusterAnalysis]:
+    inventory = load_inventory()
+    devices = [d for d in inventory.devices if d.enabled]
+    if user is not None:
+        devices = filter_devices(user, devices)
+
+    if group:
+        devices = [d for d in devices if d.group == group]
+    if site:
+        devices = [d for d in devices if (d.site or "") == site]
+    if model:
+        devices = [d for d in devices if (d.model or "").lower() == model.lower()]
+
+    buckets: dict[tuple[str, str, str], list[Device]] = defaultdict(list)
+    for device in devices:
+        buckets[_cluster_key(device)].append(device)
+
+    results: list[ClusterAnalysis] = []
+    for (grp, st, mdl), cluster_devices in sorted(buckets.items()):
+        analysis = ClusterAnalysis(group=grp, site=st, model=mdl)
+        analysis.devices = [_load_device_config(d) for d in cluster_devices]
+
+        valid_count = sum(1 for s in analysis.devices if s.raw and not s.error)
+        if valid_count < min_devices:
+            analysis.skipped_reason = (
+                f"недостаточно конфигов ({valid_count} < {min_devices})"
+            )
+            results.append(analysis)
+            continue
+
+        try:
+            baseline, avg_sim = _pick_baseline(analysis.devices)
+        except ValueError as exc:
+            analysis.skipped_reason = str(exc)
+            results.append(analysis)
+            continue
+
+        analysis.baseline_device = baseline.device.name
+        analysis.baseline_similarity = avg_sim
+        analysis.simple_devices, analysis.complex_devices = _classify_devices(
+            analysis.devices,
+            baseline,
+            threshold=complexity_threshold,
+        )
+        analysis.template_body = raw_config_to_jinja_template(baseline.raw, baseline.device)
+        results.append(analysis)
+
+    return results
+
+
+def generate_templates_from_configs(
+    *,
+    group: str = "",
+    site: str = "",
+    model: str = "",
+    user=None,
+    complexity_threshold: float = DEFAULT_COMPLEXITY_THRESHOLD,
+    min_devices: int = MIN_DEVICES_PER_CLUSTER,
+    upsert: bool = True,
+) -> dict[str, Any]:
+    from core.models import ProvisionTemplate
+    from services.provisioning import create_template
+
+    clusters = analyze_clusters(
+        group=group,
+        site=site,
+        model=model,
+        user=user,
+        complexity_threshold=complexity_threshold,
+        min_devices=min_devices,
+    )
+
+    created: list[dict[str, Any]] = []
+    updated: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+
+    for cluster in clusters:
+        if cluster.skipped_reason or not cluster.template_body:
+            skipped.append(cluster.to_dict())
+            continue
+
+        slug = _slug_for_cluster(cluster.group, cluster.site, cluster.model)
+        meta = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "source": "from_configs",
+            "baseline_device": cluster.baseline_device,
+            "baseline_similarity": cluster.baseline_similarity,
+            "complexity_threshold": complexity_threshold,
+            "simple_devices": cluster.simple_devices,
+            "complex_devices": cluster.complex_devices,
+            "device_count": cluster.device_count,
+        }
+        name = f"Auto: {cluster.group}"
+        if cluster.site:
+            name += f" / {cluster.site}"
+        name += f" ({cluster.model})"
+        description = (
+            f"Сгенерировано из {cluster.device_count} конфигов. "
+            f"Baseline: {cluster.baseline_device}. "
+            f"Сложных устройств: {len(cluster.complex_devices)}."
+        )
+
+        existing = ProvisionTemplate.objects.filter(slug=slug).first()
+        if existing and upsert:
+            existing.name = name
+            existing.description = description
+            existing.model = cluster.model
+            existing.body = cluster.template_body
+            existing.scope_group = cluster.group
+            existing.scope_site = cluster.site
+            existing.source = ProvisionTemplate.SOURCE_GENERATED
+            existing.meta = meta
+            existing.is_active = True
+            existing.save()
+            updated.append(
+                {
+                    "slug": slug,
+                    "id": existing.id,
+                    "group": cluster.group,
+                    "site": cluster.site,
+                    "complex_devices": cluster.complex_devices,
+                }
+            )
+        elif existing:
+            skipped.append({**cluster.to_dict(), "skipped_reason": f"шаблон {slug} уже существует"})
+        else:
+            row = create_template(
+                slug=slug,
+                name=name,
+                body=cluster.template_body,
+                model=cluster.model,
+                description=description,
+            )
+            tpl = ProvisionTemplate.objects.get(id=row["id"])
+            tpl.scope_group = cluster.group
+            tpl.scope_site = cluster.site
+            tpl.source = ProvisionTemplate.SOURCE_GENERATED
+            tpl.meta = meta
+            tpl.save(update_fields=["scope_group", "scope_site", "source", "meta"])
+            created.append(
+                {
+                    "slug": slug,
+                    "id": row["id"],
+                    "group": cluster.group,
+                    "site": cluster.site,
+                    "complex_devices": cluster.complex_devices,
+                }
+            )
+
+    logger.info(
+        "provision | generate | created=%d updated=%d skipped=%d",
+        len(created),
+        len(updated),
+        len(skipped),
+    )
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "clusters": [c.to_dict() for c in clusters],
+    }

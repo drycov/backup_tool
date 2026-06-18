@@ -254,6 +254,11 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
 
         return run_scheduled_inventory_sync()
 
+    if task.task_type == BackgroundTask.TASK_PROVISION_BULK:
+        from services.provisioning_bulk import run_bulk_provision_task
+
+        return run_bulk_provision_task(task.payload or {})
+
     raise ValueError(f"Unknown task type: {task.task_type}")
 
 

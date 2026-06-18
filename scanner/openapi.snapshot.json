@@ -261,6 +261,16 @@
             ],
             "default": null,
             "title": "Gateway"
+          },
+          "site": {
+            "default": "",
+            "title": "Site",
+            "type": "string"
+          },
+          "role": {
+            "default": "",
+            "title": "Role",
+            "type": "string"
           }
         },
         "required": [
@@ -1157,6 +1167,22 @@
         "summary": "Create provision template"
       }
     },
+    "/api/provisioning/templates/generate": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Generate provision templates from device configs"
+      }
+    },
+    "/api/provisioning/analysis": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Analyze device config clusters and complex devices"
+      }
+    },
     "/api/provisioning/templates/{id}": {
       "get": {
         "tags": [
@@ -1199,6 +1225,30 @@
           "admin"
         ],
         "summary": "Provision run history"
+      }
+    },
+    "/api/provisioning/bulk": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List bulk provision runs or preview targets"
+      }
+    },
+    "/api/provisioning/bulk/run": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Start bulk provision via task queue"
+      }
+    },
+    "/api/provisioning/bulk/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get bulk provision run status"
       }
     }
   },

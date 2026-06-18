@@ -31,6 +31,8 @@ from services.audit import (
     ACTION_CREDENTIAL_UPDATE,
     ACTION_MIKROTIK_RESTORE,
     ACTION_PROVISION_APPLY,
+    ACTION_PROVISION_BULK,
+    ACTION_PROVISION_GENERATE,
     ACTION_PROVISION_PREVIEW,
     ACTION_OXIDIZED_BACKUP_ALL,
     ACTION_OXIDIZED_FETCH,
@@ -2228,4 +2230,213 @@ def provision_runs_view(request: HttpRequest) -> JsonResponse:
     limit = int(request.GET.get("limit", "50"))
     device = request.GET.get("device", "").strip()
     return json_response({"items": list_runs(limit=limit, device=device)})
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_analysis_view(request: HttpRequest) -> JsonResponse:
+    from services.provision_template_builder import analyze_clusters
+
+    group = request.GET.get("group", "").strip()
+    site = request.GET.get("site", "").strip()
+    model = request.GET.get("model", "").strip()
+    try:
+        threshold = float(request.GET.get("threshold", "0.85"))
+    except ValueError:
+        return error_response("threshold должен быть числом", status=400)
+    try:
+        min_devices = int(request.GET.get("min_devices", "2"))
+    except ValueError:
+        return error_response("min_devices должен быть целым", status=400)
+
+    clusters = analyze_clusters(
+        group=group,
+        site=site,
+        model=model,
+        user=request.api_user,
+        complexity_threshold=threshold,
+        min_devices=min_devices,
+    )
+    complex_devices = []
+    for cluster in clusters:
+        for item in cluster.complex_devices:
+            complex_devices.append(
+                {
+                    "name": item["name"],
+                    "group": cluster.group,
+                    "site": cluster.site,
+                    "model": cluster.model,
+                    "similarity": item.get("similarity"),
+                    "reason": item.get("reason", ""),
+                }
+            )
+    return json_response(
+        {
+            "clusters": [c.to_dict() for c in clusters],
+            "complex_devices": complex_devices,
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_PROVISION_RUN)
+def provision_generate_view(request: HttpRequest) -> JsonResponse:
+    from services.provision_template_builder import generate_templates_from_configs
+
+    body = parse_json_body(request)
+    try:
+        threshold = float(body.get("complexity_threshold", body.get("threshold", 0.85)))
+    except (TypeError, ValueError):
+        return error_response("complexity_threshold должен быть числом", status=400)
+    try:
+        min_devices = int(body.get("min_devices", 2))
+    except (TypeError, ValueError):
+        return error_response("min_devices должен быть целым", status=400)
+
+    result = generate_templates_from_configs(
+        group=(body.get("group") or "").strip(),
+        site=(body.get("site") or "").strip(),
+        model=(body.get("model") or "").strip(),
+        user=request.api_user,
+        complexity_threshold=threshold,
+        min_devices=min_devices,
+        upsert=bool(body.get("upsert", True)),
+    )
+    log_audit_user(
+        request.api_user,
+        ACTION_PROVISION_GENERATE,
+        target=f"created={len(result['created'])} updated={len(result['updated'])}",
+        request=request,
+    )
+    return json_response(result)
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_bulk_dispatch(request: HttpRequest) -> JsonResponse:
+    from services.provisioning import ProvisioningError
+    from services.provisioning_bulk import list_bulk_runs, preview_bulk_provision
+
+    if request.method == "GET":
+        action = request.GET.get("action", "").strip()
+        if action == "preview":
+            try:
+                device_names_raw = request.GET.get("device_names", "").strip()
+                device_names = [n.strip() for n in device_names_raw.split(",") if n.strip()] or None
+                template_id_raw = request.GET.get("template_id", "").strip()
+                result = preview_bulk_provision(
+                    template_id=int(template_id_raw) if template_id_raw else None,
+                    template_slug=request.GET.get("template_slug", "").strip(),
+                    group=request.GET.get("group", "").strip(),
+                    site=request.GET.get("site", "").strip(),
+                    model=request.GET.get("model", "").strip(),
+                    device_names=device_names,
+                    exclude_complex=request.GET.get("exclude_complex") == "true",
+                    user=request.api_user,
+                )
+            except (ProvisioningError, ValueError) as exc:
+                return error_response(str(exc), status=400)
+            return json_response(result)
+        limit = int(request.GET.get("limit", "30"))
+        return json_response({"items": list_bulk_runs(limit=limit)})
+
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_bulk_detail_view(request: HttpRequest, bulk_run_id: int) -> JsonResponse:
+    from services.provisioning import ProvisioningError
+    from services.provisioning_bulk import get_bulk_run
+
+    try:
+        return json_response(get_bulk_run(bulk_run_id))
+    except ProvisioningError as exc:
+        return error_response(str(exc), status=404)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_PROVISION_RUN)
+def provision_bulk_run_view(request: HttpRequest) -> JsonResponse:
+    from core.models import ProvisionBulkRun
+    from services.correlation import get_correlation_id
+    from services.provisioning import ProvisioningError
+    from services.provisioning_bulk import (
+        create_bulk_run,
+        enqueue_bulk_provision,
+        get_bulk_run,
+        run_bulk_provision_task,
+    )
+
+    body = parse_json_body(request) or {}
+    user = request.api_user
+    async_mode = body.get("async", True)
+    if isinstance(async_mode, str):
+        async_mode = async_mode.lower() not in ("0", "false", "no")
+
+    device_names = body.get("device_names")
+    if device_names is not None and not isinstance(device_names, list):
+        return error_response("device_names должен быть массивом", status=400)
+
+    try:
+        bulk = create_bulk_run(
+            template_id=body.get("template_id"),
+            template_slug=str(body.get("template_slug") or "").strip(),
+            group=str(body.get("group") or "").strip(),
+            site=str(body.get("site") or "").strip(),
+            model=str(body.get("model") or "").strip(),
+            device_names=device_names,
+            dry_run=bool(body.get("dry_run", True)),
+            exclude_complex=bool(body.get("exclude_complex", False)),
+            triggered_by=user.username,
+            correlation_id=get_correlation_id() or "",
+            user=user,
+        )
+    except ProvisioningError as exc:
+        return error_response(str(exc), status=400)
+
+    target = f"{bulk.template_slug}→{bulk.scope_group or '*'}/{bulk.scope_site or '*'}"
+    if async_mode:
+        task_id = enqueue_bulk_provision(bulk, user_id=user.id, device_names=device_names)
+        if not task_id:
+            bulk.status = ProvisionBulkRun.STATUS_FAILED
+            bulk.error = "Не удалось поставить задачу в очередь"
+            bulk.finished_at = datetime.now(timezone.utc)
+            bulk.save(update_fields=["status", "error", "finished_at"])
+            return error_response("Очередь задач недоступна", status=503)
+        log_audit_user(
+            user,
+            ACTION_PROVISION_BULK,
+            target=target,
+            detail=f"queued bulk_run_id={bulk.id} devices={bulk.devices_total} dry_run={bulk.dry_run}",
+            request=request,
+        )
+        return json_response(
+            {"task_id": task_id, **get_bulk_run(bulk.id)},
+            status=202,
+        )
+
+    try:
+        run_bulk_provision_task(
+            {
+                "bulk_run_id": bulk.id,
+                "user_id": user.id,
+                "device_names": device_names or [],
+            }
+        )
+    except Exception as exc:
+        return error_response(str(exc), status=500)
+
+    log_audit_user(
+        user,
+        ACTION_PROVISION_BULK,
+        target=target,
+        detail=f"sync bulk_run_id={bulk.id} dry_run={bulk.dry_run}",
+        request=request,
+    )
+    return json_response(get_bulk_run(bulk.id))
 

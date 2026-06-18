@@ -26,6 +26,8 @@ class Network(models.Model):
     group_name = models.CharField(max_length=64, default="default", db_index=True)
     environment_name = models.CharField(max_length=128, null=True, blank=True)
     gateway = models.CharField(max_length=64, null=True, blank=True)
+    site = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    role = models.CharField(max_length=128, blank=True, default="", db_index=True)
 
     class Meta:
         db_table = "networks"
@@ -350,6 +352,7 @@ class BackgroundTask(models.Model):
     TASK_AUDIT_WEBHOOK = "audit.webhook"
     TASK_CONFIG_AUDIT = "config.audit"
     TASK_INVENTORY_SYNC = "inventory.sync"
+    TASK_PROVISION_BULK = "provision.bulk"
 
     task_type = models.CharField(max_length=64, db_index=True)
     status = models.CharField(max_length=16, default=STATUS_PENDING, db_index=True)
@@ -482,11 +485,18 @@ class ConfigFinding(models.Model):
 class ProvisionTemplate(models.Model):
     """Шаблон конфигурации (Jinja2) для провижионинга устройств."""
 
+    SOURCE_MANUAL = "manual"
+    SOURCE_GENERATED = "generated"
+
     slug = models.CharField(max_length=64, unique=True, db_index=True)
     name = models.CharField(max_length=128)
     description = models.TextField(blank=True, default="")
     model = models.CharField(max_length=64, default="routeros", db_index=True)
     body = models.TextField()
+    scope_group = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    scope_site = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    source = models.CharField(max_length=16, default=SOURCE_MANUAL, db_index=True)
+    meta = LegacyJSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -523,10 +533,56 @@ class ProvisionRun(models.Model):
     error = models.TextField(blank=True, default="")
     triggered_by = models.CharField(max_length=64, blank=True, default="")
     correlation_id = models.CharField(max_length=64, blank=True, default="")
+    bulk_run = models.ForeignKey(
+        "ProvisionBulkRun",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="device_runs",
+    )
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "provision_runs"
+        ordering = ["-created_at"]
+
+
+class ProvisionBulkRun(models.Model):
+    """Массовое применение шаблона на группу/site (через task queue)."""
+
+    STATUS_QUEUED = "queued"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+
+    template = models.ForeignKey(
+        ProvisionTemplate,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="bulk_runs",
+    )
+    template_slug = models.CharField(max_length=64, blank=True, default="")
+    scope_group = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    scope_site = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    scope_model = models.CharField(max_length=64, blank=True, default="")
+    dry_run = models.BooleanField(default=True)
+    exclude_complex = models.BooleanField(default=False)
+    status = models.CharField(max_length=16, default=STATUS_QUEUED, db_index=True)
+    triggered_by = models.CharField(max_length=64, blank=True, default="")
+    correlation_id = models.CharField(max_length=64, blank=True, default="")
+    background_task_id = models.PositiveIntegerField(null=True, blank=True)
+    devices_total = models.PositiveIntegerField(default=0)
+    devices_completed = models.PositiveIntegerField(default=0)
+    devices_failed = models.PositiveIntegerField(default=0)
+    results = LegacyJSONField(default=list, blank=True)
+    error = models.TextField(blank=True, default="")
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "provision_bulk_runs"
         ordering = ["-created_at"]
