@@ -487,783 +487,882 @@
           <div id="page-settings" class="page d-none">
             <div id="settings-alert" class="page-alert"></div>
 
-            <div class="card card-outline card-secondary settings-page-card">
-              <div class="card-header p-2">
-                <ul class="nav nav-pills card-header-pills settings-tab-nav" id="settings-tab-nav" role="tablist">
-                  <li class="nav-item" id="settings-tab-backup-li" data-permission-any="oxidized:read,oxidized:write">
-                    <a class="nav-link active" data-bs-toggle="tab" href="#settings-tab-backup" role="tab">
-                      <i class="fas fa-database" aria-hidden="true"></i> Бэкап
-                    </a>
-                  </li>
-                  <li class="nav-item" id="settings-tab-git-li" data-permission-any="oxidized:read,oxidized:write">
-                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-git" role="tab">
-                      <i class="fab fa-git-alt" aria-hidden="true"></i> Git
-                    </a>
-                  </li>
-                  <li class="nav-item" id="settings-tab-notify-li" data-permission-any="oxidized:read,oxidized:write">
-                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-notify" role="tab">
-                      <i class="fas fa-bell" aria-hidden="true"></i> Уведомления
-                    </a>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-groups" role="tab">
-                      <i class="fas fa-key" aria-hidden="true"></i> Группы
-                    </a>
-                  </li>
-                  <li class="nav-item" id="settings-ldap-tab-li" data-permission="users:manage">
-                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-ldap" role="tab">
-                      <i class="fas fa-sitemap" aria-hidden="true"></i> LDAP
-                    </a>
-                  </li>
-                  <li class="nav-item" data-permission="inventory:write">
-                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-service" role="tab">
-                      <i class="fas fa-screwdriver-wrench" aria-hidden="true"></i> Сервис
-                    </a>
-                  </li>
-                </ul>
-              </div>
-              <div class="card-body tab-content settings-tab-content">
-
-                <!-- Tab: Backup -->
-                <div class="tab-pane fade show active" id="settings-tab-backup" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
-                  <div id="settings-oxidized-card">
-                    <div class="d-flex flex-wrap align-items-center mb-3">
-                      <h5 class="mb-0 me-2"><i class="fas fa-server text-warning me-1"></i> Oxidized worker</h5>
-                      <span class="badge text-bg-secondary" id="ox-settings-engine-badge">—</span>
-                      <span class="badge text-bg-info ms-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
-                    </div>
-                    <p class="text-muted small" id="ox-settings-env-note"></p>
-                    <form id="oxidized-settings-form">
-                      <div class="row">
-                        <div class="form-group col-md-2 col-sm-4">
-                          <label for="ox-interval">Интервал, сек</label>
-                          <input type="number" id="ox-interval" class="form-control form-control-sm" min="60" step="60">
-                        </div>
-                        <div class="form-group col-md-2 col-sm-4">
-                          <label for="ox-threads">Потоки</label>
-                          <input type="number" id="ox-threads" class="form-control form-control-sm" min="1" max="64">
-                        </div>
-                        <div class="form-group col-md-2 col-sm-4">
-                          <label for="ox-timeout">Timeout SSH</label>
-                          <input type="number" id="ox-timeout" class="form-control form-control-sm" min="5">
-                        </div>
-                        <div class="form-group col-md-2 col-sm-4">
-                          <label for="ox-retries">Повторы</label>
-                          <input type="number" id="ox-retries" class="form-control form-control-sm" min="0" max="10">
-                        </div>
-                        <div class="form-group col-md-2 col-sm-4">
-                          <label for="ox-ssh-port">SSH порт</label>
-                          <input type="number" id="ox-ssh-port" class="form-control form-control-sm" min="1" max="65535">
-                        </div>
-                        <div class="form-group col-md-2 col-sm-4">
-                          <label for="ox-default-model">Модель</label>
-                          <select id="ox-default-model" class="form-control form-control-sm"></select>
-                        </div>
-                      </div>
-                      <div class="row align-items-center mb-3">
-                        <div class="col-md-4">
-                          <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="ox-resolve-dns">
-                            <label class="form-check-label" for="ox-resolve-dns">Resolve DNS</label>
-                          </div>
-                        </div>
-                        <div class="col-md-8">
-                          <span class="text-muted small" id="ox-settings-log-path"></span>
-                        </div>
-                      </div>
-                      <div class="d-flex flex-wrap mb-4">
-                        <button type="submit" class="btn btn-primary btn-sm me-2 mb-1" data-permission="oxidized:write">
-                          <i class="fas fa-save me-1"></i> Сохранить Oxidized
-                        </button>
-                        <button type="button" class="btn btn-outline-primary btn-sm me-2 mb-1" id="btn-settings-sync-oxidized" data-permission="oxidized:write">
-                          <i class="fas fa-sync me-1"></i> Sync конфиг
-                        </button>
-                        <a class="btn btn-outline-secondary btn-sm mb-1" id="btn-settings-oxidized-ui" href="#" data-permission="oxidized:read">
-                          <i class="fas fa-external-link-alt me-1"></i> Oxidized UI
+            <div class="row g-3 settings-layout">
+              <div class="col-lg-3 col-xl-2">
+                <div class="card settings-nav-card">
+                  <div class="card-header py-2 border-bottom-0">
+                    <h3 class="card-title h6 mb-0 text-muted">Настройки</h3>
+                  </div>
+                  <div class="card-body p-2">
+                    <ul class="nav nav-pills flex-column settings-tab-nav" id="settings-tab-nav" role="tablist">
+                      <li class="nav-item" id="settings-tab-backup-li" data-permission-any="oxidized:read,oxidized:write">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#settings-tab-backup" role="tab">
+                          <i class="fas fa-database" aria-hidden="true"></i>
+                          <span>Бэкап</span>
                         </a>
-                      </div>
-                    </form>
-
-                    <hr>
-                    <div id="mikrotik-backup-settings">
-                    <div id="mikrotik-external-note" class="alert alert-secondary py-2 small" style="display:none;">
-                      MikroTik binary/export доступны только при <code>OXIDIZED_ENGINE=python</code> (worker в scanner).
-                    </div>
-                    <h5 class="mb-2"><i class="fas fa-hard-drive text-info me-1"></i> MikroTik backup</h5>
-                    <p class="text-muted small mb-3">Binary <code>.backup</code> и export <code>.rsc</code>. Настройки в БД, применяются без перезапуска. Операции пишутся в <strong>лог Oxidized</strong>.</p>
-                    <form id="backup-settings-form">
-                      <div class="row mb-2">
-                        <div class="col-md-3 col-6">
-                          <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" id="bk-binary">
-                            <label class="form-check-label" for="bk-binary">Binary backup</label>
-                          </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                          <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" id="bk-export">
-                            <label class="form-check-label" for="bk-export">Export .rsc</label>
-                          </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                          <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" id="bk-hide-sensitive">
-                            <label class="form-check-label" for="bk-hide-sensitive">Hide sensitive</label>
-                          </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                          <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" id="bk-purge">
-                            <label class="form-check-label" for="bk-purge">Purge old binary</label>
-                          </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                          <div class="form-check form-switch">
-                            <input type="checkbox" class="form-check-input" id="bk-git-push">
-                            <label class="form-check-label" for="bk-git-push">Git push bin/rsc</label>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="row">
-                        <div class="form-group col-md-2 col-sm-6">
-                          <label for="bk-purge-keep">Хранить, шт.</label>
-                          <input type="number" id="bk-purge-keep" class="form-control form-control-sm" min="1" max="100">
-                        </div>
-                        <div class="form-group col-md-2 col-sm-6">
-                          <label for="bk-timeout">Timeout, сек</label>
-                          <input type="number" id="bk-timeout" class="form-control form-control-sm" min="30" max="3600">
-                        </div>
-                        <div class="form-group col-md-4 col-sm-12">
-                          <label for="bk-bin-dir">Каталог binary</label>
-                          <input type="text" id="bk-bin-dir" class="form-control form-control-sm">
-                        </div>
-                        <div class="form-group col-md-4 col-sm-12">
-                          <label for="bk-rsc-dir">Каталог export</label>
-                          <input type="text" id="bk-rsc-dir" class="form-control form-control-sm">
-                        </div>
-                      </div>
-                      <div class="row">
-                        <div class="form-group col-md-4">
-                          <label for="bk-encrypt-password">Пароль шифрования binary</label>
-                          <input type="password" id="bk-encrypt-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Пусто = без шифрования">
-                        </div>
-                      </div>
-                      <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
-                        <i class="fas fa-save me-1"></i> Сохранить MikroTik backup
-                      </button>
-                    </form>
-                    </div>
+                      </li>
+                      <li class="nav-item" id="settings-tab-git-li" data-permission-any="oxidized:read,oxidized:write">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-git" role="tab">
+                          <i class="fab fa-git-alt" aria-hidden="true"></i>
+                          <span>Git</span>
+                        </a>
+                      </li>
+                      <li class="nav-item" id="settings-tab-notify-li" data-permission-any="oxidized:read,oxidized:write">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-notify" role="tab">
+                          <i class="fas fa-bell" aria-hidden="true"></i>
+                          <span>Уведомления</span>
+                        </a>
+                      </li>
+                      <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-groups" role="tab">
+                          <i class="fas fa-key" aria-hidden="true"></i>
+                          <span>Группы</span>
+                        </a>
+                      </li>
+                      <li class="nav-item" id="settings-ldap-tab-li" data-permission="users:manage">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-ldap" role="tab">
+                          <i class="fas fa-sitemap" aria-hidden="true"></i>
+                          <span>LDAP</span>
+                        </a>
+                      </li>
+                      <li class="nav-item" data-permission="inventory:write">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-service" role="tab">
+                          <i class="fas fa-screwdriver-wrench" aria-hidden="true"></i>
+                          <span>Сервис</span>
+                        </a>
+                      </li>
+                    </ul>
                   </div>
                 </div>
+              </div>
 
-                <!-- Tab: Git -->
-                <div class="tab-pane fade" id="settings-tab-git" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
-                  <p class="text-muted small mb-3">
-                    Push конфигов Oxidized и MikroTik bin/rsc в удалённый репозиторий.
-                    Значения из UI сохраняются в БД; при первом запуске подставляются из <code>.env</code>.
-                  </p>
-                  <form id="git-settings-form">
-                    <div class="row">
-                      <div class="form-group col-md-8">
-                        <label for="git-remote-url">Git remote URL</label>
-                        <input type="text" id="git-remote-url" class="form-control form-control-sm" placeholder="https://gitea.example.com/org/repo.git">
-                      </div>
-                      <div class="form-group col-md-4">
-                        <label for="git-branch">Ветка</label>
-                        <input type="text" id="git-branch" class="form-control form-control-sm" placeholder="main">
-                      </div>
-                    </div>
-                    <div class="row">
-                      <div class="form-group col-md-4">
-                        <label for="git-gitea-token">Gitea token</label>
-                        <input type="password" id="git-gitea-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
-                      </div>
-                      <div class="form-group col-md-4">
-                        <label for="git-gitea-user">HTTP user</label>
-                        <input type="text" id="git-gitea-user" class="form-control form-control-sm" placeholder="oauth2">
-                      </div>
-                      <div class="form-group col-md-4">
-                        <label for="git-source-token">Source token (X-Auth-Token)</label>
-                        <input type="password" id="git-source-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
-                      </div>
-                    </div>
-                    <div class="row">
-                      <div class="form-group col-md-4">
-                        <label for="git-commit-user">Commit user</label>
-                        <input type="text" id="git-commit-user" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-4">
-                        <label for="git-commit-email">Commit email</label>
-                        <input type="email" id="git-commit-email" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-4">
-                        <label for="git-public-url">Oxidized public URL</label>
-                        <input type="text" id="git-public-url" class="form-control form-control-sm" placeholder="http://localhost:8888">
-                      </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
-                      <i class="fas fa-save me-1"></i> Сохранить Git
-                    </button>
-                  </form>
-                </div>
+              <div class="col-lg-9 col-xl-10">
+                <div class="card settings-content-card mb-0">
+                  <div class="card-body tab-content settings-tab-content">
 
-                <!-- Tab: Notifications -->
-                <div class="tab-pane fade" id="settings-tab-notify" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
-                  <p class="text-muted small mb-3">
-                    Telegram и Email: ошибки бэкапа, отчёты об успехе, сводки деградации (stale / offline / overdue).
-                    Тест использует значения из формы; секреты (token) — из БД, если поле пустое.
-                  </p>
-                  <form id="notify-settings-form">
-                    <div class="row mb-3">
-                      <div class="col-md-6">
-                        <h6 class="text-muted text-uppercase small">При ошибках</h6>
-                        <div class="form-check mb-1">
-                          <input type="checkbox" class="form-check-input" id="nt-error-telegram">
-                          <label class="form-check-label" for="nt-error-telegram">Telegram</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="form-check-input" id="nt-error-email">
-                          <label class="form-check-label" for="nt-error-email">Email</label>
-                        </div>
-                      </div>
-                      <div class="col-md-6">
-                        <h6 class="text-muted text-uppercase small">Отчёты об успехе</h6>
-                        <div class="form-check mb-1">
-                          <input type="checkbox" class="form-check-input" id="nt-report-telegram">
-                          <label class="form-check-label" for="nt-report-telegram">Telegram</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="form-check-input" id="nt-report-email">
-                          <label class="form-check-label" for="nt-report-email">Email</label>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="row mb-3">
-                      <div class="col-md-6">
-                        <h6 class="text-muted text-uppercase small">Деградация (stale / offline / overdue)</h6>
-                        <div class="form-check mb-1">
-                          <input type="checkbox" class="form-check-input" id="nt-degrade-telegram">
-                          <label class="form-check-label" for="nt-degrade-telegram">Telegram</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="form-check-input" id="nt-degrade-email">
-                          <label class="form-check-label" for="nt-degrade-email">Email</label>
-                        </div>
-                      </div>
-                      <div class="col-md-3">
-                        <label for="nt-stale-days" class="small text-muted">Stale, дней</label>
-                        <input type="number" id="nt-stale-days" class="form-control form-control-sm" min="1" max="365">
-                      </div>
-                      <div class="col-md-3">
-                        <label for="nt-alert-cooldown" class="small text-muted">Cooldown, ч</label>
-                        <input type="number" id="nt-alert-cooldown" class="form-control form-control-sm" min="1" max="168">
-                      </div>
-                      <div class="col-md-3">
-                        <label for="nt-degrade-interval" class="small text-muted">Проверка, сек</label>
-                        <input type="number" id="nt-degrade-interval" class="form-control form-control-sm" min="300" max="86400" step="60">
-                      </div>
-                    </div>
-                    <div class="row mb-3">
-                      <div class="col-md-6">
-                        <h6 class="text-muted text-uppercase small">Ежедневный compliance-отчёт</h6>
-                        <div class="form-check mb-1">
-                          <input type="checkbox" class="form-check-input" id="nt-compliance-telegram">
-                          <label class="form-check-label" for="nt-compliance-telegram">Telegram</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="form-check-input" id="nt-compliance-email">
-                          <label class="form-check-label" for="nt-compliance-email">Email</label>
-                        </div>
-                      </div>
-                      <div class="col-md-3">
-                        <label for="nt-compliance-hour" class="small text-muted">Час UTC</label>
-                        <input type="number" id="nt-compliance-hour" class="form-control form-control-sm" min="0" max="23">
-                        <small class="text-muted" id="nt-compliance-last-sent">Последний: —</small>
-                      </div>
-                    </div>
-                    <div class="row mb-3">
-                      <div class="col-md-12">
-                        <h6 class="text-muted text-uppercase small">Webhook при деградации</h6>
-                        <div class="form-check mb-2">
-                          <input type="checkbox" class="form-check-input" id="nt-webhook-enabled">
-                          <label class="form-check-label" for="nt-webhook-enabled">Отправлять JSON POST (Slack/Teams/тикетница)</label>
-                        </div>
-                        <input type="url" id="nt-webhook-url" class="form-control form-control-sm" placeholder="https://hooks.example.com/...">
-                      </div>
-                    </div>
-                    <h6 class="text-muted text-uppercase small mb-2">Telegram</h6>
-                    <div class="row">
-                      <div class="form-group col-md-6">
-                        <label for="nt-telegram-token">Bot token</label>
-                        <input type="password" id="nt-telegram-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
-                      </div>
-                      <div class="form-group col-md-3">
-                        <label for="nt-telegram-chat-notify">Chat ID (ошибки)</label>
-                        <input type="text" id="nt-telegram-chat-notify" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-3">
-                        <label for="nt-telegram-chat-report">Chat ID (отчёты)</label>
-                        <input type="text" id="nt-telegram-chat-report" class="form-control form-control-sm">
-                      </div>
-                    </div>
-                    <h6 class="text-muted text-uppercase small mb-2 mt-2">SMTP</h6>
-                    <div class="row">
-                      <div class="form-group col-md-4">
-                        <label for="nt-smtp-server">Сервер</label>
-                        <input type="text" id="nt-smtp-server" class="form-control form-control-sm" placeholder="smtp.example.com">
-                      </div>
-                      <div class="form-group col-md-2">
-                        <label for="nt-smtp-port">Порт</label>
-                        <input type="number" id="nt-smtp-port" class="form-control form-control-sm" min="1" max="65535">
-                      </div>
-                      <div class="form-group col-md-3">
-                        <label for="nt-smtp-user">User</label>
-                        <input type="text" id="nt-smtp-user" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-3">
-                        <label for="nt-smtp-password">Password</label>
-                        <input type="password" id="nt-smtp-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
-                      </div>
-                    </div>
-                    <div class="row">
-                      <div class="form-group col-md-4">
-                        <label for="nt-smtp-from">From</label>
-                        <input type="email" id="nt-smtp-from" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-4">
-                        <label for="nt-smtp-to-notify">To (ошибки)</label>
-                        <input type="email" id="nt-smtp-to-notify" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-4">
-                        <label for="nt-smtp-to-report">To (отчёты)</label>
-                        <input type="email" id="nt-smtp-to-report" class="form-control form-control-sm">
-                      </div>
-                    </div>
-                    <div class="form-check mb-3">
-                      <input type="checkbox" class="form-check-input" id="nt-smtp-ssl" checked>
-                      <label class="form-check-label" for="nt-smtp-ssl">SSL (SMTPS)</label>
-                    </div>
-                    <div class="d-flex flex-wrap align-items-center">
-                      <button type="submit" class="btn btn-primary btn-sm me-2 mb-1" data-permission="oxidized:write">
-                        <i class="fas fa-save me-1"></i> Сохранить уведомления
-                      </button>
-                      <button type="button" class="btn btn-outline-secondary btn-sm me-2 mb-1" id="btn-test-notify-report" data-permission="oxidized:write">
-                        <i class="fas fa-paper-plane me-1"></i> Тест отчёта
-                      </button>
-                      <button type="button" class="btn btn-outline-danger btn-sm mb-1 me-2" id="btn-test-notify-error" data-permission="oxidized:write">
-                        <i class="fas fa-exclamation-triangle me-1"></i> Тест ошибки
-                      </button>
-                      <button type="button" class="btn btn-outline-warning btn-sm mb-1 me-2" id="btn-test-notify-degrade" data-permission="oxidized:write">
-                        <i class="fas fa-bell me-1"></i> Тест деградации
-                      </button>
-                      <button type="button" class="btn btn-outline-success btn-sm mb-1 me-2" id="btn-test-compliance-report" data-permission="oxidized:write">
-                        <i class="fas fa-chart-line me-1"></i> Тест compliance
-                      </button>
-                      <button type="button" class="btn btn-outline-info btn-sm mb-1" id="btn-degrade-check-now" data-permission="oxidized:write">
-                        <i class="fas fa-sync me-1"></i> Проверить деградацию
-                      </button>
-                    </div>
-                    <div id="notify-test-result" class="small mt-2 text-muted"></div>
-                  </form>
-                </div>
+                    <!-- Tab: Backup -->
+                    <div class="tab-pane fade show active" id="settings-tab-backup" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
+                      <div id="settings-oxidized-card">
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">
+                                <i class="fas fa-cogs text-primary me-1"></i> Oxidized worker
+                              </h5>
+                              <p class="settings-section-desc mb-0" id="ox-settings-env-note"></p>
+                            </div>
+                            <div class="settings-section-badges">
+                              <span class="badge text-bg-secondary" id="ox-settings-engine-badge">—</span>
+                              <span class="badge text-bg-info ms-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
+                            </div>
+                          </div>
+                          <form id="oxidized-settings-form" class="settings-section-body">
+                            <div class="row g-3">
+                              <div class="col-md-4 col-lg-2">
+                                <label class="form-label" for="ox-interval">Интервал, сек</label>
+                                <input type="number" id="ox-interval" class="form-control form-control-sm" min="60" step="60">
+                              </div>
+                              <div class="col-md-4 col-lg-2">
+                                <label class="form-label" for="ox-threads">Потоки</label>
+                                <input type="number" id="ox-threads" class="form-control form-control-sm" min="1" max="64">
+                              </div>
+                              <div class="col-md-4 col-lg-2">
+                                <label class="form-label" for="ox-timeout">Timeout SSH</label>
+                                <input type="number" id="ox-timeout" class="form-control form-control-sm" min="5">
+                              </div>
+                              <div class="col-md-4 col-lg-2">
+                                <label class="form-label" for="ox-retries">Повторы</label>
+                                <input type="number" id="ox-retries" class="form-control form-control-sm" min="0" max="10">
+                              </div>
+                              <div class="col-md-4 col-lg-2">
+                                <label class="form-label" for="ox-ssh-port">SSH порт</label>
+                                <input type="number" id="ox-ssh-port" class="form-control form-control-sm" min="1" max="65535">
+                              </div>
+                              <div class="col-md-4 col-lg-2">
+                                <label class="form-label" for="ox-default-model">Модель</label>
+                                <select id="ox-default-model" class="form-select form-select-sm"></select>
+                              </div>
+                            </div>
+                            <div class="row g-3 align-items-center mt-1">
+                              <div class="col-md-4">
+                                <div class="form-check">
+                                  <input type="checkbox" class="form-check-input" id="ox-resolve-dns">
+                                  <label class="form-check-label" for="ox-resolve-dns">Resolve DNS</label>
+                                </div>
+                              </div>
+                              <div class="col-md-8">
+                                <span class="text-muted small" id="ox-settings-log-path"></span>
+                              </div>
+                            </div>
+                            <div class="settings-form-actions">
+                              <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
+                                <i class="fas fa-save me-1"></i> Сохранить Oxidized
+                              </button>
+                              <button type="button" class="btn btn-outline-primary btn-sm" id="btn-settings-sync-oxidized" data-permission="oxidized:write">
+                                <i class="fas fa-sync me-1"></i> Sync конфиг
+                              </button>
+                              <a class="btn btn-outline-secondary btn-sm" id="btn-settings-oxidized-ui" href="#" data-permission="oxidized:read">
+                                <i class="fas fa-external-link-alt me-1"></i> Oxidized UI
+                              </a>
+                            </div>
+                          </form>
+                        </section>
 
-                <!-- Tab: Groups -->
-                <div class="tab-pane fade" id="settings-tab-groups" role="tabpanel">
-                  <div id="settings-groups-card">
-                    <p class="text-muted small mb-3">
-                      Группы задают SSH-логин, пароль и модель Oxidized для устройств с одинаковым полем <code>group</code>.
-                      Сохраняются в БД и синхронизируются в <code>oxidized/config</code> → секция <code>groups</code>.
-                    </p>
-                    <div class="callout callout-info py-2 px-3 mb-3 small">
-                      <strong>Профиль</strong> — имя записи в системе (напр. <code>ovn</code>).
-                      <strong>Группа</strong> — ключ для устройств (напр. <code>hex</code> из <code>network_inventory.yml</code>).
-                      Стандартный набор после import: профиль <code>ovn</code> → группа <code>hex</code>, профиль <code>us</code> → группа <code>us</code>.
+                        <section class="settings-section" id="mikrotik-backup-settings">
+                          <div id="mikrotik-external-note" class="alert alert-secondary py-2 small mb-3" style="display:none;">
+                            MikroTik binary/export доступны только при <code>OXIDIZED_ENGINE=python</code> (worker в scanner).
+                          </div>
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">
+                                <i class="fas fa-hard-drive text-info me-1"></i> MikroTik backup
+                              </h5>
+                              <p class="settings-section-desc mb-0">
+                                Binary <code>.backup</code> и export <code>.rsc</code>. Настройки в БД, без перезапуска.
+                                Операции пишутся в <strong>лог Oxidized</strong>.
+                              </p>
+                            </div>
+                          </div>
+                          <form id="backup-settings-form" class="settings-section-body">
+                            <div class="row g-2 mb-3">
+                              <div class="col-sm-6 col-md-4 col-xl">
+                                <div class="form-check form-switch">
+                                  <input type="checkbox" class="form-check-input" id="bk-binary">
+                                  <label class="form-check-label" for="bk-binary">Binary backup</label>
+                                </div>
+                              </div>
+                              <div class="col-sm-6 col-md-4 col-xl">
+                                <div class="form-check form-switch">
+                                  <input type="checkbox" class="form-check-input" id="bk-export">
+                                  <label class="form-check-label" for="bk-export">Export .rsc</label>
+                                </div>
+                              </div>
+                              <div class="col-sm-6 col-md-4 col-xl">
+                                <div class="form-check form-switch">
+                                  <input type="checkbox" class="form-check-input" id="bk-hide-sensitive">
+                                  <label class="form-check-label" for="bk-hide-sensitive">Hide sensitive</label>
+                                </div>
+                              </div>
+                              <div class="col-sm-6 col-md-4 col-xl">
+                                <div class="form-check form-switch">
+                                  <input type="checkbox" class="form-check-input" id="bk-purge">
+                                  <label class="form-check-label" for="bk-purge">Purge old binary</label>
+                                </div>
+                              </div>
+                              <div class="col-sm-6 col-md-4 col-xl">
+                                <div class="form-check form-switch">
+                                  <input type="checkbox" class="form-check-input" id="bk-git-push">
+                                  <label class="form-check-label" for="bk-git-push">Git push bin/rsc</label>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="row g-3">
+                              <div class="col-md-3 col-lg-2">
+                                <label class="form-label" for="bk-purge-keep">Хранить, шт.</label>
+                                <input type="number" id="bk-purge-keep" class="form-control form-control-sm" min="1" max="100">
+                              </div>
+                              <div class="col-md-3 col-lg-2">
+                                <label class="form-label" for="bk-timeout">Timeout, сек</label>
+                                <input type="number" id="bk-timeout" class="form-control form-control-sm" min="30" max="3600">
+                              </div>
+                              <div class="col-md-6 col-lg-4">
+                                <label class="form-label" for="bk-bin-dir">Каталог binary</label>
+                                <input type="text" id="bk-bin-dir" class="form-control form-control-sm" autocomplete="off">
+                              </div>
+                              <div class="col-md-6 col-lg-4">
+                                <label class="form-label" for="bk-rsc-dir">Каталог export</label>
+                                <input type="text" id="bk-rsc-dir" class="form-control form-control-sm" autocomplete="username">
+                              </div>
+                              <div class="col-md-6 col-lg-4">
+                                <label class="form-label" for="bk-encrypt-password">Пароль шифрования binary</label>
+                                <input type="password" id="bk-encrypt-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Пусто = без шифрования">
+                              </div>
+                            </div>
+                            <div class="settings-form-actions">
+                              <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
+                                <i class="fas fa-save me-1"></i> Сохранить MikroTik backup
+                              </button>
+                            </div>
+                          </form>
+                        </section>
+                      </div>
                     </div>
-                    <div class="table-responsive">
-                      <table class="table table-bordered table-striped table-sm">
-                        <thead>
-                          <tr>
-                            <th>Профиль</th>
-                            <th>Группа</th>
-                            <th>Model</th>
-                            <th>Username</th>
-                            <th>Password</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody id="settings-credentials-table"></tbody>
-                      </table>
-                    </div>
-                    <div id="settings-credentials-empty" class="text-muted text-center py-3" style="display:none;">
-                      Нет групп — добавьте ниже или импортируйте network_inventory.yml
-                    </div>
-                  </div>
-                  <div class="card card-outline card-success mt-3" id="settings-add-cred-card" data-permission="credentials:write">
-                    <div class="card-header py-2"><h3 class="card-title h6 mb-0">Добавить группу</h3></div>
-                    <div class="card-body py-3">
-                      <form id="credential-create-form">
-                        <div class="row">
-                          <div class="form-group col-md-3 col-sm-6">
-                            <label for="new-cred-name">Имя профиля</label>
-                            <input type="text" id="new-cred-name" class="form-control form-control-sm" placeholder="hex" required>
+
+                    <!-- Tab: Git -->
+                    <div class="tab-pane fade" id="settings-tab-git" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
+                      <section class="settings-section">
+                        <div class="settings-section-header">
+                          <div>
+                            <h5 class="settings-section-title mb-1">
+                              <i class="fab fa-git-alt text-secondary me-1"></i> Git remote
+                            </h5>
+                            <p class="settings-section-desc mb-0">
+                              Push конфигов Oxidized и MikroTik bin/rsc. Значения сохраняются в БД;
+                              при первом запуске подставляются из <code>.env</code>.
+                            </p>
                           </div>
-                          <div class="form-group col-md-3 col-sm-6">
-                            <label for="new-cred-group">Группа</label>
-                            <input type="text" id="new-cred-group" class="form-control form-control-sm" placeholder="hex" required>
+                        </div>
+                        <form id="git-settings-form" class="settings-section-body">
+                          <div class="row g-3">
+                            <div class="col-lg-8">
+                              <label class="form-label" for="git-remote-url">Git remote URL</label>
+                              <input type="text" id="git-remote-url" class="form-control form-control-sm" placeholder="https://gitea.example.com/org/repo.git">
+                            </div>
+                            <div class="col-lg-4">
+                              <label class="form-label" for="git-branch">Ветка</label>
+                              <input type="text" id="git-branch" class="form-control form-control-sm" placeholder="main">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label" for="git-gitea-token">Gitea token</label>
+                              <input type="password" id="git-gitea-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label" for="git-gitea-user">HTTP user</label>
+                              <input type="text" id="git-gitea-user" class="form-control form-control-sm" placeholder="oauth2">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label" for="git-source-token">Source token (X-Auth-Token)</label>
+                              <input type="password" id="git-source-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label" for="git-commit-user">Commit user</label>
+                              <input type="text" id="git-commit-user" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label" for="git-commit-email">Commit email</label>
+                              <input type="email" id="git-commit-email" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4">
+                              <label class="form-label" for="git-public-url">Oxidized public URL</label>
+                              <input type="text" id="git-public-url" class="form-control form-control-sm" placeholder="http://localhost:8888">
+                            </div>
                           </div>
-                          <div class="form-group col-md-2 col-sm-4">
-                            <label for="new-cred-username">Username</label>
-                            <input type="text" id="new-cred-username" class="form-control form-control-sm" required>
-                          </div>
-                          <div class="form-group col-md-2 col-sm-4">
-                            <label for="new-cred-model">Model</label>
-                            <select id="new-cred-model" class="form-control form-control-sm">
-                              <option value="routeros">routeros</option>
-                            </select>
-                          </div>
-                          <div class="form-group col-md-2 col-sm-4">
-                            <label for="new-cred-password">Password</label>
-                            <input type="password" id="new-cred-password" class="form-control form-control-sm" required>
-                          </div>
-                          <div class="form-group col-md-12 col-lg-auto d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary btn-sm">
-                              <i class="fas fa-plus me-1"></i> Добавить
+                          <div class="settings-form-actions">
+                            <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
+                              <i class="fas fa-save me-1"></i> Сохранить Git
                             </button>
                           </div>
-                        </div>
-                      </form>
+                        </form>
+                      </section>
                     </div>
-                  </div>
-                  <div class="card card-outline card-warning mt-3" id="settings-group-policies-card" data-permission-any="oxidized:read,oxidized:write">
-                    <div class="card-header py-2">
-                      <h3 class="card-title h6 mb-0">Политики per-group</h3>
-                    </div>
-                    <div class="card-body py-3">
-                      <p class="text-muted small mb-2">
-                        Интервал бэкапа, модель Oxidized и MikroTik binary/export для группы.
-                        Пустой интервал (0) — глобальный из Oxidized worker; MikroTik «наследовать» — из вкладки Backup.
-                        <strong>MK binary/export</strong> применяются только к <code>routeros</code>; для Cisco/Juniper задайте model=<code>ios</code>/<code>junos</code> и MK=выкл.
-                      </p>
-                      <div class="table-responsive">
-                        <table class="table table-bordered table-striped table-sm mb-2">
-                          <thead>
-                            <tr>
-                              <th>Группа</th>
-                              <th>Интервал, сек</th>
-                              <th>Model</th>
-                              <th>MK binary</th>
-                              <th>MK export</th>
-                              <th></th>
-                            </tr>
-                          </thead>
-                          <tbody id="group-policies-table"></tbody>
-                        </table>
-                      </div>
-                      <div id="group-policies-empty" class="text-muted small mb-2" style="display:none;">Нет политик — добавьте для группы hex/us</div>
-                      <form id="group-policy-form" class="row align-items-end" data-permission="oxidized:write">
-                        <div class="form-group col-md-2 col-6 mb-1">
-                          <label for="gp-group" class="small">Группа</label>
-                          <input type="text" id="gp-group" class="form-control form-control-sm" placeholder="hex" required>
-                        </div>
-                        <div class="form-group col-md-2 col-6 mb-1">
-                          <label for="gp-interval" class="small">Интервал</label>
-                          <input type="number" id="gp-interval" class="form-control form-control-sm" min="0" max="604800" value="0" title="0 = глобальный">
-                        </div>
-                        <div class="form-group col-md-2 col-6 mb-1">
-                          <label for="gp-model" class="small">Model</label>
-                          <select id="gp-model" class="form-control form-control-sm">
-                            <option value="">—</option>
-                            <option value="routeros">routeros</option>
-                          </select>
-                        </div>
-                        <div class="form-group col-md-2 col-6 mb-1">
-                          <label for="gp-mk-binary" class="small">MK binary</label>
-                          <select id="gp-mk-binary" class="form-control form-control-sm">
-                            <option value="inherit">Наследовать</option>
-                            <option value="true">Вкл</option>
-                            <option value="false">Выкл</option>
-                          </select>
-                        </div>
-                        <div class="form-group col-md-2 col-6 mb-1">
-                          <label for="gp-mk-export" class="small">MK export</label>
-                          <select id="gp-mk-export" class="form-control form-control-sm">
-                            <option value="inherit">Наследовать</option>
-                            <option value="true">Вкл</option>
-                            <option value="false">Выкл</option>
-                          </select>
-                        </div>
-                        <div class="form-group col-md-2 col-12 mb-1">
-                          <button type="submit" class="btn btn-primary btn-sm w-100">
-                            <i class="fas fa-save me-1"></i> Сохранить
+
+                    <!-- Tab: Notifications -->
+                    <div class="tab-pane fade" id="settings-tab-notify" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
+                      <form id="notify-settings-form">
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">
+                                <i class="fas fa-bell text-warning me-1"></i> Каналы уведомлений
+                              </h5>
+                              <p class="settings-section-desc mb-0">
+                                Telegram и Email для ошибок, отчётов и деградации.
+                                Тест использует значения формы; пустой token — из БД.
+                              </p>
+                            </div>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="row g-3">
+                              <div class="col-md-6 col-xl-3">
+                                <div class="settings-notify-card">
+                                  <h6 class="settings-notify-card-title">При ошибках</h6>
+                                  <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input" id="nt-error-telegram">
+                                    <label class="form-check-label" for="nt-error-telegram">Telegram</label>
+                                  </div>
+                                  <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="nt-error-email">
+                                    <label class="form-check-label" for="nt-error-email">Email</label>
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="col-md-6 col-xl-3">
+                                <div class="settings-notify-card">
+                                  <h6 class="settings-notify-card-title">Отчёты об успехе</h6>
+                                  <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input" id="nt-report-telegram">
+                                    <label class="form-check-label" for="nt-report-telegram">Telegram</label>
+                                  </div>
+                                  <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="nt-report-email">
+                                    <label class="form-check-label" for="nt-report-email">Email</label>
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="col-md-6 col-xl-3">
+                                <div class="settings-notify-card">
+                                  <h6 class="settings-notify-card-title">Деградация</h6>
+                                  <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input" id="nt-degrade-telegram">
+                                    <label class="form-check-label" for="nt-degrade-telegram">Telegram</label>
+                                  </div>
+                                  <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="nt-degrade-email">
+                                    <label class="form-check-label" for="nt-degrade-email">Email</label>
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="col-md-6 col-xl-3">
+                                <div class="settings-notify-card">
+                                  <h6 class="settings-notify-card-title">Compliance-отчёт</h6>
+                                  <div class="form-check mb-1">
+                                    <input type="checkbox" class="form-check-input" id="nt-compliance-telegram">
+                                    <label class="form-check-label" for="nt-compliance-telegram">Telegram</label>
+                                  </div>
+                                  <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="nt-compliance-email">
+                                    <label class="form-check-label" for="nt-compliance-email">Email</label>
+                                  </div>
+                                  <label class="form-label small mb-0" for="nt-compliance-hour">Час UTC</label>
+                                  <input type="number" id="nt-compliance-hour" class="form-control form-control-sm" min="0" max="23">
+                                  <small class="text-muted" id="nt-compliance-last-sent">Последний: —</small>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="row g-3 mt-1">
+                              <div class="col-md-3">
+                                <label class="form-label" for="nt-stale-days">Stale, дней</label>
+                                <input type="number" id="nt-stale-days" class="form-control form-control-sm" min="1" max="365">
+                              </div>
+                              <div class="col-md-3">
+                                <label class="form-label" for="nt-alert-cooldown">Cooldown, ч</label>
+                                <input type="number" id="nt-alert-cooldown" class="form-control form-control-sm" min="1" max="168">
+                              </div>
+                              <div class="col-md-3">
+                                <label class="form-label" for="nt-degrade-interval">Проверка, сек</label>
+                                <input type="number" id="nt-degrade-interval" class="form-control form-control-sm" min="300" max="86400" step="60">
+                              </div>
+                            </div>
+                            <div class="settings-notify-card mt-3">
+                              <h6 class="settings-notify-card-title">Webhook при деградации</h6>
+                              <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="nt-webhook-enabled">
+                                <label class="form-check-label" for="nt-webhook-enabled">JSON POST (Slack / Teams / тикетница)</label>
+                              </div>
+                              <input type="url" id="nt-webhook-url" class="form-control form-control-sm" placeholder="https://hooks.example.com/...">
+                            </div>
+                          </div>
+                        </section>
+
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <h5 class="settings-section-title mb-0">Telegram</h5>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="row g-3">
+                              <div class="col-lg-6">
+                                <label class="form-label" for="nt-telegram-token">Bot token</label>
+                                <input type="password" id="nt-telegram-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                              </div>
+                              <div class="col-lg-3">
+                                <label class="form-label" for="nt-telegram-chat-notify">Chat ID (ошибки)</label>
+                                <input type="text" id="nt-telegram-chat-notify" class="form-control form-control-sm">
+                              </div>
+                              <div class="col-lg-3">
+                                <label class="form-label" for="nt-telegram-chat-report">Chat ID (отчёты)</label>
+                                <input type="text" id="nt-telegram-chat-report" class="form-control form-control-sm">
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <h5 class="settings-section-title mb-0">SMTP</h5>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="row g-3">
+                              <div class="col-md-4">
+                                <label class="form-label" for="nt-smtp-server">Сервер</label>
+                                <input type="text" id="nt-smtp-server" class="form-control form-control-sm" placeholder="smtp.example.com">
+                              </div>
+                              <div class="col-md-2">
+                                <label class="form-label" for="nt-smtp-port">Порт</label>
+                                <input type="number" id="nt-smtp-port" class="form-control form-control-sm" min="1" max="65535">
+                              </div>
+                              <div class="col-md-3">
+                                <label class="form-label" for="nt-smtp-user">User</label>
+                                <input type="text" id="nt-smtp-user" class="form-control form-control-sm" autocomplete="username">
+                              </div>
+                              <div class="col-md-3">
+                                <label class="form-label" for="nt-smtp-password">Password</label>
+                                <input type="password" id="nt-smtp-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="nt-smtp-from">From</label>
+                                <input type="email" id="nt-smtp-from" class="form-control form-control-sm">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="nt-smtp-to-notify">To (ошибки)</label>
+                                <input type="email" id="nt-smtp-to-notify" class="form-control form-control-sm">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="nt-smtp-to-report">To (отчёты)</label>
+                                <input type="email" id="nt-smtp-to-report" class="form-control form-control-sm">
+                              </div>
+                            </div>
+                            <div class="form-check mt-2">
+                              <input type="checkbox" class="form-check-input" id="nt-smtp-ssl" checked>
+                              <label class="form-check-label" for="nt-smtp-ssl">SSL (SMTPS)</label>
+                            </div>
+                          </div>
+                        </section>
+
+                        <div class="settings-form-actions flex-wrap">
+                          <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
+                            <i class="fas fa-save me-1"></i> Сохранить уведомления
+                          </button>
+                          <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-test-notify-report" data-permission="oxidized:write">
+                            <i class="fas fa-paper-plane me-1"></i> Тест отчёта
+                          </button>
+                          <button type="button" class="btn btn-outline-danger btn-sm" id="btn-test-notify-error" data-permission="oxidized:write">
+                            <i class="fas fa-exclamation-triangle me-1"></i> Тест ошибки
+                          </button>
+                          <button type="button" class="btn btn-outline-warning btn-sm" id="btn-test-notify-degrade" data-permission="oxidized:write">
+                            <i class="fas fa-bell me-1"></i> Тест деградации
+                          </button>
+                          <button type="button" class="btn btn-outline-success btn-sm" id="btn-test-compliance-report" data-permission="oxidized:write">
+                            <i class="fas fa-chart-line me-1"></i> Тест compliance
+                          </button>
+                          <button type="button" class="btn btn-outline-info btn-sm" id="btn-degrade-check-now" data-permission="oxidized:write">
+                            <i class="fas fa-sync me-1"></i> Проверить деградацию
                           </button>
                         </div>
+                        <div id="notify-test-result" class="small mt-2 text-muted"></div>
                       </form>
                     </div>
+
+                    <!-- Tab: Groups -->
+                    <div class="tab-pane fade" id="settings-tab-groups" role="tabpanel">
+                      <div id="settings-groups-card">
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">
+                                <i class="fas fa-key text-success me-1"></i> Профили групп
+                              </h5>
+                              <p class="settings-section-desc mb-0">
+                                SSH-логин, пароль и модель Oxidized для поля <code>group</code> устройств.
+                                Синхронизация в <code>oxidized/config</code> → <code>groups</code>.
+                              </p>
+                            </div>
+                          </div>
+                          <div class="alert alert-info py-2 small mb-3">
+                            <strong>Профиль</strong> — имя записи (напр. <code>ovn</code>).
+                            <strong>Группа</strong> — ключ устройств (напр. <code>hex</code>).
+                            После import: <code>ovn</code>→<code>hex</code>, <code>us</code>→<code>us</code>.
+                          </div>
+                          <div class="table-responsive">
+                            <table class="table table-bordered table-striped table-sm mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Профиль</th>
+                                  <th>Группа</th>
+                                  <th>Model</th>
+                                  <th>Username</th>
+                                  <th>Password</th>
+                                  <th></th>
+                                </tr>
+                              </thead>
+                              <tbody id="settings-credentials-table"></tbody>
+                            </table>
+                          </div>
+                          <div id="settings-credentials-empty" class="text-muted text-center py-3" style="display:none;">
+                            Нет групп — добавьте ниже или импортируйте network_inventory.yml
+                          </div>
+                        </section>
+                      </div>
+
+                      <section class="settings-section" id="settings-add-cred-card" data-permission="credentials:write">
+                        <div class="settings-section-header">
+                          <h5 class="settings-section-title mb-0">Добавить группу</h5>
+                        </div>
+                        <form id="credential-create-form" class="settings-section-body">
+                          <div class="row g-3 align-items-end">
+                            <div class="col-md-3 col-sm-6">
+                              <label class="form-label" for="new-cred-name">Имя профиля</label>
+                              <input type="text" id="new-cred-name" class="form-control form-control-sm" placeholder="hex" required>
+                            </div>
+                            <div class="col-md-3 col-sm-6">
+                              <label class="form-label" for="new-cred-group">Группа</label>
+                              <input type="text" id="new-cred-group" class="form-control form-control-sm" placeholder="hex" required>
+                            </div>
+                            <div class="col-md-2 col-sm-4">
+                              <label class="form-label" for="new-cred-username">Username</label>
+                              <input type="text" id="new-cred-username" class="form-control form-control-sm" autocomplete="username" required>
+                            </div>
+                            <div class="col-md-2 col-sm-4">
+                              <label class="form-label" for="new-cred-model">Model</label>
+                              <select id="new-cred-model" class="form-select form-select-sm">
+                                <option value="routeros">routeros</option>
+                              </select>
+                            </div>
+                            <div class="col-md-2 col-sm-4">
+                              <label class="form-label" for="new-cred-password">Password</label>
+                              <input type="password" id="new-cred-password" class="form-control form-control-sm" autocomplete="new-password" required>
+                            </div>
+                            <div class="col-auto">
+                              <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-plus me-1"></i> Добавить
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+                      </section>
+
+                      <section class="settings-section" id="settings-group-policies-card" data-permission-any="oxidized:read,oxidized:write">
+                        <div class="settings-section-header">
+                          <div>
+                            <h5 class="settings-section-title mb-1">Политики per-group</h5>
+                            <p class="settings-section-desc mb-0">
+                              Интервал, модель и MikroTik binary/export. Интервал 0 — из Oxidized worker;
+                              MK «наследовать» — из вкладки Бэкап.
+                            </p>
+                          </div>
+                        </div>
+                        <div class="settings-section-body">
+                          <div class="table-responsive mb-3">
+                            <table class="table table-bordered table-striped table-sm mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Группа</th>
+                                  <th>Интервал, сек</th>
+                                  <th>Model</th>
+                                  <th>MK binary</th>
+                                  <th>MK export</th>
+                                  <th></th>
+                                </tr>
+                              </thead>
+                              <tbody id="group-policies-table"></tbody>
+                            </table>
+                          </div>
+                          <div id="group-policies-empty" class="text-muted small mb-3" style="display:none;">Нет политик — добавьте для группы hex/us</div>
+                          <form id="group-policy-form" class="row g-2 align-items-end" data-permission="oxidized:write">
+                            <div class="col-md-2 col-6">
+                              <label class="form-label small" for="gp-group">Группа</label>
+                              <input type="text" id="gp-group" class="form-control form-control-sm" placeholder="hex" required>
+                            </div>
+                            <div class="col-md-2 col-6">
+                              <label class="form-label small" for="gp-interval">Интервал</label>
+                              <input type="number" id="gp-interval" class="form-control form-control-sm" min="0" max="604800" value="0" title="0 = глобальный">
+                            </div>
+                            <div class="col-md-2 col-6">
+                              <label class="form-label small" for="gp-model">Model</label>
+                              <select id="gp-model" class="form-select form-select-sm">
+                                <option value="">—</option>
+                                <option value="routeros">routeros</option>
+                              </select>
+                            </div>
+                            <div class="col-md-2 col-6">
+                              <label class="form-label small" for="gp-mk-binary">MK binary</label>
+                              <select id="gp-mk-binary" class="form-select form-select-sm">
+                                <option value="inherit">Наследовать</option>
+                                <option value="true">Вкл</option>
+                                <option value="false">Выкл</option>
+                              </select>
+                            </div>
+                            <div class="col-md-2 col-6">
+                              <label class="form-label small" for="gp-mk-export">MK export</label>
+                              <select id="gp-mk-export" class="form-select form-select-sm">
+                                <option value="inherit">Наследовать</option>
+                                <option value="true">Вкл</option>
+                                <option value="false">Выкл</option>
+                              </select>
+                            </div>
+                            <div class="col-md-2 col-12">
+                              <button type="submit" class="btn btn-primary btn-sm w-100">
+                                <i class="fas fa-save me-1"></i> Сохранить
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      </section>
+                    </div>
+
+                    <!-- Tab: LDAP -->
+                    <div class="tab-pane fade" id="settings-tab-ldap" role="tabpanel" data-permission="users:manage">
+                      <div id="settings-ldap-card">
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">
+                                <i class="fas fa-sitemap text-secondary me-1"></i> LDAP / Active Directory
+                              </h5>
+                              <p class="settings-section-desc mb-0">
+                                Настройки в БД, без перезапуска. При первом запуске — импорт из <code>.env</code>.
+                              </p>
+                            </div>
+                          </div>
+                          <form id="ldap-settings-form" class="settings-section-body">
+                            <div class="row g-3 align-items-end mb-2">
+                              <div class="col-md-3">
+                                <div class="form-check form-switch">
+                                  <input type="checkbox" class="form-check-input" id="ldap-enabled">
+                                  <label class="form-check-label" for="ldap-enabled">Включить LDAP</label>
+                                </div>
+                              </div>
+                              <div class="col-md-3">
+                                <label class="form-label" for="ldap-directory-type">Тип каталога</label>
+                                <select id="ldap-directory-type" class="form-select form-select-sm">
+                                  <option value="ldap">Generic LDAP</option>
+                                  <option value="ad">Active Directory</option>
+                                </select>
+                              </div>
+                              <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="btn-ldap-apply-preset">
+                                  <i class="fas fa-magic me-1"></i> Применить шаблон
+                                </button>
+                                <span class="text-muted small" id="ldap-preset-hint"></span>
+                              </div>
+                            </div>
+
+                            <div class="row g-3">
+                              <div class="col-lg-8">
+                                <label class="form-label" for="ldap-server">Сервер</label>
+                                <input type="text" id="ldap-server" class="form-control form-control-sm" placeholder="ldap://dc.example.com:389">
+                                <div class="form-text">Для AD: <code>ldap://</code> + StartTLS или <code>ldaps://</code></div>
+                              </div>
+                              <div class="col-lg-2">
+                                <label class="form-label" for="ldap-timeout">Таймаут, сек</label>
+                                <input type="number" id="ldap-timeout" class="form-control form-control-sm" min="1" max="120" value="10">
+                              </div>
+                              <div class="col-lg-2">
+                                <label class="form-label d-block">TLS</label>
+                                <div class="form-check">
+                                  <input type="checkbox" class="form-check-input" id="ldap-use-ssl">
+                                  <label class="form-check-label" for="ldap-use-ssl">LDAPS</label>
+                                </div>
+                                <div class="form-check">
+                                  <input type="checkbox" class="form-check-input" id="ldap-start-tls" checked>
+                                  <label class="form-check-label" for="ldap-start-tls">StartTLS</label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                              <div class="col-lg-6">
+                                <h6 class="settings-subheading">Сервисная учётная запись</h6>
+                                <label class="form-label" for="ldap-bind-dn">Bind DN</label>
+                                <input type="text" id="ldap-bind-dn" class="form-control form-control-sm mb-2" placeholder="CN=svc-ldap,OU=Service,DC=corp,DC=local">
+                                <label class="form-label" for="ldap-bind-password">Bind password</label>
+                                <input type="password" id="ldap-bind-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                              </div>
+                              <div class="col-lg-6">
+                                <h6 class="settings-subheading">Поиск пользователей</h6>
+                                <label class="form-label" for="ldap-user-base">Base DN</label>
+                                <input type="text" id="ldap-user-base" class="form-control form-control-sm mb-2" placeholder="DC=corp,DC=local">
+                                <label class="form-label" for="ldap-user-filter">Фильтр</label>
+                                <input type="text" id="ldap-user-filter" class="form-control form-control-sm" placeholder="(sAMAccountName={username})">
+                                <div class="form-text"><code>{username}</code> заменяется на логин</div>
+                              </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                              <div class="col-md-6">
+                                <label class="form-label" for="ldap-upn-suffix">UPN suffix (AD)</label>
+                                <input type="text" id="ldap-upn-suffix" class="form-control form-control-sm" placeholder="@corp.local">
+                              </div>
+                              <div class="col-md-6">
+                                <label class="form-label" for="ldap-dn-template">DN template</label>
+                                <input type="text" id="ldap-dn-template" class="form-control form-control-sm" placeholder="uid={username},ou=users,dc=example,dc=com">
+                              </div>
+                              <div class="col-md-6">
+                                <label class="form-label" for="ldap-admin-groups">Группы → admin</label>
+                                <input type="text" id="ldap-admin-groups" class="form-control form-control-sm" placeholder="CN=Backup Admins,...">
+                              </div>
+                              <div class="col-md-6">
+                                <label class="form-label" for="ldap-operator-groups">Группы → operator</label>
+                                <input type="text" id="ldap-operator-groups" class="form-control form-control-sm" placeholder="CN=Backup Operators,...">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="ldap-default-role">Роль по умолчанию</label>
+                                <select id="ldap-default-role" class="form-select form-select-sm">
+                                  <option value="viewer">viewer</option>
+                                  <option value="operator">operator</option>
+                                  <option value="admin">admin</option>
+                                </select>
+                              </div>
+                              <div class="col-md-8 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                  <input type="checkbox" class="form-check-input" id="ldap-fallback-local" checked>
+                                  <label class="form-check-label" for="ldap-fallback-local">Разрешить локальный вход при ошибке LDAP</label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="settings-test-panel mt-3" id="ldap-test-panel">
+                              <h6 class="settings-subheading mb-2">Проверка подключения</h6>
+                              <div class="btn-group btn-group-sm mb-2" role="group">
+                                <button type="button" class="btn btn-outline-primary" id="btn-ldap-test-bind">
+                                  <i class="fas fa-plug me-1"></i> Bind сервисной УЗ
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="btn-ldap-test-auth">
+                                  <i class="fas fa-user-check me-1"></i> Вход пользователя
+                                </button>
+                              </div>
+                              <div class="row g-2" id="ldap-test-auth-fields" style="display:none;">
+                                <div class="col-md-4">
+                                  <input type="text" id="ldap-test-username" class="form-control form-control-sm" placeholder="Логин LDAP" autocomplete="username">
+                                </div>
+                                <div class="col-md-4">
+                                  <input type="password" id="ldap-test-password" class="form-control form-control-sm" placeholder="Пароль" autocomplete="current-password">
+                                </div>
+                              </div>
+                              <div id="ldap-test-result" class="small mt-2"></div>
+                            </div>
+
+                            <div class="settings-form-actions">
+                              <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-save me-1"></i> Сохранить LDAP
+                              </button>
+                            </div>
+                          </form>
+                        </section>
+                      </div>
+                    </div>
+
+                    <!-- Tab: Service -->
+                    <div class="tab-pane fade" id="settings-tab-service" role="tabpanel" data-permission="inventory:write">
+                      <div id="settings-import-card">
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">
+                                <i class="fas fa-file-import text-secondary me-1"></i> Импорт и обслуживание
+                              </h5>
+                              <p class="settings-section-desc mb-0">
+                                Импорт подсетей из <code>network_inventory.yml</code>.
+                                Scan/discovery и seed-креды — в БД (из <code>.env</code> при старте).
+                              </p>
+                            </div>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                              <button class="btn btn-secondary btn-sm" id="btn-import-network">
+                                <i class="fas fa-file-import me-1"></i> Импорт network_inventory.yml
+                              </button>
+                              <button class="btn btn-outline-danger btn-sm" id="btn-cleanup-discovered">
+                                <i class="fas fa-broom me-1"></i> Удалить discovered-*
+                              </button>
+                              <span class="text-muted small" id="settings-discovered-count"></span>
+                            </div>
+                            <form id="scan-settings-form">
+                              <h6 class="settings-subheading">Scan / discovery</h6>
+                              <div class="row g-3">
+                                <div class="col-md-4">
+                                  <label class="form-label" for="scan-concurrency">Concurrency</label>
+                                  <input type="number" id="scan-concurrency" class="form-control form-control-sm" min="1" max="500">
+                                </div>
+                                <div class="col-md-4">
+                                  <label class="form-label" for="scan-discover-max">Discover max hosts</label>
+                                  <input type="number" id="scan-discover-max" class="form-control form-control-sm" min="1" max="65536">
+                                </div>
+                                <div class="col-md-4">
+                                  <label class="form-label" for="scan-ping-workers">Ping workers</label>
+                                  <input type="number" id="scan-ping-workers" class="form-control form-control-sm" min="1" max="1000">
+                                </div>
+                              </div>
+                              <h6 class="settings-subheading mt-3">Seed credentials (import)</h6>
+                              <div class="row g-3">
+                                <div class="col-md-3">
+                                  <label class="form-label" for="scan-ovn-user">OVN user</label>
+                                  <input type="text" id="scan-ovn-user" class="form-control form-control-sm" autocomplete="username">
+                                </div>
+                                <div class="col-md-3">
+                                  <label class="form-label" for="scan-ovn-pass">OVN password</label>
+                                  <input type="password" id="scan-ovn-pass" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                                </div>
+                                <div class="col-md-3">
+                                  <label class="form-label" for="scan-us-user">US user</label>
+                                  <input type="text" id="scan-us-user" class="form-control form-control-sm" autocomplete="username">
+                                </div>
+                                <div class="col-md-3">
+                                  <label class="form-label" for="scan-us-pass">US password</label>
+                                  <input type="password" id="scan-us-pass" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                                </div>
+                              </div>
+                              <div class="settings-form-actions">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                  <i class="fas fa-save me-1"></i> Сохранить scan
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+                        </section>
+
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">Окно обслуживания</h5>
+                              <p class="settings-section-desc mb-0">
+                                Устройства с <strong>Maintenance</strong> не получают scheduled backup в указанные часы UTC.
+                                Ручной Fetch доступен.
+                              </p>
+                            </div>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="form-check mb-3">
+                              <input type="checkbox" class="form-check-input" id="bk-maint-enabled" checked>
+                              <label class="form-check-label" for="bk-maint-enabled">Пауза scheduled backup</label>
+                            </div>
+                            <div class="row g-3 mb-3">
+                              <div class="col-md-3 col-6">
+                                <label class="form-label" for="bk-maint-start">Начало UTC</label>
+                                <input type="number" id="bk-maint-start" class="form-control form-control-sm" min="0" max="23" value="22">
+                              </div>
+                              <div class="col-md-3 col-6">
+                                <label class="form-label" for="bk-maint-end">Конец UTC</label>
+                                <input type="number" id="bk-maint-end" class="form-control form-control-sm" min="0" max="23" value="6">
+                              </div>
+                            </div>
+                            <span class="form-label d-block">Дни недели (UTC)</span>
+                            <div id="bk-maint-days" class="d-flex flex-wrap align-items-center gap-1 mb-3">
+                              <label class="btn btn-outline-secondary btn-sm active maint-day-btn"><input type="checkbox" class="d-none" data-day="0" checked> Пн</label>
+                              <label class="btn btn-outline-secondary btn-sm active maint-day-btn"><input type="checkbox" class="d-none" data-day="1" checked> Вт</label>
+                              <label class="btn btn-outline-secondary btn-sm active maint-day-btn"><input type="checkbox" class="d-none" data-day="2" checked> Ср</label>
+                              <label class="btn btn-outline-secondary btn-sm active maint-day-btn"><input type="checkbox" class="d-none" data-day="3" checked> Чт</label>
+                              <label class="btn btn-outline-secondary btn-sm active maint-day-btn"><input type="checkbox" class="d-none" data-day="4" checked> Пт</label>
+                              <label class="btn btn-outline-secondary btn-sm active maint-day-btn"><input type="checkbox" class="d-none" data-day="5" checked> Сб</label>
+                              <label class="btn btn-outline-secondary btn-sm active maint-day-btn"><input type="checkbox" class="d-none" data-day="6" checked> Вс</label>
+                              <span class="text-muted small ms-1">
+                                <button type="button" class="btn btn-link btn-sm p-0" id="bk-maint-preset-weekdays">Будни</button>
+                                ·
+                                <button type="button" class="btn btn-link btn-sm p-0" id="bk-maint-preset-all">Все</button>
+                              </span>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                              <span class="badge text-bg-secondary" id="bk-maint-status">—</span>
+                              <button type="button" class="btn btn-primary btn-sm" id="btn-save-maintenance" data-permission="oxidized:write">
+                                <i class="fas fa-save me-1"></i> Сохранить окно
+                              </button>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section class="settings-section" data-permission="users:manage">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">Резервная копия данных</h5>
+                              <p class="settings-section-desc mb-0">
+                                Копия БД и inventory YAML в <code>BACKUP_DATA_DIR</code> (по умолчанию <code>/data/backups</code>).
+                              </p>
+                            </div>
+                          </div>
+                          <div class="settings-section-body">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-backup-data">
+                              <i class="fas fa-database me-1"></i> Backup data now
+                            </button>
+                            <span class="text-muted small ms-2" id="backup-data-result"></span>
+                          </div>
+                        </section>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
-
-                <!-- Tab: LDAP -->
-                <div class="tab-pane fade" id="settings-tab-ldap" role="tabpanel" data-permission="users:manage">
-                  <div id="settings-ldap-card">
-                    <p class="text-muted small mb-3">
-                      Настройки в БД, без перезапуска. При первом запуске — импорт из <code>.env</code>.
-                    </p>
-                    <form id="ldap-settings-form">
-                  <div class="row align-items-center mb-3">
-                    <div class="form-group col-md-3 mb-md-0">
-                      <div class="form-check form-switch">
-                        <input type="checkbox" class="form-check-input" id="ldap-enabled">
-                        <label class="form-check-label" for="ldap-enabled">Включить LDAP</label>
-                      </div>
-                    </div>
-                    <div class="form-group col-md-3 mb-md-0">
-                      <label for="ldap-directory-type">Тип каталога</label>
-                      <select id="ldap-directory-type" class="form-control">
-                        <option value="ldap">Generic LDAP</option>
-                        <option value="ad">Active Directory</option>
-                      </select>
-                    </div>
-                    <div class="form-group col-md-6 mb-md-0 d-flex align-items-end">
-                      <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="btn-ldap-apply-preset">
-                        <i class="fas fa-magic me-1"></i> Применить шаблон
-                      </button>
-                      <span class="text-muted small" id="ldap-preset-hint"></span>
-                    </div>
-                  </div>
-
-                  <div class="row">
-                    <div class="form-group col-md-8">
-                      <label for="ldap-server">Сервер</label>
-                      <input type="text" id="ldap-server" class="form-control" placeholder="ldap://dc.example.com:389">
-                      <small class="text-muted">Для AD: <code>ldap://</code> + StartTLS или <code>ldaps://</code> + SSL</small>
-                    </div>
-                    <div class="form-group col-md-2">
-                      <label for="ldap-timeout">Таймаут, сек</label>
-                      <input type="number" id="ldap-timeout" class="form-control" min="1" max="120" value="10">
-                    </div>
-                    <div class="form-group col-md-2 d-flex flex-column justify-content-end">
-                      <div class="form-check mb-1">
-                        <input type="checkbox" class="form-check-input" id="ldap-use-ssl">
-                        <label class="form-check-label" for="ldap-use-ssl">LDAPS (SSL)</label>
-                      </div>
-                      <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="ldap-start-tls" checked>
-                        <label class="form-check-label" for="ldap-start-tls">StartTLS</label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="row">
-                    <div class="col-lg-6">
-                      <h6 class="text-muted text-uppercase small mb-2">Сервисная учётная запись</h6>
-                      <div class="form-group">
-                        <label for="ldap-bind-dn">Bind DN</label>
-                        <input type="text" id="ldap-bind-dn" class="form-control" placeholder="CN=svc-ldap,OU=Service,DC=corp,DC=local">
-                      </div>
-                      <div class="form-group">
-                        <label for="ldap-bind-password">Bind password</label>
-                        <input type="password" id="ldap-bind-password" class="form-control" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
-                      </div>
-                    </div>
-                    <div class="col-lg-6">
-                      <h6 class="text-muted text-uppercase small mb-2">Поиск пользователей</h6>
-                      <div class="form-group">
-                        <label for="ldap-user-base">Base DN</label>
-                        <input type="text" id="ldap-user-base" class="form-control" placeholder="DC=corp,DC=local">
-                      </div>
-                      <div class="form-group">
-                        <label for="ldap-user-filter">Фильтр</label>
-                        <input type="text" id="ldap-user-filter" class="form-control" placeholder="(sAMAccountName={username})">
-                        <small class="text-muted"><code>{username}</code> заменяется на логин</small>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="row">
-                    <div class="form-group col-md-6">
-                      <label for="ldap-upn-suffix">UPN suffix (AD)</label>
-                      <input type="text" id="ldap-upn-suffix" class="form-control" placeholder="@corp.local">
-                      <small class="text-muted">Для прямого bind без поиска: <code>user@domain</code></small>
-                    </div>
-                    <div class="form-group col-md-6">
-                      <label for="ldap-dn-template">DN template (опционально)</label>
-                      <input type="text" id="ldap-dn-template" class="form-control" placeholder="uid={username},ou=users,dc=example,dc=com">
-                    </div>
-                  </div>
-
-                  <div class="row">
-                    <div class="form-group col-md-6">
-                      <label for="ldap-admin-groups">Группы → admin</label>
-                      <input type="text" id="ldap-admin-groups" class="form-control" placeholder="CN=Backup Admins,OU=Groups,DC=corp,DC=local">
-                      <small class="text-muted">Через запятую, DN или CN</small>
-                    </div>
-                    <div class="form-group col-md-6">
-                      <label for="ldap-operator-groups">Группы → operator</label>
-                      <input type="text" id="ldap-operator-groups" class="form-control" placeholder="CN=Backup Operators,OU=Groups,DC=corp,DC=local">
-                    </div>
-                  </div>
-
-                  <div class="row">
-                    <div class="form-group col-md-4">
-                      <label for="ldap-default-role">Роль по умолчанию</label>
-                      <select id="ldap-default-role" class="form-control">
-                        <option value="viewer">viewer</option>
-                        <option value="operator">operator</option>
-                        <option value="admin">admin</option>
-                      </select>
-                    </div>
-                    <div class="form-group col-md-4 d-flex align-items-end">
-                      <div class="form-check mb-3">
-                        <input type="checkbox" class="form-check-input" id="ldap-fallback-local" checked>
-                        <label class="form-check-label" for="ldap-fallback-local">Разрешить локальный вход при ошибке LDAP</label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="border rounded p-3 mb-3 bg-light" id="ldap-test-panel">
-                    <h6 class="mb-2">Проверка подключения</h6>
-                    <div class="btn-group btn-group-sm mb-2" role="group">
-                      <button type="button" class="btn btn-outline-primary" id="btn-ldap-test-bind">
-                        <i class="fas fa-plug me-1"></i> Bind сервисной УЗ
-                      </button>
-                      <button type="button" class="btn btn-outline-secondary" id="btn-ldap-test-auth">
-                        <i class="fas fa-user-check me-1"></i> Вход пользователя
-                      </button>
-                    </div>
-                    <div class="row" id="ldap-test-auth-fields" style="display:none;">
-                      <div class="form-group col-md-4 mb-2">
-                        <input type="text" id="ldap-test-username" class="form-control form-control-sm" placeholder="Логин LDAP">
-                      </div>
-                      <div class="form-group col-md-4 mb-2">
-                        <input type="password" id="ldap-test-password" class="form-control form-control-sm" placeholder="Пароль">
-                      </div>
-                    </div>
-                    <div id="ldap-test-result" class="small"></div>
-                  </div>
-
-                  <button type="submit" class="btn btn-primary btn-sm">
-                    <i class="fas fa-save me-1"></i> Сохранить LDAP
-                  </button>
-                </form>
-                  </div>
-                </div>
-
-                <!-- Tab: Service -->
-                <div class="tab-pane fade" id="settings-tab-service" role="tabpanel" data-permission="inventory:write">
-                  <div id="settings-import-card">
-                  <p class="text-muted small mb-3">
-                    Импорт подсетей из <code>network_inventory.yml</code>.
-                    Параметры scan/discovery и seed-креды OVN/US — в БД (при первом запуске из <code>.env</code>).
-                  </p>
-                  <div class="d-flex flex-wrap align-items-center mb-3">
-                    <button class="btn btn-secondary btn-sm me-2 mb-1" id="btn-import-network">
-                      <i class="fas fa-file-import me-1"></i> Импорт network_inventory.yml
-                    </button>
-                    <button class="btn btn-outline-danger btn-sm mb-1" id="btn-cleanup-discovered">
-                      <i class="fas fa-broom me-1"></i> Удалить discovered-*
-                    </button>
-                    <span class="text-muted small ms-2 mb-1" id="settings-discovered-count"></span>
-                  </div>
-                  <form id="scan-settings-form">
-                    <h6 class="text-muted text-uppercase small mb-2">Scan / discovery</h6>
-                    <div class="row">
-                      <div class="form-group col-md-4 col-sm-6">
-                        <label for="scan-concurrency">Concurrency</label>
-                        <input type="number" id="scan-concurrency" class="form-control form-control-sm" min="1" max="500">
-                      </div>
-                      <div class="form-group col-md-4 col-sm-6">
-                        <label for="scan-discover-max">Discover max hosts</label>
-                        <input type="number" id="scan-discover-max" class="form-control form-control-sm" min="1" max="65536">
-                      </div>
-                      <div class="form-group col-md-4 col-sm-6">
-                        <label for="scan-ping-workers">Ping workers</label>
-                        <input type="number" id="scan-ping-workers" class="form-control form-control-sm" min="1" max="1000">
-                      </div>
-                    </div>
-                    <h6 class="text-muted text-uppercase small mb-2 mt-2">Seed credentials (import)</h6>
-                    <div class="row">
-                      <div class="form-group col-md-3 col-sm-6">
-                        <label for="scan-ovn-user">OVN user</label>
-                        <input type="text" id="scan-ovn-user" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-3 col-sm-6">
-                        <label for="scan-ovn-pass">OVN password</label>
-                        <input type="password" id="scan-ovn-pass" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
-                      </div>
-                      <div class="form-group col-md-3 col-sm-6">
-                        <label for="scan-us-user">US user</label>
-                        <input type="text" id="scan-us-user" class="form-control form-control-sm">
-                      </div>
-                      <div class="form-group col-md-3 col-sm-6">
-                        <label for="scan-us-pass">US password</label>
-                        <input type="password" id="scan-us-pass" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
-                      </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm">
-                      <i class="fas fa-save me-1"></i> Сохранить scan
-                    </button>
-                  </form>
-                  <div class="mt-3 pt-3 border-top">
-                    <h6 class="text-muted text-uppercase small mb-2">Окно обслуживания (maintenance)</h6>
-                    <p class="text-muted small mb-2">
-                      Устройства с флагом <strong>Maintenance</strong> не получают <em>scheduled</em> backup в указанные часы UTC.
-                      Ручной Fetch по-прежнему доступен.
-                    </p>
-                    <div class="form-check mb-2">
-                      <input type="checkbox" class="form-check-input" id="bk-maint-enabled" checked>
-                      <label class="form-check-label" for="bk-maint-enabled">Пауза scheduled backup</label>
-                    </div>
-                    <div class="row">
-                      <div class="form-group col-md-3 col-6">
-                        <label for="bk-maint-start" class="small">Начало UTC</label>
-                        <input type="number" id="bk-maint-start" class="form-control form-control-sm" min="0" max="23" value="22">
-                      </div>
-                      <div class="form-group col-md-3 col-6">
-                        <label for="bk-maint-end" class="small">Конец UTC</label>
-                        <input type="number" id="bk-maint-end" class="form-control form-control-sm" min="0" max="23" value="6">
-                      </div>
-                    </div>
-                    <div class="mb-2">
-                      <span class="small text-muted d-block mb-1">Дни недели (UTC)</span>
-                      <div id="bk-maint-days" class="d-flex flex-wrap align-items-center mb-2">
-                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="0" checked> Пн</label>
-                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="1" checked> Вт</label>
-                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="2" checked> Ср</label>
-                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="3" checked> Чт</label>
-                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="4" checked> Пт</label>
-                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="5" checked> Сб</label>
-                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="6" checked> Вс</label>
-                        <span class="text-muted small ms-1 mb-1">
-                          <button type="button" class="btn btn-link btn-sm p-0" id="bk-maint-preset-weekdays">Будни</button>
-                          ·
-                          <button type="button" class="btn btn-link btn-sm p-0" id="bk-maint-preset-all">Все</button>
-                        </span>
-                      </div>
-                      <div class="d-flex flex-wrap align-items-center">
-                        <span class="badge text-bg-secondary me-2 mb-1" id="bk-maint-status">—</span>
-                        <button type="button" class="btn btn-primary btn-sm mb-1" id="btn-save-maintenance" data-permission="oxidized:write">
-                          <i class="fas fa-save me-1"></i> Сохранить окно
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="mt-3 pt-3 border-top" data-permission="users:manage">
-                    <h6 class="text-muted text-uppercase small mb-2">Резервная копия данных</h6>
-                    <p class="text-muted small mb-2">
-                      Копия БД (SQLite или pg_dump) и inventory YAML в <code>BACKUP_DATA_DIR</code> (по умолчанию <code>/data/backups</code>).
-                    </p>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-backup-data">
-                      <i class="fas fa-database me-1"></i> Backup data now
-                    </button>
-                    <span class="text-muted small ms-2" id="backup-data-result"></span>
-                  </div>
-                  </div>
-                </div>
-
               </div>
             </div>
           </div>
-
           <div id="page-audit" class="page d-none">
             <div id="audit-alert" class="page-alert"></div>
             <div class="card card-outline card-secondary">

@@ -452,7 +452,7 @@ function applyEngineAwareUi() {
   if (mikrotikBlock) {
     const externalNote = qs("#mikrotik-external-note");
     if (externalNote) externalNote.style.display = python ? "none" : "";
-    qsa("#mikrotik-backup-settings > h5, #mikrotik-backup-settings > p, #mikrotik-backup-settings > form").forEach(el => {
+    qsa("#mikrotik-backup-settings .settings-section-header, #mikrotik-backup-settings .settings-section-body").forEach(el => {
       el.style.display = python ? "" : "none";
     });
   }
