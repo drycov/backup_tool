@@ -14,6 +14,7 @@ from api.helpers import (
     json_response,
     parse_json_body,
     require_permission,
+    zabbix_user_from_request,
 )
 from core.models import User
 from services import auth, ldap_settings, scan_job
@@ -1132,6 +1133,65 @@ def import_network_inventory_view(request: HttpRequest) -> JsonResponse:
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_EDIT_INVENTORY)
+def import_netbox_view(request: HttpRequest) -> JsonResponse:
+    from services.inventory_import import import_from_netbox
+
+    user: User = request.api_user
+    dry_run = request.GET.get("dry_run", "").lower() in ("1", "true", "yes")
+    try:
+        result = import_from_netbox(dry_run=dry_run)
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    except Exception as exc:
+        return error_response(str(exc), status=502)
+    log_audit_user(
+        user,
+        ACTION_SETTINGS_UPDATE,
+        target="import/netbox",
+        detail=f"created={result.created} updated={result.updated}",
+        request=request,
+    )
+    inventory = load_inventory()
+    update_oxidized_credentials(inventory)
+    return json_response({**result.to_dict(), "dry_run": dry_run})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_EDIT_INVENTORY)
+def import_librenms_view(request: HttpRequest) -> JsonResponse:
+    from services.inventory_import import import_from_librenms
+
+    user: User = request.api_user
+    dry_run = request.GET.get("dry_run", "").lower() in ("1", "true", "yes")
+    try:
+        result = import_from_librenms(dry_run=dry_run)
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    except Exception as exc:
+        return error_response(str(exc), status=502)
+    log_audit_user(
+        user,
+        ACTION_SETTINGS_UPDATE,
+        target="import/librenms",
+        detail=f"created={result.created} updated={result.updated}",
+        request=request,
+    )
+    inventory = load_inventory()
+    update_oxidized_credentials(inventory)
+    return json_response({**result.to_dict(), "dry_run": dry_run})
+
+
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def sites_list_view(request: HttpRequest) -> JsonResponse:
+    from services.sites import list_sites_public
+
+    return json_response({"sites": list_sites_public()})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 @require_permission(auth.PERMISSION_RUN_SCAN)
 def scan_inventory_view(request: HttpRequest) -> JsonResponse:
     discover = request.GET.get("discover", "").lower() in ("1", "true", "yes")
@@ -1176,6 +1236,7 @@ def compliance_summary_view(request: HttpRequest) -> JsonResponse:
             critical=critical,
             group=request.GET.get("group", "").strip(),
             state=request.GET.get("state", "").strip(),
+            tags=request.GET.get("tags", "").strip(),
             user=user,
         )
     )
@@ -1191,6 +1252,7 @@ def compliance_export_view(request: HttpRequest) -> HttpResponse:
         critical=critical,
         group=request.GET.get("group", "").strip(),
         state=request.GET.get("state", "").strip(),
+        tags=request.GET.get("tags", "").strip(),
         user=user,
     )
     fmt = (request.GET.get("format") or "csv").lower()
@@ -1228,6 +1290,7 @@ def compliance_report_send_view(request: HttpRequest) -> JsonResponse:
         critical=critical,
         group=request.GET.get("group", "").strip(),
         state=request.GET.get("state", "").strip(),
+        tags=request.GET.get("tags", "").strip(),
     )
     log_audit_user(
         user,
@@ -1838,4 +1901,52 @@ def api_key_revoke(request: HttpRequest, key_id: int) -> JsonResponse:
     except ValueError as exc:
         return error_response(str(exc), status=404)
     return json_response({"status": "ok"})
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def zabbix_get_all_devices(request: HttpRequest) -> JsonResponse:
+    from services import zabbix as zabbix_service
+
+    try:
+        user = zabbix_user_from_request(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    if not auth.user_has_permission(user, auth.PERMISSION_COMPLIANCE_READ):
+        return error_response("Недостаточно прав", status=403)
+    return json_response(zabbix_service.list_devices(user=user))
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def zabbix_get_last_status(request: HttpRequest) -> JsonResponse:
+    from services import zabbix as zabbix_service
+
+    try:
+        user = zabbix_user_from_request(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    if not auth.user_has_permission(user, auth.PERMISSION_COMPLIANCE_READ):
+        return error_response("Недостаточно прав", status=403)
+    device_id = request.GET.get("id", "").strip()
+    try:
+        return json_response(zabbix_service.device_last_status(device_id, user=user))
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    except LookupError as exc:
+        return error_response(str(exc), status=404)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def zabbix_get_summary(request: HttpRequest) -> JsonResponse:
+    from services import zabbix as zabbix_service
+
+    try:
+        user = zabbix_user_from_request(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    if not auth.user_has_permission(user, auth.PERMISSION_COMPLIANCE_READ):
+        return error_response("Недостаточно прав", status=403)
+    return json_response(zabbix_service.platform_summary(user=user))
 

@@ -200,7 +200,7 @@ def compute_security_summary(
     if not run:
         return {
             "run": None,
-            "generated_at": datetime.now(timezone.utc),
+            "generated_at": _dt_iso(datetime.now(timezone.utc)),
             "devices_scanned": 0,
             "findings_total": 0,
             "counts": {s: 0 for s in SEVERITY_ORDER},
@@ -250,7 +250,7 @@ def compute_security_summary(
 
     return {
         "run": _run_to_dict(run),
-        "generated_at": run.finished_at or run.started_at,
+        "generated_at": _dt_iso(run.finished_at or run.started_at),
         "devices_scanned": run.devices_scanned,
         "devices_with_findings": devices_with_findings,
         "findings_total": sum(counts.values()),
@@ -323,6 +323,12 @@ def _all_rule_ids() -> set[str]:
     return {r.id for r in SECURITY_RULES}
 
 
+def _dt_iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.isoformat()
+
+
 def _run_to_dict(run: ConfigAuditRun) -> dict[str, Any]:
     return {
         "id": run.id,
@@ -333,8 +339,8 @@ def _run_to_dict(run: ConfigAuditRun) -> dict[str, Any]:
         "devices_skipped": run.devices_skipped,
         "findings_count": run.findings_count,
         "error": run.error,
-        "started_at": run.started_at,
-        "finished_at": run.finished_at,
+        "started_at": _dt_iso(run.started_at),
+        "finished_at": _dt_iso(run.finished_at),
     }
 
 
@@ -354,5 +360,5 @@ def _finding_to_dict(row: ConfigFinding) -> dict[str, Any]:
         "line_number": row.line_number,
         "remediation": row.remediation,
         "acknowledged": row.acknowledged,
-        "created_at": row.created_at,
+        "created_at": _dt_iso(row.created_at),
     }

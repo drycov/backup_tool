@@ -103,3 +103,36 @@ def optional_user(request: HttpRequest) -> Optional[User]:
         return get_current_user(request)
     except ApiError:
         return None
+
+
+def zabbix_user_from_request(request: HttpRequest) -> User:
+    """Аутентификация Zabbix HTTP agent: заголовок authkey ({$AUTHKEY}) или API key bk_."""
+    import secrets
+
+    from django.conf import settings
+
+    from core.models import User
+    from services.api_keys import authenticate_api_key
+    from services.rbac import ROLE_VIEWER
+
+    authkey = (request.headers.get("authkey") or request.headers.get("X-API-Key") or "").strip()
+    if not authkey:
+        raise ApiError("Требуется заголовок authkey", status=401)
+
+    static_key = (getattr(settings, "ZABBIX_AUTH_KEY", "") or "").strip()
+    if static_key:
+        if not getattr(settings, "ZABBIX_MONITORING_ENABLED", True):
+            raise ApiError("Zabbix monitoring disabled", status=503)
+        if secrets.compare_digest(authkey, static_key):
+            return User(
+                id=0,
+                username="zabbix",
+                role=ROLE_VIEWER,
+                is_active=True,
+                auth_source="zabbix",
+            )
+
+    user = authenticate_api_key(authkey)
+    if not user:
+        raise ApiError("Недействительный authkey", status=401)
+    return user

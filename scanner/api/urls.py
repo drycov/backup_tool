@@ -103,6 +103,9 @@ urlpatterns = [
         views.import_network_inventory_view,
         name="inventory-import-network",
     ),
+    path("api/inventory/import/netbox", views.import_netbox_view, name="inventory-import-netbox"),
+    path("api/inventory/import/librenms", views.import_librenms_view, name="inventory-import-librenms"),
+    path("api/sites", views.sites_list_view, name="sites-list"),
     path(
         "inventory/cleanup-discovered",
         views.cleanup_discovered_devices_view,
@@ -133,4 +136,7 @@ urlpatterns = [
         name="security-finding-ack",
     ),
     path("oxidized/sync", views.sync_oxidized_view, name="oxidized-sync"),
+    path("device/getalldevices", views.zabbix_get_all_devices, name="zabbix-getalldevices"),
+    path("device/getlaststatus", views.zabbix_get_last_status, name="zabbix-getlaststatus"),
+    path("device/getsummary", views.zabbix_get_summary, name="zabbix-getsummary"),
 ]

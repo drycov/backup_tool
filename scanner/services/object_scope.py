@@ -33,9 +33,18 @@ def device_in_scope(user: User, device: Device) -> bool:
         return True
     if groups and (device.group or "") not in groups:
         return False
-    if sites and (device.site or "") not in sites:
+    if sites and (device.site or "").lower() not in _expanded_site_set(sites):
         return False
     return True
+
+
+def _expanded_site_set(site_slugs: list[str]) -> set[str]:
+    from services.sites import expand_site_slugs
+
+    result: set[str] = set()
+    for slug in site_slugs:
+        result.update(s.lower() for s in expand_site_slugs(slug))
+    return result
 
 
 def filter_devices(user: User, devices: Iterable[Device]) -> list[Device]:

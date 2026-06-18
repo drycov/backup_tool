@@ -94,24 +94,26 @@
 
 ---
 
-## Фаза 3.4 — Инвентарь и сеть (недели 9–12)
+## Фаза 3.4 — Инвентарь и сеть (недели 9–12) — частично ✅
+
+| Задача | Статус |
+|--------|--------|
+| Импорт NetBox | ✅ `POST /api/inventory/import/netbox` |
+| Импорт LibreNMS | ✅ `POST /api/inventory/import/librenms` |
+| Scheduled inventory sync | ✅ `TASK_INVENTORY_SYNC` |
+| Site иерархия | ✅ модель `Site`, expand children при фильтре |
+| Фильтры tags (compliance + inventory UI) | ✅ |
+| NetBox cables / topology graph | ⏳ 3.4b |
 
 ### Импорт NetBox / LibreNMS
 
-| Источник | API | Маппинг |
-|----------|-----|---------|
-| NetBox | `/api/dcim/devices/` | name, ip, site, role, tags, device_type → model |
-| LibreNMS | `/api/v0/devices` | hostname, ip, location → site |
-
-`POST /inventory/import/netbox`, `import/librenms` + scheduled sync task.
+**Реализовано:** upsert устройств по имени; маппинг site/role/tags/model; настройки в IntegrationConfig; UI Import + scheduled sync.
 
 ### Теги и иерархия
 
 **Реализовано (3.0):** `Device.tags: string[]`.
 
-**Дальше:**
-- Фильтры по тегам в compliance/inventory UI
-- Иерархия: `Site` model (parent site), device.site FK
+**Реализовано (3.4):** фильтр `tags` в compliance API/UI; `Site` parent/child; object scope учитывает дочерние sites.
 
 ### Топология / карта сети
 

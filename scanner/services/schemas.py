@@ -377,6 +377,15 @@ class IntegrationSettingsUpdate(BaseModel):
     audit_webhook_url: str = ""
     audit_webhook_secret: Optional[str] = None
     audit_webhook_action_prefix: str = ""
+    netbox_url: str = ""
+    netbox_token: Optional[str] = None
+    netbox_default_group: str = "default"
+    librenms_url: str = ""
+    librenms_token: Optional[str] = None
+    librenms_default_group: str = "default"
+    inventory_sync_enabled: bool = False
+    inventory_sync_source: str = "netbox"
+    inventory_sync_interval_hours: int = 24
 
 
 class LdapTestResponse(BaseModel):

@@ -76,3 +76,7 @@ AUDIT_RETENTION_DAYS=365
 Экспорт: `GET /api/audit/export` (admin, CSV).
 
 Новые события: `settings.update`, `auth.login`, `auth.login_ldap`, `auth.login_failed`, `user.scope_update`, `compliance.export`, `compliance.report_send`.
+
+## Zabbix
+
+Шаблон **RMB_Monitoring** (HTTP LLD, статус бэкапа по устройствам): см. [ZABBIX.md](ZABBIX.md).

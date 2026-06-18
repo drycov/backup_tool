@@ -35,6 +35,15 @@ class IntegrationConfigData:
     audit_webhook_url: str
     audit_webhook_secret: str
     audit_webhook_action_prefix: str
+    netbox_url: str = ""
+    netbox_token: str = ""
+    netbox_default_group: str = "default"
+    librenms_url: str = ""
+    librenms_token: str = ""
+    librenms_default_group: str = "default"
+    inventory_sync_enabled: bool = False
+    inventory_sync_source: str = "netbox"
+    inventory_sync_interval_hours: int = 24
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -68,6 +77,17 @@ def _defaults_from_env() -> dict[str, Any]:
         "audit_webhook_action_prefix": os.environ.get(
             "AUDIT_WEBHOOK_ACTION_PREFIX", ""
         ).strip(),
+        "netbox_url": os.environ.get("NETBOX_URL", "").strip(),
+        "netbox_token": os.environ.get("NETBOX_TOKEN", ""),
+        "netbox_default_group": os.environ.get("NETBOX_DEFAULT_GROUP", "default"),
+        "librenms_url": os.environ.get("LIBRENMS_URL", "").strip(),
+        "librenms_token": os.environ.get("LIBRENMS_TOKEN", ""),
+        "librenms_default_group": os.environ.get("LIBRENMS_DEFAULT_GROUP", "default"),
+        "inventory_sync_enabled": _env_bool("INVENTORY_SYNC_ENABLED"),
+        "inventory_sync_source": os.environ.get("INVENTORY_SYNC_SOURCE", "netbox"),
+        "inventory_sync_interval_hours": max(
+            1, int(os.environ.get("INVENTORY_SYNC_INTERVAL_HOURS", "24"))
+        ),
     }
 
 
@@ -91,6 +111,15 @@ def _row_to_data(row: IntegrationConfig) -> IntegrationConfigData:
         audit_webhook_url=row.audit_webhook_url or "",
         audit_webhook_secret=row.audit_webhook_secret or "",
         audit_webhook_action_prefix=row.audit_webhook_action_prefix or "",
+        netbox_url=getattr(row, "netbox_url", None) or "",
+        netbox_token=getattr(row, "netbox_token", None) or "",
+        netbox_default_group=getattr(row, "netbox_default_group", None) or "default",
+        librenms_url=getattr(row, "librenms_url", None) or "",
+        librenms_token=getattr(row, "librenms_token", None) or "",
+        librenms_default_group=getattr(row, "librenms_default_group", None) or "default",
+        inventory_sync_enabled=bool(getattr(row, "inventory_sync_enabled", False)),
+        inventory_sync_source=getattr(row, "inventory_sync_source", None) or "netbox",
+        inventory_sync_interval_hours=getattr(row, "inventory_sync_interval_hours", None) or 24,
     )
 
 
@@ -143,8 +172,30 @@ def get_config_public() -> dict[str, Any]:
         "audit_webhook_url": cfg.audit_webhook_url,
         "audit_webhook_secret_set": bool(cfg.audit_webhook_secret),
         "audit_webhook_action_prefix": cfg.audit_webhook_action_prefix,
+        "netbox_url": cfg.netbox_url,
+        "netbox_token_set": bool(cfg.netbox_token),
+        "netbox_default_group": cfg.netbox_default_group,
+        "librenms_url": cfg.librenms_url,
+        "librenms_token_set": bool(cfg.librenms_token),
+        "librenms_default_group": cfg.librenms_default_group,
+        "inventory_sync_enabled": cfg.inventory_sync_enabled,
+        "inventory_sync_source": cfg.inventory_sync_source,
+        "inventory_sync_interval_hours": cfg.inventory_sync_interval_hours,
+        "inventory_sync_last_run_at": _inventory_sync_last_run_iso(),
         "storage": "database" if is_database_available() else "env",
     }
+
+
+def _inventory_sync_last_run_iso() -> str | None:
+    if not is_database_available():
+        return None
+    try:
+        row = IntegrationConfig.objects.filter(pk=1).only("inventory_sync_last_run_at").first()
+        if row and row.inventory_sync_last_run_at:
+            return row.inventory_sync_last_run_at.isoformat()
+    except Exception:
+        pass
+    return None
 
 
 def save_config(payload: dict[str, Any]) -> dict[str, Any]:
@@ -171,6 +222,18 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
         audit_secret = row.audit_webhook_secret
     else:
         audit_secret = str(audit_secret)
+
+    netbox_token = payload.get("netbox_token")
+    if netbox_token in (None, "", PASSWORD_MASK):
+        netbox_token = getattr(row, "netbox_token", "") or ""
+    else:
+        netbox_token = str(netbox_token)
+
+    librenms_token = payload.get("librenms_token")
+    if librenms_token in (None, "", PASSWORD_MASK):
+        librenms_token = getattr(row, "librenms_token", "") or ""
+    else:
+        librenms_token = str(librenms_token)
 
     row.snow_enabled = bool(payload.get("snow_enabled", row.snow_enabled))
     row.snow_instance_url = str(
@@ -211,6 +274,36 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
     row.audit_webhook_action_prefix = str(
         payload.get("audit_webhook_action_prefix", row.audit_webhook_action_prefix)
     ).strip()
+    row.netbox_url = str(payload.get("netbox_url", getattr(row, "netbox_url", ""))).strip().rstrip("/")
+    row.netbox_token = netbox_token
+    row.netbox_default_group = (
+        str(payload.get("netbox_default_group", getattr(row, "netbox_default_group", "default"))).strip()
+        or "default"
+    )
+    row.librenms_url = str(payload.get("librenms_url", getattr(row, "librenms_url", ""))).strip().rstrip("/")
+    row.librenms_token = librenms_token
+    row.librenms_default_group = (
+        str(payload.get("librenms_default_group", getattr(row, "librenms_default_group", "default"))).strip()
+        or "default"
+    )
+    row.inventory_sync_enabled = bool(
+        payload.get("inventory_sync_enabled", getattr(row, "inventory_sync_enabled", False))
+    )
+    sync_source = str(
+        payload.get("inventory_sync_source", getattr(row, "inventory_sync_source", "netbox"))
+    ).strip().lower()
+    if sync_source not in ("netbox", "librenms"):
+        raise ValueError("inventory_sync_source должен быть netbox или librenms")
+    row.inventory_sync_source = sync_source
+    sync_hours = int(
+        payload.get(
+            "inventory_sync_interval_hours",
+            getattr(row, "inventory_sync_interval_hours", 24),
+        )
+    )
+    if sync_hours < 1 or sync_hours > 168:
+        raise ValueError("inventory_sync_interval_hours должен быть от 1 до 168")
+    row.inventory_sync_interval_hours = sync_hours
     row.save()
     logger.info("integration | настройки сохранены через UI")
     return get_config_public()

@@ -454,6 +454,17 @@ function handleRouteHash() {
   }
 }
 
+function syncAppRouteFromHash() {
+  if (!currentUser) return;
+  const h = location.hash.replace(/^#/, "");
+  if (!h) {
+    navigateToPage("dashboard");
+    updateLocationHash("dashboard");
+    return;
+  }
+  handleRouteHash();
+}
+
 function showLogin() {
   document.body.classList.add("login-page");
   document.body.classList.remove("layout-fixed", "sidebar-expand-lg", "bg-body-tertiary");
@@ -516,6 +527,9 @@ function deviceTagsHtml(device) {
   }
   if (device.role) {
     tags.push(`<span class="${badgeCls("secondary", "badge-tag")}">${escapeHtml(device.role)}</span>`);
+  }
+  for (const t of device.tags || []) {
+    if (t) tags.push(`<span class="${badgeCls("info", "badge-tag")}">${escapeHtml(t)}</span>`);
   }
   return tags.length
     ? `<span class="device-tags">${tags.join(" ")}</span>`
@@ -830,6 +844,7 @@ async function completeLogin(data) {
   currentUser = data.user;
   showApp();
   await bootstrapApp();
+  syncAppRouteFromHash();
   if (currentUser?.must_change_password) {
     showPasswordChangeModal();
   }
@@ -865,6 +880,7 @@ async function logout() {
   try {
     await api("/api/auth/logout", { method: "POST" });
   } catch {}
+  history.replaceState(null, "", location.pathname + location.search);
   showLogin();
 }
 
@@ -1168,13 +1184,46 @@ function complianceFilterQuery() {
   const group = qs("#cf-group")?.value.trim();
   const state = qs("#cf-state")?.value.trim();
   const critical = qs("#cf-critical")?.value.trim();
+  const tags = qs("#cf-tags")?.value.trim();
   if (site) params.set("site", site);
   if (role) params.set("role", role);
   if (group) params.set("group", group);
   if (state) params.set("state", state);
   if (critical) params.set("critical", critical);
+  if (tags) params.set("tags", tags);
   const q = params.toString();
   return q ? `?${q}` : "";
+}
+
+function inventoryLocalFilters() {
+  const site = qs("#inv-filter-site")?.value.trim().toLowerCase();
+  const group = qs("#inv-filter-group")?.value.trim().toLowerCase();
+  const tagList = (qs("#inv-filter-tags")?.value || "").split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+  return { site, group, tagList };
+}
+
+function deviceMatchesInventoryFilters(device) {
+  const { site, group, tagList } = inventoryLocalFilters();
+  if (site && !(device.site || "").toLowerCase().includes(site)) return false;
+  if (group && !(device.group || "").toLowerCase().includes(group)) return false;
+  if (tagList.length) {
+    const dt = new Set((device.tags || []).map(t => String(t).toLowerCase()));
+    if (!tagList.some(t => dt.has(t))) return false;
+  }
+  return true;
+}
+
+async function refreshSiteDatalists() {
+  try {
+    const data = await api("/api/sites");
+    const options = (data.sites || []).map(s =>
+      `<option value="${escapeHtml(s.slug)}">${escapeHtml(s.name || s.slug)}</option>`
+    ).join("");
+    const cf = qs("#cf-site-list");
+    const inv = qs("#inv-site-list");
+    if (cf) cf.innerHTML = options;
+    if (inv) inv.innerHTML = options;
+  } catch {}
 }
 
 async function loadComplianceDashboard() {
@@ -1549,6 +1598,7 @@ async function loadInventory() {
     updateGroupSelects();
     renderNetworksTable();
     renderDevicesTable();
+    refreshSiteDatalists();
   } catch (e) {
     showAlert("inventory-alert", e.message, "error");
   }
@@ -1634,7 +1684,8 @@ function renderDevicesTable() {
   const devices = inventory?.devices || [];
   const query = globalSearchQuery;
   const filtered = devices.filter(d =>
-    matchesSearch([d.name, d.ip, d.model, d.group, d.site, d.role, d.critical ? "critical" : "", (d.ports || []).join(" "), d.enabled ? "yes enabled" : "no disabled"], query)
+    deviceMatchesInventoryFilters(d) &&
+    matchesSearch([d.name, d.ip, d.model, d.group, d.site, d.role, (d.tags || []).join(" "), d.critical ? "critical" : "", (d.ports || []).join(" "), d.enabled ? "yes enabled" : "no disabled"], query)
   );
 
   updateSearchCountBadge(filtered.length, devices.length, "devices-count-badge");
@@ -2188,12 +2239,41 @@ function fillIntegrationSettingsForm(cfg) {
       ? "Установлен — оставьте пустым, чтобы не менять"
       : "HMAC secret";
   }
+  if (qs("#int-netbox-url")) qs("#int-netbox-url").value = cfg.netbox_url || "";
+  if (qs("#int-netbox-group")) qs("#int-netbox-group").value = cfg.netbox_default_group || "default";
+  const netboxTok = qs("#int-netbox-token");
+  if (netboxTok) {
+    netboxTok.value = "";
+    netboxTok.placeholder = cfg.netbox_token_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "API token";
+  }
+  if (qs("#int-librenms-url")) qs("#int-librenms-url").value = cfg.librenms_url || "";
+  if (qs("#int-librenms-group")) qs("#int-librenms-group").value = cfg.librenms_default_group || "default";
+  const libreTok = qs("#int-librenms-token");
+  if (libreTok) {
+    libreTok.value = "";
+    libreTok.placeholder = cfg.librenms_token_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "API token";
+  }
+  if (qs("#int-sync-enabled")) qs("#int-sync-enabled").checked = !!cfg.inventory_sync_enabled;
+  if (qs("#int-sync-source")) qs("#int-sync-source").value = cfg.inventory_sync_source || "netbox";
+  if (qs("#int-sync-interval")) qs("#int-sync-interval").value = cfg.inventory_sync_interval_hours ?? 24;
+  const syncLast = qs("#int-sync-last-run");
+  if (syncLast) {
+    syncLast.textContent = cfg.inventory_sync_last_run_at
+      ? `Последний sync: ${formatDate(cfg.inventory_sync_last_run_at)}`
+      : "Последний sync: —";
+  }
 }
 
 function collectIntegrationSettingsForm() {
   const snowVal = qs("#int-snow-password")?.value.trim();
   const jiraVal = qs("#int-jira-token")?.value.trim();
   const auditVal = qs("#int-audit-secret")?.value.trim();
+  const netboxVal = qs("#int-netbox-token")?.value.trim();
+  const libreVal = qs("#int-librenms-token")?.value.trim();
   return {
     snow_enabled: qs("#int-snow-enabled")?.checked === true,
     snow_instance_url: qs("#int-snow-url")?.value.trim() || "",
@@ -2213,6 +2293,15 @@ function collectIntegrationSettingsForm() {
     audit_webhook_url: qs("#int-audit-url")?.value.trim() || "",
     audit_webhook_secret: auditVal || (integrationSettingsCache?.audit_webhook_secret_set ? SETTINGS_PASSWORD_MASK : ""),
     audit_webhook_action_prefix: qs("#int-audit-prefix")?.value.trim() || "",
+    netbox_url: qs("#int-netbox-url")?.value.trim() || "",
+    netbox_token: netboxVal || (integrationSettingsCache?.netbox_token_set ? SETTINGS_PASSWORD_MASK : ""),
+    netbox_default_group: qs("#int-netbox-group")?.value.trim() || "default",
+    librenms_url: qs("#int-librenms-url")?.value.trim() || "",
+    librenms_token: libreVal || (integrationSettingsCache?.librenms_token_set ? SETTINGS_PASSWORD_MASK : ""),
+    librenms_default_group: qs("#int-librenms-group")?.value.trim() || "default",
+    inventory_sync_enabled: qs("#int-sync-enabled")?.checked === true,
+    inventory_sync_source: qs("#int-sync-source")?.value || "netbox",
+    inventory_sync_interval_hours: parseInt(qs("#int-sync-interval")?.value, 10) || 24,
   };
 }
 
@@ -2246,6 +2335,23 @@ async function testAuditWebhook() {
   try {
     const res = await api("/api/settings/integrations/test-audit-webhook", { method: "POST" });
     showAlert("settings-alert", res.message || (res.ok ? "Webhook OK" : "Ошибка"), res.ok ? "success" : "error");
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+async function runInventoryImport(source) {
+  if (!can("inventory:write")) return;
+  const path = source === "librenms" ? "/api/inventory/import/librenms" : "/api/inventory/import/netbox";
+  try {
+    const res = await api(path, { method: "POST" });
+    showAlert(
+      "settings-alert",
+      `${source}: создано ${res.created}, обновлено ${res.updated}, пропущено ${res.skipped}`,
+      "success",
+    );
+    loadInventory();
+    loadIntegrationSettings();
   } catch (err) {
     showAlert("settings-alert", err.message, "error");
   }
@@ -3028,6 +3134,7 @@ function openDeviceModal(name = null) {
   qs("#device-enabled").checked = device ? device.enabled : true;
   if (qs("#device-site")) qs("#device-site").value = device?.site || "";
   if (qs("#device-role")) qs("#device-role").value = device?.role || "";
+  if (qs("#device-tags")) qs("#device-tags").value = (device?.tags || []).join(", ");
   if (qs("#device-critical")) qs("#device-critical").checked = !!device?.critical;
   if (qs("#device-maintenance")) qs("#device-maintenance").checked = !!device?.maintenance;
   syncDeviceEnabledLabel();
@@ -3056,6 +3163,7 @@ async function saveDevice() {
     ports: ports.length ? ports : [44333],
     site: qs("#device-site")?.value.trim() || "",
     role: qs("#device-role")?.value.trim() || "",
+    tags: (qs("#device-tags")?.value || "").split(",").map(t => t.trim()).filter(Boolean),
     critical: qs("#device-critical")?.checked === true,
     maintenance: qs("#device-maintenance")?.checked === true,
   };
@@ -4075,7 +4183,16 @@ async function backupAllNodes() {
 function bindEvents() {
   bindMaintenanceDayToggles();
   initSettingsTabs();
-  window.addEventListener("hashchange", handleRouteHash);
+  window.addEventListener("hashchange", () => {
+    if (!currentUser) return;
+    const h = location.hash.replace(/^#/, "");
+    if (!h) {
+      navigateToPage("dashboard");
+      updateLocationHash("dashboard");
+      return;
+    }
+    handleRouteHash();
+  });
   qs("#password-change-form")?.addEventListener("submit", submitPasswordChange);
 
   qs("#devices-select-all")?.addEventListener("change", e => {
@@ -4138,6 +4255,18 @@ function bindEvents() {
   qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
   qs("#integration-settings-form")?.addEventListener("submit", saveIntegrationSettings);
   qs("#btn-test-audit-webhook")?.addEventListener("click", testAuditWebhook);
+  qs("#btn-import-netbox")?.addEventListener("click", () => runInventoryImport("netbox"));
+  qs("#btn-import-librenms")?.addEventListener("click", () => runInventoryImport("librenms"));
+  ["#inv-filter-site", "#inv-filter-group", "#inv-filter-tags"].forEach(sel => {
+    qs(sel)?.addEventListener("input", () => renderDevicesTable());
+  });
+  qs("#btn-inv-filter-clear")?.addEventListener("click", () => {
+    ["#inv-filter-site", "#inv-filter-group", "#inv-filter-tags"].forEach(id => {
+      const el = qs(id);
+      if (el) el.value = "";
+    });
+    renderDevicesTable();
+  });
   qs("#audit-action-filter")?.addEventListener("change", () => loadAudit());
   qs("#btn-security-refresh")?.addEventListener("click", () => loadSecurityAudit());
   qs("#security-severity-filter")?.addEventListener("change", () => loadSecurityAudit());
@@ -4387,10 +4516,7 @@ async function init() {
     currentUser = await api("/api/auth/me");
     showApp();
     await bootstrapApp();
-    handleRouteHash();
-    if (!location.hash.replace(/^#/, "")) {
-      updateLocationHash("dashboard");
-    }
+    syncAppRouteFromHash();
     if (currentUser?.must_change_password) {
       showPasswordChangeModal();
     }

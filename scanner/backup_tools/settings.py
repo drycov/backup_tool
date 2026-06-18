@@ -149,3 +149,11 @@ PURGE_N_PIECE = int(os.environ.get("PURGE_N_PIECE", "10"))
 
 AUDIT_RETENTION_DAYS = int(os.environ.get("AUDIT_RETENTION_DAYS", "365"))
 METRICS_ENABLED = os.environ.get("METRICS_ENABLED", "true").lower() not in ("0", "false", "no")
+
+# Zabbix HTTP LLD (шаблон RMB_Monitoring): заголовок authkey = {$AUTHKEY}
+ZABBIX_AUTH_KEY = os.environ.get("ZABBIX_AUTH_KEY", "")
+ZABBIX_MONITORING_ENABLED = os.environ.get("ZABBIX_MONITORING_ENABLED", "true").lower() not in (
+    "0",
+    "false",
+    "no",
+)

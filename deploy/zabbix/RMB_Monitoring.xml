@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<zabbix_export>
+    <version>5.0</version>
+    <date>2022-03-12T09:30:16Z</date>
+    <groups>
+        <group>
+            <name>Templates</name>
+        </group>
+    </groups>
+    <templates>
+        <template>
+            <template>RMB_Monitoring</template>
+            <name>RMB_Monitoring (legacy → Backup Tools)</name>
+            <description>Legacy-шаблон RealMikrotikBackup. Эндпоинты обслуживает Backup Tools scanner.&#13;
+Рекомендуется импорт BackupTools_Monitoring.xml — расширенные метрики платформы и LLD.</description>
+            <groups>
+                <group>
+                    <name>Templates</name>
+                </group>
+            </groups>
+            <discovery_rules>
+                <discovery_rule>
+                    <name>GetAllDevices</name>
+                    <type>HTTP_AGENT</type>
+                    <key>getalldevices</key>
+                    <delay>1h</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>Backup status {#NAME}</name>
+                            <type>HTTP_AGENT</type>
+                            <key>getstatus[{#ID}]</key>
+                            <delay>1h</delay>
+                            <trends>0</trends>
+                            <value_type>TEXT</value_type>
+                            <preprocessing>
+                                <step>
+                                    <type>JSONPATH</type>
+                                    <params>$.laststatus</params>
+                                </step>
+                            </preprocessing>
+                            <timeout>15s</timeout>
+                            <url>{$BACKUPTOOLS.SCHEME}://{HOST.CONN}:{$BACKUPTOOLS.PORT}/device/getlaststatus</url>
+                            <query_fields>
+                                <query_field>
+                                    <name>id</name>
+                                    <value>{#ID}</value>
+                                </query_field>
+                            </query_fields>
+                            <headers>
+                                <header>
+                                    <name>authkey</name>
+                                    <value>{$AUTHKEY}</value>
+                                </header>
+                            </headers>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{RMB_Monitoring:getstatus[{#ID}].last()}&lt;&gt;&quot;OK&quot;</expression>
+                                    <name>Ошибка резервного копирования на {#NAME}</name>
+                                    <priority>AVERAGE</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                    <timeout>30s</timeout>
+                    <url>{$BACKUPTOOLS.SCHEME}://{HOST.CONN}:{$BACKUPTOOLS.PORT}/device/getalldevices</url>
+                    <headers>
+                        <header>
+                            <name>authkey</name>
+                            <value>{$AUTHKEY}</value>
+                        </header>
+                    </headers>
+                    <lld_macro_paths>
+                        <lld_macro_path>
+                            <lld_macro>{#ID}</lld_macro>
+                            <path>$.id</path>
+                        </lld_macro_path>
+                        <lld_macro_path>
+                            <lld_macro>{#NAME}</lld_macro>
+                            <path>$.name</path>
+                        </lld_macro_path>
+                    </lld_macro_paths>
+                </discovery_rule>
+            </discovery_rules>
+            <macros>
+                <macro>
+                    <macro>{$AUTHKEY}</macro>
+                    <description>ZABBIX_AUTH_KEY из .env Backup Tools</description>
+                </macro>
+                <macro>
+                    <macro>{$BACKUPTOOLS.PORT}</macro>
+                    <value>8000</value>
+                </macro>
+                <macro>
+                    <macro>{$BACKUPTOOLS.SCHEME}</macro>
+                    <value>http</value>
+                </macro>
+            </macros>
+        </template>
+    </templates>
+</zabbix_export>

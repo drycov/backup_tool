@@ -102,6 +102,65 @@ def _classify_node(
     }
 
 
+def device_compliance_item(device_name: str, *, user=None) -> dict[str, Any] | None:
+    """Compliance-строка для одного включённого устройства (для Zabbix и API)."""
+    inventory = load_inventory()
+    device = next((d for d in inventory.devices if d.name == device_name), None)
+    if not device or not device.enabled:
+        return None
+
+    if user is not None:
+        from services.object_scope import filter_devices
+
+        if not filter_devices(user, [device]):
+            return None
+
+    cfg = get_config()
+    stale_days = max(1, cfg.stale_days_threshold)
+    ox_settings = get_oxidized_settings()
+    global_interval = max(60, int(ox_settings.get("interval") or 3600))
+
+    reachability = get_latest_scan_reachability()
+    nodes, _oxidized_error = get_nodes()
+    node_map = {n.get("name"): n for n in (nodes or []) if n.get("name")}
+
+    now = datetime.now(timezone.utc)
+    stale_cutoff = now - timedelta(days=stale_days)
+    node = node_map.get(device.name, {})
+    interval = effective_interval(device.group, global_interval)
+    overdue_cutoff = now - timedelta(seconds=interval * 2)
+    sla_hours = effective_compliance_sla_hours(device.group)
+    if sla_hours:
+        sla_cutoff = now - timedelta(hours=sla_hours)
+        if sla_cutoff < overdue_cutoff:
+            overdue_cutoff = sla_cutoff
+
+    primary, issues, meta = _classify_node(
+        node,
+        reachability=reachability.get(device.name),
+        stale_cutoff=stale_cutoff,
+        overdue_cutoff=overdue_cutoff,
+    )
+    return {
+        "name": device.name,
+        "ip": device.ip,
+        "group": device.group,
+        "model": device.model,
+        "site": device.site or "",
+        "role": device.role or "",
+        "critical": device.critical,
+        "tags": list(device.tags or []),
+        "state": primary,
+        "state_label": _STATE_LABELS.get(primary, primary),
+        "issues": issues,
+        "last_status": meta["last_status"],
+        "last_backup_at": meta["last_backup_at"],
+        "config_mtime": meta["config_mtime"],
+        "reachability": meta["reachability"],
+        "backup_interval_sec": interval,
+    }
+
+
 def compute_compliance_summary(
     *,
     site: str = "",
@@ -109,6 +168,7 @@ def compute_compliance_summary(
     critical: str | None = None,
     group: str = "",
     state: str = "",
+    tags: str = "",
     user=None,
 ) -> dict[str, Any]:
     cfg = get_config()
@@ -123,8 +183,12 @@ def compute_compliance_summary(
 
         enabled = filter_devices(user, enabled)
 
+    from services.sites import site_matches_filter
+
+    tag_filters = [t.strip().lower() for t in (tags or "").split(",") if t.strip()]
+
     if site:
-        enabled = [d for d in enabled if (d.site or "").lower() == site.lower()]
+        enabled = [d for d in enabled if site_matches_filter(d.site or "", site)]
     if role:
         enabled = [d for d in enabled if (d.role or "").lower() == role.lower()]
     if critical == "true":
@@ -133,6 +197,12 @@ def compute_compliance_summary(
         enabled = [d for d in enabled if not d.critical]
     if group:
         enabled = [d for d in enabled if (d.group or "").lower() == group.lower()]
+    if tag_filters:
+        enabled = [
+            d
+            for d in enabled
+            if any(t in {str(x).lower() for x in (d.tags or [])} for t in tag_filters)
+        ]
 
     reachability = get_latest_scan_reachability()
 
@@ -172,6 +242,7 @@ def compute_compliance_summary(
                 "site": device.site or "",
                 "role": device.role or "",
                 "critical": device.critical,
+                "tags": list(device.tags or []),
                 "state": primary,
                 "state_label": _STATE_LABELS.get(primary, primary),
                 "issues": issues,
@@ -204,6 +275,7 @@ def compute_compliance_summary(
             "critical": critical,
             "group": group,
             "state": state,
+            "tags": tags,
         },
     }
 

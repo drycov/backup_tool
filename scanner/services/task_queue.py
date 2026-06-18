@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.utils import timezone as dj_tz
 
@@ -14,6 +16,13 @@ from services.correlation import correlation_context, new_correlation_id
 from services.database import is_database_available
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe(value: Any) -> Any:
+    """Привести значение к типам, совместимым с JSONField PostgreSQL."""
+    if value is None:
+        return None
+    return json.loads(json.dumps(value, cls=DjangoJSONEncoder))
 
 
 def enqueue(
@@ -111,6 +120,16 @@ def schedule_periodic_tasks() -> int:
             if enqueue(BackgroundTask.TASK_AUDIT_PURGE, dedupe=True):
                 enqueued += 1
 
+    from services.integration_settings import get_config as get_integration_config
+
+    int_cfg = get_integration_config()
+    if int_cfg.inventory_sync_enabled:
+        last_sync = _last_finished_at(BackgroundTask.TASK_INVENTORY_SYNC)
+        sync_interval = timedelta(hours=max(1, int_cfg.inventory_sync_interval_hours))
+        if last_sync is None or now - last_sync >= sync_interval:
+            if enqueue(BackgroundTask.TASK_INVENTORY_SYNC, dedupe=True):
+                enqueued += 1
+
     return enqueued
 
 
@@ -142,7 +161,7 @@ def process_next_task() -> bool:
             task.status = BackgroundTask.STATUS_COMPLETED
             task.finished_at = dj_tz.now()
             task.last_error = ""
-            task.payload = {**(task.payload or {}), "result": result}
+            task.payload = {**(task.payload or {}), "result": _json_safe(result)}
             task.save(update_fields=["status", "finished_at", "last_error", "payload"])
             from services.metrics import task_runs_total
 
@@ -229,6 +248,11 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
             user=user,
             run_id=int(payload["run_id"]) if payload.get("run_id") else None,
         )
+
+    if task.task_type == BackgroundTask.TASK_INVENTORY_SYNC:
+        from services.inventory_import import run_scheduled_inventory_sync
+
+        return run_scheduled_inventory_sync()
 
     raise ValueError(f"Unknown task type: {task.task_type}")
 

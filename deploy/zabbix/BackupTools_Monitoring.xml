@@ -1,0 +1,593 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<zabbix_export>
+    <version>5.0</version>
+    <date>2026-06-18T12:00:00Z</date>
+    <groups>
+        <group>
+            <name>Templates/Network</name>
+        </group>
+    </groups>
+    <templates>
+        <template>
+            <template>BackupTools_Monitoring</template>
+            <name>Backup Tools — мониторинг бэкапов</name>
+            <description>HTTP-интеграция с Backup Tools (scanner): compliance, Oxidized, LLD устройств из inventory.&#13;
+Макросы: {$AUTHKEY}=ZABBIX_AUTH_KEY, {$BACKUPTOOLS.PORT}=8000, {$BACKUPTOOLS.SCHEME}=http.&#13;
+Совместимость с legacy RMB_Monitoring (/device/getalldevices, /device/getlaststatus).</description>
+            <groups>
+                <group>
+                    <name>Templates/Network</name>
+                </group>
+            </groups>
+            <applications>
+                <application>
+                    <name>Backup Tools platform</name>
+                </application>
+                <application>
+                    <name>Backup Tools devices</name>
+                </application>
+            </applications>
+            <items>
+                <item>
+                    <name>Backup Tools: health liveness</name>
+                    <type>HTTP_AGENT</type>
+                    <snmp_community/>
+                    <snmp_oid/>
+                    <key>backuptools.health.status</key>
+                    <delay>1m</delay>
+                    <history>7d</history>
+                    <trends>0</trends>
+                    <status>ENABLED</status>
+                    <value_type>TEXT</value_type>
+                    <allowed_hosts/>
+                    <units/>
+                    <snmpv3_contextname/>
+                    <snmpv3_securityname/>
+                    <snmpv3_securitylevel>0</snmpv3_securitylevel>
+                    <snmpv3_authprotocol>0</snmpv3_authprotocol>
+                    <snmpv3_privprotocol>0</snmpv3_privprotocol>
+                    <snmpv3_authpassphrase/>
+                    <snmpv3_privpassphrase/>
+                    <params/>
+                    <ipmi_sensor/>
+                    <authtype>0</authtype>
+                    <username/>
+                    <password/>
+                    <publickey/>
+                    <privatekey/>
+                    <port/>
+                    <description>GET /health — liveness scanner</description>
+                    <inventory_link>0</inventory_link>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <valuemap/>
+                    <logtimefmt/>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.status</params>
+                        </step>
+                    </preprocessing>
+                    <jmx_endpoint/>
+                    <timeout>10s</timeout>
+                    <url>{$BACKUPTOOLS.SCHEME}://{HOST.CONN}:{$BACKUPTOOLS.PORT}/health</url>
+                    <query_fields/>
+                    <posts/>
+                    <status_codes/>
+                    <follow_redirects>1</follow_redirects>
+                    <post_type>0</post_type>
+                    <http_proxy/>
+                    <headers/>
+                    <retrieve_mode>0</retrieve_mode>
+                    <request_method>0</request_method>
+                    <output_format>0</output_format>
+                    <ssl_cert_file/>
+                    <ssl_key_file/>
+                    <ssl_key_password/>
+                    <verify_peer>0</verify_peer>
+                    <verify_host>0</verify_host>
+                    <master_item/>
+                </item>
+                <item>
+                    <name>Backup Tools: summary raw</name>
+                    <type>HTTP_AGENT</type>
+                    <snmp_community/>
+                    <snmp_oid/>
+                    <key>backuptools.summary.raw</key>
+                    <delay>5m</delay>
+                    <history>1d</history>
+                    <trends>0</trends>
+                    <status>ENABLED</status>
+                    <value_type>TEXT</value_type>
+                    <allowed_hosts/>
+                    <units/>
+                    <snmpv3_contextname/>
+                    <snmpv3_securityname/>
+                    <snmpv3_securitylevel>0</snmpv3_securitylevel>
+                    <snmpv3_authprotocol>0</snmpv3_authprotocol>
+                    <snmpv3_privprotocol>0</snmpv3_privprotocol>
+                    <snmpv3_authpassphrase/>
+                    <snmpv3_privpassphrase/>
+                    <params/>
+                    <ipmi_sensor/>
+                    <authtype>0</authtype>
+                    <username/>
+                    <password/>
+                    <publickey/>
+                    <privatekey/>
+                    <port/>
+                    <description>GET /device/getsummary — master item для dependent metrics</description>
+                    <inventory_link>0</inventory_link>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <valuemap/>
+                    <logtimefmt/>
+                    <preprocessing/>
+                    <jmx_endpoint/>
+                    <timeout>30s</timeout>
+                    <url>{$BACKUPTOOLS.SCHEME}://{HOST.CONN}:{$BACKUPTOOLS.PORT}/device/getsummary</url>
+                    <query_fields/>
+                    <posts/>
+                    <status_codes/>
+                    <follow_redirects>1</follow_redirects>
+                    <post_type>0</post_type>
+                    <http_proxy/>
+                    <headers>
+                        <header>
+                            <name>authkey</name>
+                            <value>{$AUTHKEY}</value>
+                        </header>
+                    </headers>
+                    <retrieve_mode>0</retrieve_mode>
+                    <request_method>0</request_method>
+                    <output_format>0</output_format>
+                    <ssl_cert_file/>
+                    <ssl_key_file/>
+                    <ssl_key_password/>
+                    <verify_peer>0</verify_peer>
+                    <verify_host>0</verify_host>
+                    <master_item/>
+                </item>
+                <item>
+                    <name>Backup Tools: compliance percent</name>
+                    <type>DEPENDENT</type>
+                    <snmp_community/>
+                    <snmp_oid/>
+                    <key>backuptools.compliance_pct</key>
+                    <delay>0</delay>
+                    <history>90d</history>
+                    <trends>365d</trends>
+                    <status>ENABLED</status>
+                    <value_type>FLOAT</value_type>
+                    <allowed_hosts/>
+                    <units>%</units>
+                    <description>Compliance enabled-устройств (как в UI Dashboard)</description>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.compliance_pct</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>backuptools.summary.raw</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Backup Tools: devices total</name>
+                    <type>DEPENDENT</type>
+                    <key>backuptools.devices.total</key>
+                    <delay>0</delay>
+                    <history>90d</history>
+                    <trends>365d</trends>
+                    <status>ENABLED</status>
+                    <value_type>UNSIGNED</value_type>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.devices_total</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>backuptools.summary.raw</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Backup Tools: devices offline</name>
+                    <type>DEPENDENT</type>
+                    <key>backuptools.devices.offline</key>
+                    <delay>0</delay>
+                    <history>90d</history>
+                    <trends>365d</trends>
+                    <status>ENABLED</status>
+                    <value_type>UNSIGNED</value_type>
+                    <units>devices</units>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.counts.unreachable</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>backuptools.summary.raw</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Backup Tools: backup failed count</name>
+                    <type>DEPENDENT</type>
+                    <key>backuptools.devices.failed</key>
+                    <delay>0</delay>
+                    <history>90d</history>
+                    <trends>365d</trends>
+                    <status>ENABLED</status>
+                    <value_type>UNSIGNED</value_type>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.counts.failed</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>backuptools.summary.raw</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Backup Tools: backup overdue count</name>
+                    <type>DEPENDENT</type>
+                    <key>backuptools.devices.overdue</key>
+                    <delay>0</delay>
+                    <history>90d</history>
+                    <trends>365d</trends>
+                    <status>ENABLED</status>
+                    <value_type>UNSIGNED</value_type>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.counts.overdue</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>backuptools.summary.raw</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Backup Tools: oxidized queue depth</name>
+                    <type>DEPENDENT</type>
+                    <key>backuptools.oxidized.queue</key>
+                    <delay>0</delay>
+                    <history>90d</history>
+                    <trends>365d</trends>
+                    <status>ENABLED</status>
+                    <value_type>UNSIGNED</value_type>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.oxidized_queue_depth</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>backuptools.summary.raw</key>
+                    </master_item>
+                </item>
+                <item>
+                    <name>Backup Tools: platform ready</name>
+                    <type>DEPENDENT</type>
+                    <key>backuptools.platform.ready</key>
+                    <delay>0</delay>
+                    <history>7d</history>
+                    <trends>0</trends>
+                    <status>ENABLED</status>
+                    <value_type>TEXT</value_type>
+                    <description>DB + Oxidized worker ready (как /health/ready)</description>
+                    <applications>
+                        <application>
+                            <name>Backup Tools platform</name>
+                        </application>
+                    </applications>
+                    <preprocessing>
+                        <step>
+                            <type>JSONPATH</type>
+                            <params>$.ready</params>
+                        </step>
+                    </preprocessing>
+                    <master_item>
+                        <key>backuptools.summary.raw</key>
+                    </master_item>
+                </item>
+            </items>
+            <discovery_rules>
+                <discovery_rule>
+                    <name>Backup Tools: inventory devices</name>
+                    <type>HTTP_AGENT</type>
+                    <snmp_community/>
+                    <snmp_oid/>
+                    <key>backuptools.discovery.devices</key>
+                    <delay>1h</delay>
+                    <status>ENABLED</status>
+                    <allowed_hosts/>
+                    <snmpv3_contextname/>
+                    <snmpv3_securityname/>
+                    <snmpv3_securitylevel>0</snmpv3_securitylevel>
+                    <snmpv3_authprotocol>0</snmpv3_authprotocol>
+                    <snmpv3_privprotocol>0</snmpv3_privprotocol>
+                    <snmpv3_authpassphrase/>
+                    <snmpv3_privpassphrase/>
+                    <params/>
+                    <ipmi_sensor/>
+                    <authtype>0</authtype>
+                    <username/>
+                    <password/>
+                    <publickey/>
+                    <privatekey/>
+                    <port/>
+                    <description>LLD включённых устройств из inventory.yaml</description>
+                    <inventory_link>0</inventory_link>
+                    <applications>
+                        <application>
+                            <name>Backup Tools devices</name>
+                        </application>
+                    </applications>
+                    <host_prototypes/>
+                    <jmx_endpoint/>
+                    <timeout>30s</timeout>
+                    <url>{$BACKUPTOOLS.SCHEME}://{HOST.CONN}:{$BACKUPTOOLS.PORT}/device/getalldevices</url>
+                    <query_fields/>
+                    <posts/>
+                    <status_codes/>
+                    <follow_redirects>1</follow_redirects>
+                    <post_type>0</post_type>
+                    <http_proxy/>
+                    <headers>
+                        <header>
+                            <name>authkey</name>
+                            <value>{$AUTHKEY}</value>
+                        </header>
+                    </headers>
+                    <retrieve_mode>0</retrieve_mode>
+                    <request_method>0</request_method>
+                    <output_format>0</output_format>
+                    <ssl_cert_file/>
+                    <ssl_key_file/>
+                    <ssl_key_password/>
+                    <verify_peer>0</verify_peer>
+                    <verify_host>0</verify_host>
+                    <lld_macro_paths>
+                        <lld_macro_path>
+                            <lld_macro>{#ID}</lld_macro>
+                            <path>$.id</path>
+                        </lld_macro_path>
+                        <lld_macro_path>
+                            <lld_macro>{#NAME}</lld_macro>
+                            <path>$.name</path>
+                        </lld_macro_path>
+                        <lld_macro_path>
+                            <lld_macro>{#IP}</lld_macro>
+                            <path>$.ip</path>
+                        </lld_macro_path>
+                        <lld_macro_path>
+                            <lld_macro>{#GROUP}</lld_macro>
+                            <path>$.group</path>
+                        </lld_macro_path>
+                        <lld_macro_path>
+                            <lld_macro>{#SITE}</lld_macro>
+                            <path>$.site</path>
+                        </lld_macro_path>
+                        <lld_macro_path>
+                            <lld_macro>{#CRITICAL}</lld_macro>
+                            <path>$.critical</path>
+                        </lld_macro_path>
+                    </lld_macro_paths>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>Backup status {#NAME}</name>
+                            <type>HTTP_AGENT</type>
+                            <key>backuptools.device.status[{#ID}]</key>
+                            <delay>1h</delay>
+                            <history>30d</history>
+                            <trends>0</trends>
+                            <status>ENABLED</status>
+                            <value_type>TEXT</value_type>
+                            <description>Compliance backup status. OK = штатно. IP={#IP}, group={#GROUP}, site={#SITE}</description>
+                            <applications>
+                                <application>
+                                    <name>Backup Tools devices</name>
+                                </application>
+                            </applications>
+                            <preprocessing>
+                                <step>
+                                    <type>JSONPATH</type>
+                                    <params>$.laststatus</params>
+                                </step>
+                            </preprocessing>
+                            <timeout>15s</timeout>
+                            <url>{$BACKUPTOOLS.SCHEME}://{HOST.CONN}:{$BACKUPTOOLS.PORT}/device/getlaststatus</url>
+                            <query_fields>
+                                <query_field>
+                                    <name>id</name>
+                                    <value>{#ID}</value>
+                                </query_field>
+                            </query_fields>
+                            <headers>
+                                <header>
+                                    <name>authkey</name>
+                                    <value>{$AUTHKEY}</value>
+                                </header>
+                            </headers>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{BackupTools_Monitoring:backuptools.device.status[{#ID}].last()}&lt;&gt;&quot;OK&quot;</expression>
+                                    <name>Ошибка резервного копирования на {#NAME} ({#IP})</name>
+                                    <priority>AVERAGE</priority>
+                                    <description>Устройство {#NAME} / {#IP}, группа {#GROUP}, site {#SITE}. Статус compliance не OK.</description>
+                                </trigger_prototype>
+                                <trigger_prototype>
+                                    <expression>{BackupTools_Monitoring:backuptools.device.status[{#ID}].last()}&lt;&gt;&quot;OK&quot;</expression>
+                                    <name>CRITICAL: ошибка бэкапа на {#NAME} ({#IP})</name>
+                                    <priority>HIGH</priority>
+                                    <description>Критичное устройство (critical=1) — бэкап не в порядке.</description>
+                                    <filter>
+                                        <evaltype>0</evaltype>
+                                        <conditions>
+                                            <condition>
+                                                <macro>{#CRITICAL}</macro>
+                                                <value>1</value>
+                                                <operator>0</operator>
+                                                <formulaid>A</formulaid>
+                                            </condition>
+                                        </conditions>
+                                    </filter>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <name>Backup state code {#NAME}</name>
+                            <type>HTTP_AGENT</type>
+                            <key>backuptools.device.state[{#ID}]</key>
+                            <delay>1h</delay>
+                            <history>30d</history>
+                            <trends>0</trends>
+                            <status>ENABLED</status>
+                            <value_type>TEXT</value_type>
+                            <description>Внутренний код: ok, failed, overdue, stale, never, unreachable</description>
+                            <applications>
+                                <application>
+                                    <name>Backup Tools devices</name>
+                                </application>
+                            </applications>
+                            <preprocessing>
+                                <step>
+                                    <type>JSONPATH</type>
+                                    <params>$.state</params>
+                                </step>
+                            </preprocessing>
+                            <timeout>15s</timeout>
+                            <url>{$BACKUPTOOLS.SCHEME}://{HOST.CONN}:{$BACKUPTOOLS.PORT}/device/getlaststatus</url>
+                            <query_fields>
+                                <query_field>
+                                    <name>id</name>
+                                    <value>{#ID}</value>
+                                </query_field>
+                            </query_fields>
+                            <headers>
+                                <header>
+                                    <name>authkey</name>
+                                    <value>{$AUTHKEY}</value>
+                                </header>
+                            </headers>
+                        </item_prototype>
+                    </item_prototypes>
+                    <trigger_prototypes/>
+                    <graph_prototypes/>
+                    <host_prototypes/>
+                    <jmx_endpoint/>
+                </discovery_rule>
+            </discovery_rules>
+            <macros>
+                <macro>
+                    <macro>{$AUTHKEY}</macro>
+                    <value/>
+                    <description>Секрет ZABBIX_AUTH_KEY или API key bk_...</description>
+                </macro>
+                <macro>
+                    <macro>{$BACKUPTOOLS.PORT}</macro>
+                    <value>8000</value>
+                    <description>Порт scanner (SCANNER_PORT)</description>
+                </macro>
+                <macro>
+                    <macro>{$BACKUPTOOLS.SCHEME}</macro>
+                    <value>http</value>
+                    <description>http или https за reverse proxy</description>
+                </macro>
+                <macro>
+                    <macro>{$COMPLIANCE.WARN}</macro>
+                    <value>90</value>
+                    <description>Порог warning для compliance %</description>
+                </macro>
+                <macro>
+                    <macro>{$COMPLIANCE.CRIT}</macro>
+                    <value>80</value>
+                    <description>Порог high для compliance %</description>
+                </macro>
+                <macro>
+                    <macro>{$DEVICES.OFFLINE.MAX}</macro>
+                    <value>5</value>
+                    <description>Макс. offline устройств до алерта</description>
+                </macro>
+                <macro>
+                    <macro>{$OXIDIZED.QUEUE.MAX}</macro>
+                    <value>20</value>
+                    <description>Макс. глубина очереди Oxidized</description>
+                </macro>
+            </macros>
+            <template_triggers>
+                <trigger>
+                    <expression>{BackupTools_Monitoring:backuptools.health.status.last()}&lt;&gt;&quot;ok&quot;</expression>
+                    <name>Backup Tools: scanner недоступен (health)</name>
+                    <priority>HIGH</priority>
+                    <description>GET /health не вернул status=ok</description>
+                </trigger>
+                <trigger>
+                    <expression>{BackupTools_Monitoring:backuptools.platform.ready.last()}&lt;&gt;&quot;true&quot;</expression>
+                    <name>Backup Tools: платформа не ready (БД / Oxidized worker)</name>
+                    <priority>HIGH</priority>
+                    <description>Проверка как GET /health/ready</description>
+                </trigger>
+                <trigger>
+                    <expression>{BackupTools_Monitoring:backuptools.compliance_pct.last()}&lt;{$COMPLIANCE.CRIT}</expression>
+                    <name>Backup Tools: compliance критически низкий (&lt;{$COMPLIANCE.CRIT}%)</name>
+                    <priority>HIGH</priority>
+                </trigger>
+                <trigger>
+                    <expression>{BackupTools_Monitoring:backuptools.compliance_pct.last()}&lt;{$COMPLIANCE.WARN}</expression>
+                    <name>Backup Tools: compliance ниже порога (&lt;{$COMPLIANCE.WARN}%)</name>
+                    <priority>WARNING</priority>
+                </trigger>
+                <trigger>
+                    <expression>{BackupTools_Monitoring:backuptools.devices.offline.last()}&gt;{$DEVICES.OFFLINE.MAX}</expression>
+                    <name>Backup Tools: много offline устройств (&gt;{$DEVICES.OFFLINE.MAX})</name>
+                    <priority>WARNING</priority>
+                </trigger>
+                <trigger>
+                    <expression>{BackupTools_Monitoring:backuptools.oxidized.queue.last()}&gt;{$OXIDIZED.QUEUE.MAX}</expression>
+                    <name>Backup Tools: очередь Oxidized переполнена (&gt;{$OXIDIZED.QUEUE.MAX})</name>
+                    <priority>WARNING</priority>
+                </trigger>
+            </template_triggers>
+        </template>
+    </templates>
+</zabbix_export>

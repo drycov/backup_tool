@@ -31,6 +31,25 @@ class Network(models.Model):
         db_table = "networks"
 
 
+class Site(models.Model):
+    """Иерархия площадок (slug → parent). Device.site хранит slug."""
+
+    slug = models.CharField(max_length=128, unique=True, db_index=True)
+    name = models.CharField(max_length=256, default="")
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="children",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sites"
+        ordering = ["slug"]
+
+
 class Device(models.Model):
     name = models.CharField(max_length=128, unique=True, db_index=True)
     ip = models.CharField(max_length=64)
@@ -224,6 +243,17 @@ class IntegrationConfig(models.Model):
     audit_webhook_secret = models.CharField(max_length=256, blank=True, default="")
     audit_webhook_action_prefix = models.CharField(max_length=64, blank=True, default="")
 
+    netbox_url = models.CharField(max_length=512, blank=True, default="")
+    netbox_token = models.CharField(max_length=256, blank=True, default="")
+    netbox_default_group = models.CharField(max_length=64, default="default")
+    librenms_url = models.CharField(max_length=512, blank=True, default="")
+    librenms_token = models.CharField(max_length=256, blank=True, default="")
+    librenms_default_group = models.CharField(max_length=64, default="default")
+    inventory_sync_enabled = models.BooleanField(default=False)
+    inventory_sync_source = models.CharField(max_length=16, default="netbox")
+    inventory_sync_interval_hours = models.PositiveIntegerField(default=24)
+    inventory_sync_last_run_at = models.DateTimeField(null=True, blank=True)
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -295,6 +325,7 @@ class BackgroundTask(models.Model):
     TASK_AUDIT_PURGE = "audit.purge"
     TASK_AUDIT_WEBHOOK = "audit.webhook"
     TASK_CONFIG_AUDIT = "config.audit"
+    TASK_INVENTORY_SYNC = "inventory.sync"
 
     task_type = models.CharField(max_length=64, db_index=True)
     status = models.CharField(max_length=16, default=STATUS_PENDING, db_index=True)
