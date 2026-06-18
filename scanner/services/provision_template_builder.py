@@ -124,7 +124,11 @@ def similarity_ratio(norm_a: str, norm_b: str) -> float:
 
 
 def _load_device_config(device: Device) -> DeviceConfigSample:
-    text, err = get_node_config(device.name)
+    try:
+        text, err = get_node_config(device.name)
+    except Exception as exc:
+        logger.warning("provision | config load failed | %s | %s", device.name, exc)
+        return DeviceConfigSample(device=device, raw="", normalized="", error=str(exc)[:200])
     if err:
         return DeviceConfigSample(device=device, raw="", normalized="", error=err)
     if not text or not str(text).strip():

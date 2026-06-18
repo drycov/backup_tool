@@ -94,7 +94,10 @@ class OxidizedManager:
             node = self.nodes.find(name)
         except NodeNotFound:
             self.worker.reload()
-            node = self.nodes.find(name)
+            try:
+                node = self.nodes.find(name)
+            except NodeNotFound:
+                return None
         text = self.output.fetch(node)
         if text == "node not found":
             return None

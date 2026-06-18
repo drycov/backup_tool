@@ -1884,15 +1884,141 @@ function renderProvisionComplexDevices(items) {
     </tr>`).join("");
 }
 
-async function provisionAnalyze() {
-  const p = provisionGenParams();
-  const q = new URLSearchParams();
-  if (p.group) q.set("group", p.group);
-  if (p.site) q.set("site", p.site);
-  if (p.model) q.set("model", p.model);
-  q.set("threshold", String(p.threshold));
-  q.set("min_devices", String(p.min_devices));
-  const res = await api(`/api/provisioning/analysis?${q}`);
+function provClusterLabel(c) {
+  const g = c.group || "—";
+  const s = c.site || "—";
+  const m = c.model || "—";
+  return `${g} / ${s} / ${m}`;
+}
+
+function buildProvisionAnalysisLogEntries(res, source = "analyze") {
+  const lines = [];
+  const ts = new Date().toLocaleString("ru-RU");
+  const clusters = res.clusters || [];
+  const p = res.filters || provisionGenParams();
+
+  lines.push({
+    level: "info",
+    text: `[${ts}] ${source === "generate" ? "Генерация шаблонов" : "Анализ кластеров"} | group=${p.group || "*"} site=${p.site || "*"} model=${p.model || "*"} threshold=${p.threshold ?? res.threshold ?? "—"} min=${p.min_devices ?? res.min_devices ?? "—"}`,
+  });
+
+  if (!clusters.length) {
+    lines.push({ level: "warn", text: "Кластеры не найдены — проверьте фильтры и наличие конфигов в Oxidized." });
+    return lines;
+  }
+
+  for (const c of clusters) {
+    const label = provClusterLabel(c);
+    if (c.skipped_reason) {
+      lines.push({ level: "warn", text: `▸ ${label} — пропущен: ${c.skipped_reason}` });
+      const errs = (c.devices || []).filter(d => d.error);
+      for (const d of errs) {
+        lines.push({ level: "error", text: `    ✗ ${d.name}: ${d.error}` });
+      }
+      continue;
+    }
+
+    lines.push({
+      level: "info",
+      text: `▸ ${label} | устройств с конфигом: ${c.device_count ?? "—"} | baseline: ${c.baseline_device || "—"} (${c.baseline_similarity != null ? (c.baseline_similarity * 100).toFixed(1) + "%" : "—"})`,
+    });
+
+    const simple = c.simple_devices || [];
+    if (simple.length) {
+      lines.push({ level: "success", text: `    простые (${simple.length}): ${simple.join(", ")}` });
+    }
+
+    const complex = c.complex_devices || [];
+    for (const d of complex) {
+      const sim = d.similarity != null ? ` ${(d.similarity * 100).toFixed(1)}%` : "";
+      lines.push({ level: "warn", text: `    ⚠ сложное: ${d.name}${sim}${d.reason ? ` — ${d.reason}` : ""}` });
+    }
+
+    if (c.template_body) {
+      const linesCount = String(c.template_body).split("\n").length;
+      lines.push({ level: "success", text: `    шаблон готов (${linesCount} строк)` });
+    }
+
+    const loadErrs = (c.devices || []).filter(d => d.error);
+    for (const d of loadErrs) {
+      lines.push({ level: "error", text: `    ✗ ${d.name}: нет конфига — ${d.error}` });
+    }
+  }
+
+  if (source === "generate") {
+    const created = (res.created || []).length;
+    const updated = (res.updated || []).length;
+    const skipped = (res.skipped || []).length;
+    lines.push({
+      level: created || updated ? "success" : "info",
+      text: `Итог генерации: создано ${created}, обновлено ${updated}, пропущено ${skipped}`,
+    });
+  } else {
+    const ready = clusters.filter(c => c.template_body && !c.skipped_reason).length;
+    const skipped = clusters.filter(c => c.skipped_reason).length;
+    lines.push({
+      level: "info",
+      text: `Итог: кластеров ${clusters.length}, готовых к шаблону ${ready}, пропущено ${skipped}, сложных устройств ${(res.complex_devices || []).length}`,
+    });
+  }
+
+  return lines;
+}
+
+function appendProvisionAnalysisLog(entries, { replace = false } = {}) {
+  const host = qs("#prov-analysis-log");
+  if (!host || !entries?.length) return;
+  const html = entries.map(e =>
+    `<div class="analysis-log-line log-${e.level || "info"}">${escapeHtml(e.text)}</div>`
+  ).join("");
+  if (replace) {
+    host.innerHTML = html;
+  } else {
+    host.insertAdjacentHTML("beforeend", html);
+  }
+  host.scrollTop = host.scrollHeight;
+}
+
+function clearProvisionAnalysisLog(message) {
+  const host = qs("#prov-analysis-log");
+  if (!host) return;
+  host.innerHTML = `<div class="analysis-log-line log-muted">${escapeHtml(message || "Лог очищен.")}</div>`;
+}
+
+function renderProvisionClustersTable(clusters) {
+  const tbody = qs("#provision-clusters-table tbody");
+  if (!tbody) return;
+  if (!clusters?.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-muted">Нет данных — запустите анализ</td></tr>';
+    return;
+  }
+  tbody.innerHTML = clusters.map(c => {
+    let status = "готов";
+    let statusCls = "success";
+    if (c.skipped_reason) {
+      status = c.skipped_reason;
+      statusCls = "warning";
+    } else if (!c.template_body) {
+      status = "нет шаблона";
+      statusCls = "secondary";
+    }
+    const sim = c.baseline_similarity != null ? (c.baseline_similarity * 100).toFixed(0) + "%" : "—";
+    return `
+    <tr>
+      <td><code>${escapeHtml(c.group || "—")}</code></td>
+      <td>${escapeHtml(c.site || "—")}</td>
+      <td>${escapeHtml(c.model || "—")}</td>
+      <td class="text-end">${c.device_count ?? "—"}</td>
+      <td class="small">${escapeHtml(c.baseline_device || "—")}</td>
+      <td class="text-end">${sim}</td>
+      <td class="text-end">${(c.simple_devices || []).length}</td>
+      <td class="text-end">${(c.complex_devices || []).length}</td>
+      <td class="small"><span class="${badgeCls(statusCls)}">${escapeHtml(status)}</span></td>
+    </tr>`;
+  }).join("");
+}
+
+function renderProvisionAnalysisResult(res, source = "analyze") {
   const clusters = res.clusters || [];
   const ready = clusters.filter(c => c.template_body && !c.skipped_reason);
   const skipped = clusters.filter(c => c.skipped_reason);
@@ -1901,8 +2027,29 @@ async function provisionAnalyze() {
     summaryEl.textContent =
       `Кластеров: ${clusters.length}, готовых к шаблону: ${ready.length}, пропущено: ${skipped.length}, сложных устройств: ${(res.complex_devices || []).length}`;
   }
+  renderProvisionClustersTable(clusters);
   renderProvisionComplexDevices(res.complex_devices || []);
-  return res;
+  appendProvisionAnalysisLog(buildProvisionAnalysisLogEntries(res, source), { replace: true });
+}
+
+async function provisionAnalyze() {
+  const p = provisionGenParams();
+  const q = new URLSearchParams();
+  if (p.group) q.set("group", p.group);
+  if (p.site) q.set("site", p.site);
+  if (p.model) q.set("model", p.model);
+  q.set("threshold", String(p.threshold));
+  q.set("min_devices", String(p.min_devices));
+  const btn = qs("#btn-prov-analyze");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api(`/api/provisioning/analysis?${q}`);
+    res.filters = p;
+    renderProvisionAnalysisResult(res, "analyze");
+    return res;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function provisionGenerateFromConfigs() {
@@ -1926,15 +2073,15 @@ async function provisionGenerateFromConfigs() {
     `Создано: ${created}, обновлено: ${updated}, пропущено: ${(res.skipped || []).length}`,
     "success"
   );
-  renderProvisionComplexDevices(
-    (res.clusters || []).flatMap(c =>
-      (c.complex_devices || []).map(d => ({
-        ...d,
-        group: c.group,
-        site: c.site,
-      }))
-    )
+  res.filters = p;
+  res.complex_devices = (res.clusters || []).flatMap(c =>
+    (c.complex_devices || []).map(d => ({
+      ...d,
+      group: c.group,
+      site: c.site,
+    }))
   );
+  renderProvisionAnalysisResult(res, "generate");
   loadProvisionPage();
 }
 
@@ -5360,7 +5507,11 @@ function bindEvents() {
       await provisionAnalyze();
     } catch (e) {
       showAlert("provision-alert", e.message, "error");
+      appendProvisionAnalysisLog([{ level: "error", text: `Ошибка анализа: ${e.message}` }], { replace: false });
     }
+  });
+  qs("#btn-prov-analysis-log-clear")?.addEventListener("click", () => {
+    clearProvisionAnalysisLog("Лог очищен. Запустите анализ снова.");
   });
   qs("#btn-prov-generate")?.addEventListener("click", async () => {
     if (!confirm("Сгенерировать шаблоны из конфигов Oxidized?")) return;

@@ -1408,3 +1408,29 @@ mark.search-hit {
 #networks-table tr.network-row-editable .network-cidr-link {
   color: var(--ent-primary);
 }
+
+/* ── Analysis log (provisioning, security, …) ─── */
+.analysis-log-viewer {
+  background: #1e1e1e;
+  color: #c9d1d9;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  max-height: 240px;
+  overflow-y: auto;
+  border-radius: 0.25rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--ent-border);
+}
+
+.analysis-log-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 0.15rem;
+}
+
+.analysis-log-line.log-info { color: #c9d1d9; }
+.analysis-log-line.log-success { color: #3fb950; }
+.analysis-log-line.log-error { color: #f85149; }
+.analysis-log-line.log-warn { color: #d29922; }
+.analysis-log-line.log-muted { color: #8b949e; font-style: italic; }

@@ -76,13 +76,29 @@ def get_nodes(*, use_cache: bool = True, timeout: float | None = None) -> tuple[
 def get_node_config(name: str) -> tuple[Optional[str], Optional[str]]:
     if _use_python_engine():
         from services.oxidized_engine import get_manager
+        from services.oxidized_engine.exceptions import NodeNotFound
 
-        text = get_manager().show_node(name)
+        try:
+            text = get_manager().show_node(name)
+        except NodeNotFound:
+            return None, f"Узел '{name}' не найден в Oxidized"
+        except Exception as exc:
+            return None, str(exc)[:200]
         if text is None:
             return None, None
         return text, None
 
-    return _external_request("GET", f"/node/show/{name}.json")
+    data, err = _external_request("GET", f"/node/show/{quote(name)}.json")
+    if err:
+        return None, err
+    if isinstance(data, dict):
+        for key in ("config", "output", "full", "body"):
+            if key in data and data[key]:
+                return str(data[key]), None
+        return None, "Пустой ответ Oxidized"
+    if data is None:
+        return None, None
+    return str(data), None
 
 
 def fetch_node(name: str) -> tuple[Optional[Any], Optional[str]]:

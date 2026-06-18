@@ -97,3 +97,22 @@ def test_provision_preview_api(authed, client):
     )
     assert res.status_code == 200
     assert "mk1" in res.json()["rendered_config"]
+
+
+@pytest.mark.django_db
+def test_provision_analysis_api_handles_missing_config(authed, client):
+    from unittest.mock import patch
+
+    DeviceModel.objects.create(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
+    DeviceModel.objects.create(name="r2", ip="10.0.0.2", model="routeros", group="hex", site="dc1")
+
+    with patch(
+        "services.provision_template_builder.get_node_config",
+        side_effect=lambda n: (None, f"Узел '{n}' не найден в Oxidized"),
+    ):
+        res = client.get("/api/provisioning/analysis?threshold=0.85&min_devices=2&group=hex")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert "clusters" in body
+    assert body["clusters"][0]["skipped_reason"]

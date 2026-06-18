@@ -72,6 +72,22 @@ def test_analyze_clusters_groups_by_site_and_model():
 
 
 @pytest.mark.django_db
+def test_analyze_clusters_handles_missing_oxidized_node():
+    DeviceModel.objects.create(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
+    DeviceModel.objects.create(name="r2", ip="10.0.0.2", model="routeros", group="hex", site="dc1")
+
+    def fake_config(name):
+        return None, f"Узел '{name}' не найден в Oxidized"
+
+    with patch("services.provision_template_builder.get_node_config", side_effect=lambda n: fake_config(n)):
+        clusters = analyze_clusters(group="hex", site="dc1", min_devices=2)
+
+    assert len(clusters) == 1
+    assert clusters[0].skipped_reason
+    assert not clusters[0].template_body
+
+
+@pytest.mark.django_db
 def test_generate_templates_creates_and_upserts():
     DeviceModel.objects.create(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
     DeviceModel.objects.create(name="r2", ip="10.0.0.2", model="routeros", group="hex", site="dc1")

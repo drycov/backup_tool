@@ -2273,11 +2273,18 @@ def provision_analysis_view(request: HttpRequest) -> JsonResponse:
             )
     return json_response(
         {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "filters": {
+                "group": group,
+                "site": site,
+                "model": model,
+                "threshold": threshold,
+                "min_devices": min_devices,
+            },
             "clusters": [c.to_dict() for c in clusters],
             "complex_devices": complex_devices,
         }
     )
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
