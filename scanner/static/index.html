@@ -183,9 +183,9 @@
 
           <!-- Dashboard -->
           <div id="page-dashboard" class="page">
-            <div class="row" id="dashboard-stats"></div>
-            <div class="row" id="dashboard-compliance-stats"></div>
-            <div class="row">
+            <div class="row g-3" id="dashboard-stats"></div>
+            <div class="row g-3" id="dashboard-compliance-stats"></div>
+            <div class="row g-3">
               <div class="col-lg-7">
                 <div class="card card-outline card-success">
                   <div class="card-header">
@@ -283,7 +283,7 @@
               </div>
             </div>
             <div id="dashboard-alert" class="page-alert"></div>
-            <div id="dashboard-scan-activity" class="scan-activity-panel mb-3" style="display:none;">
+            <div id="dashboard-scan-activity" class="scan-activity-panel" style="display:none;">
               <div class="card card-outline card-info">
                 <div class="card-header">
                   <h3 class="card-title mb-0"><i class="fas fa-spinner fa-spin me-1 scan-running-icon"></i> Сканирование</h3>
@@ -366,7 +366,7 @@
               </button>
             </div>
             <div id="scan-alert" class="page-alert"></div>
-            <div id="scan-activity-panel" class="scan-activity-panel mb-3" style="display:none;">
+            <div id="scan-activity-panel" class="scan-activity-panel" style="display:none;">
               <div class="card card-outline card-info">
                 <div class="card-header">
                   <h3 class="card-title mb-0"><i class="fas fa-spinner fa-spin me-1 scan-running-icon"></i> Ход выполнения</h3>
@@ -387,8 +387,8 @@
                 </div>
               </div>
             </div>
-            <div class="row" id="scan-stats"></div>
-            <div class="card card-outline card-info mb-3">
+            <div class="row g-3" id="scan-stats"></div>
+            <div class="card card-outline card-info">
               <div class="card-header">
                 <h3 class="card-title">История scan / discovery</h3>
               </div>
@@ -423,9 +423,9 @@
           <!-- Oxidized -->
           <div id="page-oxidized" class="page d-none">
             <div id="oxidized-alert" class="page-alert"></div>
-            <div id="oxidized-engine-banner" class="alert alert-info py-2 small mb-2" style="display:none;" role="status"></div>
-            <div id="oxidized-models-warning" class="alert alert-warning py-2 small mb-2" style="display:none;" role="status"></div>
-            <div class="row" id="oxidized-stats"></div>
+            <div id="oxidized-engine-banner" class="alert alert-info py-2 small" style="display:none;" role="status"></div>
+            <div id="oxidized-models-warning" class="alert alert-warning py-2 small" style="display:none;" role="status"></div>
+            <div class="row g-3" id="oxidized-stats"></div>
             <div class="mb-3">
               <button class="btn btn-secondary me-1" id="btn-refresh-oxidized"><i class="fas fa-redo me-1"></i> Обновить</button>
               <button class="btn btn-primary me-1" id="btn-sync-oxidized" data-permission="oxidized:write">
@@ -489,35 +489,35 @@
 
             <div class="card card-outline card-secondary settings-page-card">
               <div class="card-header p-2">
-                <ul class="nav nav-pills settings-tab-nav" id="settings-tab-nav" role="tablist">
+                <ul class="nav nav-pills card-header-pills settings-tab-nav" id="settings-tab-nav" role="tablist">
                   <li class="nav-item" id="settings-tab-backup-li" data-permission-any="oxidized:read,oxidized:write">
                     <a class="nav-link active" data-bs-toggle="tab" href="#settings-tab-backup" role="tab">
-                      <i class="fas fa-database me-1"></i> Бэкап
+                      <i class="fas fa-database" aria-hidden="true"></i> Бэкап
                     </a>
                   </li>
                   <li class="nav-item" id="settings-tab-git-li" data-permission-any="oxidized:read,oxidized:write">
                     <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-git" role="tab">
-                      <i class="fas fa-code-branch me-1"></i> Git
+                      <i class="fab fa-git-alt" aria-hidden="true"></i> Git
                     </a>
                   </li>
                   <li class="nav-item" id="settings-tab-notify-li" data-permission-any="oxidized:read,oxidized:write">
                     <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-notify" role="tab">
-                      <i class="fas fa-bell me-1"></i> Уведомления
+                      <i class="fas fa-bell" aria-hidden="true"></i> Уведомления
                     </a>
                   </li>
                   <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-groups" role="tab">
-                      <i class="fas fa-key me-1"></i> Группы
+                      <i class="fas fa-key" aria-hidden="true"></i> Группы
                     </a>
                   </li>
                   <li class="nav-item" id="settings-ldap-tab-li" data-permission="users:manage">
                     <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-ldap" role="tab">
-                      <i class="fas fa-network-wired me-1"></i> LDAP
+                      <i class="fas fa-sitemap" aria-hidden="true"></i> LDAP
                     </a>
                   </li>
                   <li class="nav-item" data-permission="inventory:write">
                     <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-service" role="tab">
-                      <i class="fas fa-tools me-1"></i> Сервис
+                      <i class="fas fa-screwdriver-wrench" aria-hidden="true"></i> Сервис
                     </a>
                   </li>
                 </ul>
@@ -528,7 +528,7 @@
                 <div class="tab-pane fade show active" id="settings-tab-backup" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
                   <div id="settings-oxidized-card">
                     <div class="d-flex flex-wrap align-items-center mb-3">
-                      <h5 class="mb-0 me-2"><i class="fas fa-cogs text-warning me-1"></i> Oxidized worker</h5>
+                      <h5 class="mb-0 me-2"><i class="fas fa-server text-warning me-1"></i> Oxidized worker</h5>
                       <span class="badge text-bg-secondary" id="ox-settings-engine-badge">—</span>
                       <span class="badge text-bg-info ms-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
                     </div>
@@ -589,7 +589,7 @@
                     <div id="mikrotik-external-note" class="alert alert-secondary py-2 small" style="display:none;">
                       MikroTik binary/export доступны только при <code>OXIDIZED_ENGINE=python</code> (worker в scanner).
                     </div>
-                    <h5 class="mb-2"><i class="fas fa-hdd text-info me-1"></i> MikroTik backup</h5>
+                    <h5 class="mb-2"><i class="fas fa-hard-drive text-info me-1"></i> MikroTik backup</h5>
                     <p class="text-muted small mb-3">Binary <code>.backup</code> и export <code>.rsc</code>. Настройки в БД, применяются без перезапуска. Операции пишутся в <strong>лог Oxidized</strong>.</p>
                     <form id="backup-settings-form">
                       <div class="row mb-2">

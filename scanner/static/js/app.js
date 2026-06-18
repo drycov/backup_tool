@@ -818,7 +818,7 @@ async function loadComplianceDashboard() {
 
   const counts = compliance.counts || {};
   qs("#dashboard-compliance-stats").innerHTML = `
-    <div class="col-12 stats-row mb-2">
+    <div class="col-12 stats-row">
       <div class="row">
         ${smallBox(`${compliance.compliance_pct}%`, "Compliance", compliance.compliance_pct >= 90 ? "bg-success" : "bg-warning", "fa-shield-alt")}
         ${smallBox(counts.ok || 0, "OK", "bg-success", "fa-check")}
@@ -2537,7 +2537,7 @@ async function loadOxidizedNodes() {
         <div class="row">
           ${smallBox(health.reachable ? "OK" : "OFF", "Статус", health.reachable ? "bg-success" : "bg-danger", "fa-heartbeat")}
           ${smallBox(health.nodes_count, "Узлов", "bg-info", "fa-server")}
-          ${smallBox(health.engine_title || (health.engine === "python" ? "Python" : "Ruby"), "Движок", "bg-secondary", "fa-cogs", "text-sm")}
+          ${smallBox(health.engine_title || (health.engine === "python" ? "Python" : "Ruby"), "Движок", "bg-secondary", "fa-server", "text-sm")}
         </div>
       </div>
     `;

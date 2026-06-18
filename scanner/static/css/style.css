@@ -99,12 +99,40 @@ body.login-page .login-logo {
 }
 
 /* ── Dashboard / stats ─────────────────────────────── */
-.stats-row {
-  margin-bottom: 0.5rem;
+.page {
+  --page-block-gap: 1.25rem;
 }
 
-.stats-row > [class*="col-"] {
-  margin-bottom: 1rem;
+.page > .row {
+  margin-bottom: var(--page-block-gap);
+}
+
+.page > .row:last-child {
+  margin-bottom: 0;
+}
+
+.page > .card,
+.page > .page-alert:not(:empty),
+.page > .scan-activity-panel,
+.page > .oxidized-ui-toolbar,
+.page > .alert {
+  margin-bottom: var(--page-block-gap);
+}
+
+.page > :last-child {
+  margin-bottom: 0;
+}
+
+.stats-row {
+  margin-bottom: 0;
+}
+
+.stats-row > .row {
+  --bs-gutter-y: 1rem;
+}
+
+.stats-row .small-box {
+  margin-bottom: 0;
 }
 
 .small-box h3.text-sm {
@@ -114,11 +142,28 @@ body.login-page .login-logo {
 }
 
 /* ── Cards & spacing ───────────────────────────────── */
-.page .card {
-  margin-bottom: 1.25rem;
+.page .row {
+  row-gap: var(--page-block-gap);
 }
 
-.page .card:last-child {
+.page .row > [class*="col-"] > .card {
+  margin-bottom: 0;
+}
+
+.page .card {
+  margin-bottom: var(--page-block-gap);
+}
+
+.page .card.card-outline + .card.card-outline,
+.page .card + .card {
+  margin-top: 0;
+}
+
+.settings-page-card .card {
+  margin-bottom: var(--page-block-gap);
+}
+
+.settings-page-card .card:last-child {
   margin-bottom: 0;
 }
 
@@ -149,10 +194,6 @@ body.login-page .login-logo {
 }
 
 /* ── Alerts ────────────────────────────────────────── */
-.page-alert:not(:empty) {
-  margin-bottom: 1rem;
-}
-
 /* ── Config viewer (CodeMirror) ─────────────────────── */
 .config-editor-wrap .CodeMirror {
   height: auto;
@@ -188,15 +229,41 @@ body.login-page .login-logo {
   border-radius: 0 0 0.25rem 0.25rem;
 }
 
+.settings-tab-nav {
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
 .settings-tab-nav .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.9rem;
   padding: 0.45rem 0.85rem;
 }
+
+.settings-tab-nav .nav-link i {
+  color: inherit;
+  font-size: 0.92em;
+  line-height: 1;
+  width: 1.15em;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 .settings-tab-content {
   padding-top: 0.25rem;
 }
+
+.settings-tab-content h5 > i.fas,
+.settings-tab-content h5 > i.fab,
+.settings-tab-content h5 > i.far {
+  width: 1.2em;
+  text-align: center;
+}
+
 .settings-page-card > .card-header {
-  background: #f8f9fa;
+  background: var(--bs-tertiary-bg, #f8f9fa);
 }
 
 .oxidized-log-viewer {
