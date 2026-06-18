@@ -115,7 +115,7 @@ function applyGlobalSearch() {
   if (oxidizedNodesCache.length) renderOxidizedNodesTable(oxidizedNodesCache);
   if (!qs("#page-oxidized")?.classList.contains("d-none")) {
     refreshOxidizedLogBadge();
-    if ($("#oxidized-logs-modal").hasClass("show")) {
+    if (isModalOpen("oxidized-logs-modal")) {
       updateOxidizedLogsSearchBanner();
       loadOxidizedLogs();
     }
@@ -224,7 +224,7 @@ function applyPermissions() {
 
 function showLogin() {
   document.body.classList.add("login-page");
-  document.body.classList.remove("sidebar-mini", "layout-fixed");
+  document.body.classList.remove("layout-fixed", "sidebar-expand-lg", "bg-body-tertiary");
   qs("#login-screen").style.display = "block";
   qs("#app-layout").style.display = "none";
   currentUser = null;
@@ -232,7 +232,7 @@ function showLogin() {
 
 function showApp() {
   document.body.classList.remove("login-page");
-  document.body.classList.add("sidebar-mini", "layout-fixed");
+  document.body.classList.add("layout-fixed", "sidebar-expand-lg", "bg-body-tertiary");
   qs("#login-screen").style.display = "none";
   qs("#app-layout").style.display = "block";
   applyPermissions();
@@ -252,6 +252,73 @@ function updateNavbarUser() {
     const lock = currentUser.role_locked ? " · роль фиксирована" : "";
     roleEl.textContent = `${roleLabels[currentUser.role] || currentUser.role} (${src}${lock})`;
   }
+  updateScopeBanner();
+}
+
+function updateScopeBanner() {
+  const wrap = qs("#user-scope-banner-wrap");
+  const banner = qs("#user-scope-banner");
+  if (!wrap || !banner || !currentUser) return;
+  if (!currentUser.scoped || currentUser.role === "admin") {
+    wrap.style.display = "none";
+    banner.innerHTML = "";
+    return;
+  }
+  const groups = (currentUser.allowed_groups || []).join(", ") || "—";
+  const sites = (currentUser.allowed_sites || []).join(", ") || "—";
+  wrap.style.display = "";
+  banner.innerHTML =
+    `<i class="fas fa-filter mr-1"></i> Ограниченный доступ: группы <strong>${escapeHtml(groups)}</strong>, sites <strong>${escapeHtml(sites)}</strong>. Видны только соответствующие устройства и узлы Oxidized.`;
+}
+
+function deviceTagsHtml(device) {
+  const tags = [];
+  if (device.maintenance) {
+    tags.push('<span class="badge badge-warning badge-tag" title="Scheduled backup paused in maintenance window"><i class="fas fa-moon"></i> maint</span>');
+  }
+  if (device.critical) {
+    tags.push('<span class="badge badge-danger badge-tag">critical</span>');
+  }
+  if (device.site) {
+    tags.push(`<span class="badge badge-light border badge-tag">${escapeHtml(device.site)}</span>`);
+  }
+  if (device.role) {
+    tags.push(`<span class="badge badge-secondary badge-tag">${escapeHtml(device.role)}</span>`);
+  }
+  return tags.length
+    ? `<span class="device-tags">${tags.join(" ")}</span>`
+    : '<span class="text-muted">—</span>';
+}
+
+function isMaintenanceWindowActiveClient(cfg) {
+  if (!cfg || cfg.maintenance_window_enabled === false) return false;
+  const now = new Date();
+  const day = (now.getUTCDay() + 6) % 7;
+  const days = cfg.maintenance_days && cfg.maintenance_days.length
+    ? cfg.maintenance_days.map(d => parseInt(d, 10))
+    : [0, 1, 2, 3, 4, 5, 6];
+  if (!days.includes(day)) return false;
+  const hour = now.getUTCHours();
+  const start = parseInt(cfg.maintenance_start_hour_utc, 10) || 22;
+  const end = parseInt(cfg.maintenance_end_hour_utc, 10) || 6;
+  if (start === end) return false;
+  if (start < end) return hour >= start && hour < end;
+  return hour >= start || hour < end;
+}
+
+function updateMaintenanceStatusBadge(cfg) {
+  const el = qs("#bk-maint-status");
+  if (!el) return;
+  if (!cfg || cfg.maintenance_window_enabled === false) {
+    el.className = "badge badge-secondary mr-2 mb-1";
+    el.textContent = "Окно выключено";
+    return;
+  }
+  const active = isMaintenanceWindowActiveClient(cfg);
+  el.className = `badge mr-2 mb-1 ${active ? "badge-warning" : "badge-success"}`;
+  el.textContent = active
+    ? `Сейчас активно (UTC ${cfg.maintenance_start_hour_utc}:00–${cfg.maintenance_end_hour_utc}:00)`
+    : `Сейчас неактивно (UTC ${cfg.maintenance_start_hour_utc}:00–${cfg.maintenance_end_hour_utc}:00)`;
 }
 
 async function api(path, options = {}) {
@@ -320,9 +387,16 @@ function showAlert(containerId, msg, type = "danger") {
   const el = qs(`#${containerId}`);
   if (!el) return;
   const alertType = type === "error" ? "danger" : type === "info" ? "info" : type;
+  const icons = {
+    danger: "fa-exclamation-circle",
+    success: "fa-check-circle",
+    info: "fa-info-circle",
+    warning: "fa-exclamation-triangle",
+  };
+  const icon = icons[alertType] || icons.info;
   el.innerHTML = `
     <div class="alert alert-${alertType} alert-dismissible fade show" role="alert">
-      ${msg}
+      <i class="fas ${icon} mr-1"></i>${msg}
       <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
     </div>
   `;
@@ -414,16 +488,11 @@ function setOxidizedLinks(url, proxyUrl, engine) {
 }
 
 function setPageTitle(page) {
-  const header = qs("#content-header");
-  if (!header) return;
   const title = PAGE_TITLES[page] || "Backup Tools";
-  header.innerHTML = `
-    <div class="container-fluid">
-      <div class="row mb-2">
-        <div class="col-sm-6"><h1 class="m-0">${title}</h1></div>
-      </div>
-    </div>
-  `;
+  const titleEl = qs("#page-title");
+  const crumbEl = qs("#page-breadcrumb-active");
+  if (titleEl) titleEl.textContent = title;
+  if (crumbEl) crumbEl.textContent = title;
 }
 
 function initNavigation() {
@@ -531,17 +600,21 @@ function renderUsersTable(users) {
   );
 
   if (!users?.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Нет пользователей</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Нет пользователей</td></tr>`;
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = searchEmptyRow(7, query);
+    tbody.innerHTML = searchEmptyRow(8, query);
     return;
   }
 
-  tbody.innerHTML = filtered.map(u => `
+  tbody.innerHTML = filtered.map(u => {
+    const scopeBadge = u.scoped
+      ? `<span class="badge badge-warning badge-tag ml-1" title="Object scope">scope</span>`
+      : "";
+    return `
     <tr data-user-id="${u.id}">
-      <td><strong>${escapeHtml(u.username)}</strong></td>
+      <td><strong>${escapeHtml(u.username)}</strong>${scopeBadge}</td>
       <td>
         <select class="form-control form-control-sm user-role-select" data-id="${u.id}" ${u.id === currentUser.id ? "disabled" : ""}>
           <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>viewer</option>
@@ -561,6 +634,11 @@ function renderUsersTable(users) {
       </td>
       <td><span class="badge badge-${u.auth_source === "ldap" ? "info" : "secondary"}">${escapeHtml(u.auth_source || "local")}</span></td>
       <td class="text-center">
+        ${u.auth_source === "ldap"
+    ? `<input type="checkbox" class="user-role-locked" data-id="${u.id}" ${u.role_locked ? "checked" : ""} title="Не обновлять роль из LDAP">`
+    : "—"}
+      </td>
+      <td class="text-center">
         <input type="checkbox" class="user-active-check" data-id="${u.id}" ${u.is_active ? "checked" : ""} ${u.id === currentUser.id ? "disabled" : ""}>
       </td>
       <td class="text-nowrap">
@@ -568,7 +646,8 @@ function renderUsersTable(users) {
         ${u.id !== currentUser.id ? `<button class="btn btn-danger btn-sm btn-delete-user" data-id="${u.id}"><i class="fas fa-trash"></i></button>` : "—"}
       </td>
     </tr>
-  `).join("");
+  `;
+  }).join("");
 
   tbody.querySelectorAll(".user-role-select").forEach(sel => {
     sel.addEventListener("change", async () => {
@@ -928,11 +1007,11 @@ function renderDevicesTable() {
   updateSearchCountBadge(filtered.length, devices.length, "devices-count-badge");
 
   if (!devices.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Нет устройств</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Нет устройств</td></tr>`;
     return;
   }
   if (!filtered.length) {
-    tbody.innerHTML = searchEmptyRow(7, query);
+    tbody.innerHTML = searchEmptyRow(8, query);
     return;
   }
 
@@ -940,10 +1019,11 @@ function renderDevicesTable() {
     <tr>
       <td><strong>${escapeHtml(d.name)}</strong></td>
       <td>${escapeHtml(d.ip)}</td>
-      <td>${escapeHtml(d.model)}</td>
+      <td><span class="oxidized-model-label">${escapeHtml(formatOxidizedModelLabel(d.model))}</span></td>
       <td>${escapeHtml(d.group)}</td>
+      <td>${deviceTagsHtml(d)}</td>
       <td>${escapeHtml((d.ports || []).join(", "))}</td>
-      <td>${d.enabled ? '<span class="badge badge-success">yes</span>' : '<span class="badge badge-secondary">no</span>'}</td>
+      <td>${d.enabled ? '<span class="badge badge-success">on</span>' : '<span class="badge badge-secondary">off</span>'}</td>
       <td>
         ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-edit"></i></button>` : ""}
         ${can("inventory:devices") ? `<button class="btn btn-danger btn-sm btn-delete-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-trash"></i></button>` : ""}
@@ -1139,6 +1219,8 @@ function fillBackupSettingsForm(cfg) {
   if (qs("#bk-maint-enabled")) qs("#bk-maint-enabled").checked = cfg.maintenance_window_enabled !== false;
   if (qs("#bk-maint-start")) qs("#bk-maint-start").value = cfg.maintenance_start_hour_utc ?? 22;
   if (qs("#bk-maint-end")) qs("#bk-maint-end").value = cfg.maintenance_end_hour_utc ?? 6;
+  fillMaintenanceDays(cfg.maintenance_days);
+  updateMaintenanceStatusBadge(cfg);
   if (qs("#nt-telegram-chat-notify")) qs("#nt-telegram-chat-notify").value = cfg.telegram_chat_notify || "";
   if (qs("#nt-telegram-chat-report")) qs("#nt-telegram-chat-report").value = cfg.telegram_chat_report || "";
   if (qs("#nt-smtp-server")) qs("#nt-smtp-server").value = cfg.smtp_server || "";
@@ -1185,6 +1267,7 @@ function collectNotifySettingsForm() {
     maintenance_window_enabled: qs("#bk-maint-enabled")?.checked !== false,
     maintenance_start_hour_utc: parseInt(qs("#bk-maint-start")?.value, 10) || 22,
     maintenance_end_hour_utc: parseInt(qs("#bk-maint-end")?.value, 10) || 6,
+    maintenance_days: collectMaintenanceDays(),
     telegram_token: tokVal || (backupSettingsCache?.telegram_token_set ? SETTINGS_PASSWORD_MASK : ""),
     telegram_chat_notify: qs("#nt-telegram-chat-notify")?.value.trim() || "",
     telegram_chat_report: qs("#nt-telegram-chat-report")?.value.trim() || "",
@@ -1225,7 +1308,85 @@ function collectNotifyTestPayload(kind) {
   return payload;
 }
 
-function collectBackupSettingsForm() {
+function fillMaintenanceDays(days) {
+  const selected = new Set(
+    Array.isArray(days) && days.length ? days.map(d => parseInt(d, 10)) : [0, 1, 2, 3, 4, 5, 6],
+  );
+  qsa("#bk-maint-days input[data-day]").forEach(inp => {
+    const day = parseInt(inp.dataset.day, 10);
+    inp.checked = selected.has(day);
+    inp.closest("label")?.classList.toggle("active", inp.checked);
+  });
+}
+
+function collectMaintenanceDays() {
+  return qsa("#bk-maint-days input[data-day]:checked")
+    .map(inp => parseInt(inp.dataset.day, 10))
+    .filter(n => !Number.isNaN(n))
+    .sort((a, b) => a - b);
+}
+
+function bindMaintenanceDayToggles() {
+  qsa("#bk-maint-days input[data-day]").forEach(inp => {
+    inp.addEventListener("change", () => {
+      inp.closest("label")?.classList.toggle("active", inp.checked);
+      updateMaintenanceStatusBadge({
+        maintenance_window_enabled: qs("#bk-maint-enabled")?.checked !== false,
+        maintenance_start_hour_utc: parseInt(qs("#bk-maint-start")?.value, 10) || 22,
+        maintenance_end_hour_utc: parseInt(qs("#bk-maint-end")?.value, 10) || 6,
+        maintenance_days: collectMaintenanceDays(),
+      });
+    });
+  });
+  ["#bk-maint-enabled", "#bk-maint-start", "#bk-maint-end"].forEach(sel => {
+    qs(sel)?.addEventListener("change", () => {
+      updateMaintenanceStatusBadge({
+        maintenance_window_enabled: qs("#bk-maint-enabled")?.checked !== false,
+        maintenance_start_hour_utc: parseInt(qs("#bk-maint-start")?.value, 10) || 22,
+        maintenance_end_hour_utc: parseInt(qs("#bk-maint-end")?.value, 10) || 6,
+        maintenance_days: collectMaintenanceDays(),
+      });
+    });
+  });
+  qs("#bk-maint-preset-weekdays")?.addEventListener("click", e => {
+    e.preventDefault();
+    fillMaintenanceDays([0, 1, 2, 3, 4]);
+    updateMaintenanceStatusBadge(collectMaintenanceSettingsOnly());
+  });
+  qs("#bk-maint-preset-all")?.addEventListener("click", e => {
+    e.preventDefault();
+    fillMaintenanceDays([0, 1, 2, 3, 4, 5, 6]);
+    updateMaintenanceStatusBadge(collectMaintenanceSettingsOnly());
+  });
+}
+
+function collectMaintenanceSettingsOnly() {
+  return {
+    maintenance_window_enabled: qs("#bk-maint-enabled")?.checked !== false,
+    maintenance_start_hour_utc: parseInt(qs("#bk-maint-start")?.value, 10) || 22,
+    maintenance_end_hour_utc: parseInt(qs("#bk-maint-end")?.value, 10) || 6,
+    maintenance_days: collectMaintenanceDays(),
+  };
+}
+
+async function saveMaintenanceSettings() {
+  if (!can("oxidized:write")) return;
+  try {
+    const payload = {
+      ...(backupSettingsCache || {}),
+      ...collectMaintenanceSettingsOnly(),
+    };
+    const saved = await api("/api/settings/backup", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    backupSettingsCache = saved;
+    fillBackupSettingsForm(saved);
+    showAlert("settings-alert", "Окно обслуживания сохранено", "success");
+  } catch (e) {
+    showAlert("settings-alert", e.message, "error");
+  }
+}
   const encVal = qs("#bk-encrypt-password")?.value.trim();
   return {
     ...collectNotifySettingsForm(),
@@ -1835,7 +1996,7 @@ function renderSettingsCredentials() {
   const models = oxidizedSettingsCache?.available_models || ["routeros"];
 
   tbody.innerHTML = filtered.map(p => {
-    const model = groupModels[p.group_name] || oxidizedSettingsCache?.default_model || "routeros";
+    const model = p.model || groupModels[p.group_name] || oxidizedSettingsCache?.default_model || "routeros";
     const modelOptions = models.map(m =>
       `<option value="${escapeHtml(m)}"${m === model ? " selected" : ""}>${escapeHtml(m)}</option>`
     ).join("");
@@ -1938,7 +2099,7 @@ function updateDeviceGroupHint() {
       </span>`;
     hint.querySelector(".device-goto-settings")?.addEventListener("click", e => {
       e.preventDefault();
-      $("#device-modal").modal("hide");
+      hideModal("device-modal");
       navigateToPage("settings");
     });
     return;
@@ -2033,11 +2194,11 @@ function openDeviceModal(name = null) {
   if (qs("#device-maintenance")) qs("#device-maintenance").checked = !!device?.maintenance;
   syncDeviceEnabledLabel();
   updateDeviceGroupHint();
-  $("#device-modal").modal("show");
+  showModal("device-modal");
 }
 
 function closeDeviceModal() {
-  $("#device-modal").modal("hide");
+  hideModal("device-modal");
   editingDeviceName = null;
   qs("#device-name").disabled = false;
 }
@@ -2410,7 +2571,7 @@ function renderOxidizedNodesTable(nodes) {
       <tr>
         <td><strong>${escapeHtml(n.name)}</strong></td>
         <td>${escapeHtml(n.ip || "—")}</td>
-        <td>${escapeHtml(n.model || "—")}</td>
+        <td><span class="oxidized-model-label" title="${escapeHtml(n.model || "")}">${escapeHtml(formatOxidizedModelLabel(n.model || ""))}</span></td>
         <td>${escapeHtml(n.group || "—")}</td>
         <td>${formatDate(last.end || last.start)}</td>
         <td>${badge(status === "success" ? "success" : status)}</td>
@@ -2461,9 +2622,24 @@ function updateVersionsCompareButton() {
   if (!btn) return;
   const checked = qsa("#oxidized-versions-table .version-compare-cb:checked");
   btn.disabled = checked.length !== 2;
+  const n = checked.length;
+  btn.innerHTML = n === 2
+    ? '<i class="fas fa-columns mr-1"></i> Сравнить side-by-side'
+    : `<i class="fas fa-columns mr-1"></i> Сравнить (${n}/2)`;
+  qsa("#oxidized-versions-table tr").forEach(row => row.classList.remove("version-row-selected"));
+  checked.forEach(cb => cb.closest("tr")?.classList.add("version-row-selected"));
 }
 
 async function showNodeVersions(name) {
+  const loading = qs("#oxidized-versions-loading");
+  const wrap = qs("#oxidized-versions-table-wrap");
+  const emptyEl = qs("#oxidized-versions-empty");
+  qs("#oxidized-versions-node").textContent = name;
+  if (loading) loading.style.display = "";
+  if (wrap) wrap.style.display = "none";
+  if (emptyEl) emptyEl.style.display = "none";
+  updateVersionsCompareButton();
+  showModal("oxidized-versions-modal");
   try {
     const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/versions`);
     oxidizedVersionsCache = { name, versions: data.versions || [] };
@@ -2535,10 +2711,12 @@ async function showNodeVersions(name) {
       });
       updateVersionsCompareButton();
     }
-
-    $("#oxidized-versions-modal").modal("show");
   } catch (e) {
+    hideModal("oxidized-versions-modal");
     showAlert("oxidized-alert", e.message, "error");
+  } finally {
+    if (loading) loading.style.display = "none";
+    if (wrap) wrap.style.display = "";
   }
 }
 
@@ -2559,11 +2737,22 @@ function renderDiffPanelContent(patch, query) {
   panel.innerHTML = html || '<div class="text-muted p-3">Пустой diff</div>';
 }
 
+function setDiffSubtitle(name, oid, oid2, mode) {
+  const el = qs("#oxidized-diff-subtitle");
+  if (!el) return;
+  const parts = [];
+  if (oid) parts.push(`oid ${String(oid).slice(0, 12)}`);
+  if (oid2) parts.push(`↔ ${String(oid2).slice(0, 12)}`);
+  const modeLabel = mode === "side_by_side" ? "side-by-side" : "unified";
+  el.textContent = parts.length ? `${name} · ${parts.join(" ")} · ${modeLabel}` : "";
+}
+
 async function loadInAppDiff(name, oid, oid2, mode) {
   const panel = qs("#oxidized-diff-panel");
   const iframe = qs("#oxidized-diff-iframe");
   if (!panel) return;
   oxidizedDiffState = { name, oid, oid2, mode, patch: "" };
+  setDiffSubtitle(name, oid, oid2, mode);
   if (iframe) iframe.style.display = "none";
   panel.style.display = "block";
   panel.innerHTML = '<div class="text-muted p-3"><i class="fas fa-spinner fa-spin"></i> Загрузка…</div>';
@@ -2602,7 +2791,7 @@ function openOxidizedDiff(name, diffUrl, oid = null) {
       showAlert("oxidized-alert", e.message, "error");
     });
     if (openTab) openTab.href = fullUrl;
-    $("#oxidized-diff-modal").modal("show");
+    showModal("oxidized-diff-modal");
     return;
   }
 
@@ -2612,7 +2801,7 @@ function openOxidizedDiff(name, diffUrl, oid = null) {
     iframe.setAttribute("src", fullUrl);
   }
   if (openTab) openTab.href = fullUrl;
-  $("#oxidized-diff-modal").modal("show");
+  showModal("oxidized-diff-modal");
 }
 
 function closeOxidizedDiffModal() {
@@ -2632,7 +2821,7 @@ async function compareSelectedVersions() {
   oxidizedDiffState.mode = "side_by_side";
   qs("#btn-diff-side")?.classList.add("active");
   qs("#btn-diff-unified")?.classList.remove("active");
-  $("#oxidized-versions-modal").modal("hide");
+  hideModal("oxidized-versions-modal");
   qs("#oxidized-diff-node").textContent = oxidizedVersionsCache.name;
   try {
     await loadInAppDiff(oxidizedVersionsCache.name, oidNew, oidOld, "side_by_side");
@@ -2640,7 +2829,7 @@ async function compareSelectedVersions() {
     if (openTab) {
       openTab.href = `${window.location.origin}/api/oxidized/nodes/${encodeURIComponent(oxidizedVersionsCache.name)}/diff?oid=${encodeURIComponent(oidNew)}&oid2=${encodeURIComponent(oidOld)}&format=side_by_side`;
     }
-    $("#oxidized-diff-modal").modal("show");
+    showModal("oxidized-diff-modal");
   } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
   }
@@ -2711,6 +2900,17 @@ function renderOxidizedLogs(data) {
   const engineBadge = qs("#oxidized-log-engine");
   const pathEl = qs("#oxidized-logs-path");
   const truncatedEl = qs("#oxidized-logs-truncated");
+
+  if (!data || typeof data !== "object") {
+    const viewer = qs("#oxidized-log-viewer");
+    if (viewer) {
+      viewer.textContent = typeof data === "string" && data.trim()
+        ? data.trim()
+        : "Пустой ответ API логов";
+    }
+    if (badge) badge.style.display = "none";
+    return;
+  }
 
   oxidizedLogsRawData = data;
   updateOxidizedLogsSearchBanner();
@@ -2798,7 +2998,11 @@ function openOxidizedLogsModal(prefill = "") {
   oxidizedLogsSearchQuery = prefill || "";
   oxidizedLogsStickToBottom = true;
   updateOxidizedLogsSearchBanner();
-  $("#oxidized-logs-modal").modal("show");
+  const viewer = qs("#oxidized-log-viewer");
+  if (viewer) viewer.textContent = "Загрузка…";
+  showModal("oxidized-logs-modal");
+  // Не полагаемся только на shown.bs.modal (стек модалок / анимация fade).
+  startOxidizedLogsPolling();
 }
 
 function setOxidizedLogsLevelFilter(level) {
@@ -2830,12 +3034,16 @@ async function loadOxidizedLogs() {
   const params = new URLSearchParams({ lines: "500" });
   const q = oxidizedLogsSearchQuery.trim() || globalSearchQuery.trim();
   if (q) params.set("q", q);
+  const viewer = qs("#oxidized-log-viewer");
   try {
     const data = await api(`/api/oxidized/logs?${params}`);
-    renderOxidizedLogs(data);
+    try {
+      renderOxidizedLogs(data);
+    } catch (renderErr) {
+      if (viewer) viewer.textContent = `Ошибка отображения: ${renderErr.message}`;
+    }
   } catch (e) {
-    const viewer = qs("#oxidized-log-viewer");
-    if (viewer) viewer.textContent = e.message;
+    if (viewer) viewer.textContent = e.message || "Не удалось загрузить лог";
   }
 }
 
@@ -2878,7 +3086,7 @@ async function openOxidizedConfigInModal(name, viewUrl, label, model) {
       const el = qs("#oxidized-config-modal-content");
       if (el) el.value = text || "Пустой конфиг";
     }
-    $("#oxidized-config-modal").modal("show");
+    showModal("oxidized-config-modal");
     window.setTimeout(() => window.ConfigEditor?.refreshAll(), 120);
   } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
@@ -2951,7 +3159,7 @@ async function showNodeBackups(name) {
   if (emptyHint) emptyHint.style.display = "none";
   qs("#oxidized-backups-bin").innerHTML = "";
   qs("#oxidized-backups-rsc").innerHTML = "";
-  $("#oxidized-backups-modal").modal("show");
+  showModal("oxidized-backups-modal");
   await loadNodeBackupFiles(name);
 }
 
@@ -2973,7 +3181,7 @@ async function loadNodeBackupFiles(name) {
     }
   } catch (e) {
     if (loading) loading.style.display = "none";
-    $("#oxidized-backups-modal").modal("hide");
+    hideModal("oxidized-backups-modal");
     showAlert("oxidized-alert", e.message, "error");
   }
 }
@@ -3006,13 +3214,14 @@ async function backupAllNodes() {
 }
 
 function bindEvents() {
+  bindMaintenanceDayToggles();
   const addDeviceBtn = qs("#btn-add-device");
   if (addDeviceBtn) addDeviceBtn.addEventListener("click", () => openDeviceModal());
 
   qs("#device-group")?.addEventListener("change", updateDeviceGroupHint);
   qs("#device-enabled")?.addEventListener("change", syncDeviceEnabledLabel);
   qs("#btn-device-goto-settings")?.addEventListener("click", () => {
-    $("#device-modal").modal("hide");
+    hideModal("device-modal");
     navigateToPage("settings");
   });
 
@@ -3037,6 +3246,16 @@ function bindEvents() {
   qs("#oxidized-settings-form")?.addEventListener("submit", saveOxidizedSettings);
   qs("#backup-settings-form")?.addEventListener("submit", saveBackupSettings);
   qs("#git-settings-form")?.addEventListener("submit", saveGitSettings);
+  qs("#device-maintenance-settings-link")?.addEventListener("click", e => {
+    e.preventDefault();
+    hideModal("device-modal");
+    navigateToPage("settings");
+    window.setTimeout(() => {
+      qs('a[href="#settings-tab-service"]')?.click();
+    }, 200);
+  });
+
+  qs("#btn-save-maintenance")?.addEventListener("click", saveMaintenanceSettings);
   qs("#scan-settings-form")?.addEventListener("submit", saveScanSettings);
   qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
   qs("#audit-action-filter")?.addEventListener("change", () => loadAudit());
@@ -3132,12 +3351,12 @@ function bindEvents() {
   });
   qs("#oxidized-backups-goto-settings")?.addEventListener("click", e => {
     e.preventDefault();
-    $("#oxidized-backups-modal").modal("hide");
+    hideModal("oxidized-backups-modal");
     navigateToPage("settings");
   });
   qs("#oxidized-backups-goto-logs")?.addEventListener("click", e => {
     e.preventDefault();
-    $("#oxidized-backups-modal").modal("hide");
+    hideModal("oxidized-backups-modal");
     navigateToPage("oxidized");
     window.setTimeout(() => openOxidizedLogsModal("mikrotik"), 300);
   });
@@ -3145,21 +3364,25 @@ function bindEvents() {
     const name = qs("#btn-run-mikrotik-backup")?.dataset.name;
     if (name) runMikrotikBackupForNode(name);
   });
-  $("#oxidized-logs-modal").on("shown.bs.modal", startOxidizedLogsPolling);
-  $("#oxidized-logs-modal").on("hidden.bs.modal", stopOxidizedLogsPolling);
+  onModalEvent("oxidized-logs-modal", "hidden.bs.modal", stopOxidizedLogsPolling);
   qs("#btn-oxidized-iframe-reload")?.addEventListener("click", () => loadOxidizedIframe(true));
   qs("#btn-oxidized-iframe-nodes")?.addEventListener("click", () => navigateOxidizedIframe("/nodes"));
   qs("#btn-oxidized-config-versions")?.addEventListener("click", () => {
     if (!oxidizedConfigModalNode) return;
-    $("#oxidized-config-modal").modal("hide");
+    hideModal("oxidized-config-modal");
     showNodeVersions(oxidizedConfigModalNode);
   });
-  $("#oxidized-diff-modal").on("hidden.bs.modal", closeOxidizedDiffModal);
+  onModalEvent("oxidized-diff-modal", "hidden.bs.modal", closeOxidizedDiffModal);
   qs("#btn-versions-compare")?.addEventListener("click", compareSelectedVersions);
   qs("#oxidized-diff-search")?.addEventListener("input", () => {
     if (oxidizedDiffState.patch) {
       renderDiffPanelContent(oxidizedDiffState.patch, qs("#oxidized-diff-search")?.value);
     }
+  });
+  qs("#btn-diff-search-clear")?.addEventListener("click", () => {
+    const input = qs("#oxidized-diff-search");
+    if (input) input.value = "";
+    if (oxidizedDiffState.patch) renderDiffPanelContent(oxidizedDiffState.patch, "");
   });
   qs("#btn-diff-unified")?.addEventListener("click", async () => {
     qs("#btn-diff-unified")?.classList.add("active");
@@ -3187,9 +3410,9 @@ function bindEvents() {
       showAlert("oxidized-alert", e.message, "error");
     }
   });
-  $("#oxidized-config-modal").on("shown.bs.modal", () => window.ConfigEditor?.refreshAll());
+  onModalEvent("oxidized-config-modal", "shown.bs.modal", () => window.ConfigEditor?.refreshAll());
   qs("#oxidized-logs-autorefresh")?.addEventListener("change", () => {
-    if ($("#oxidized-logs-modal").hasClass("show")) {
+    if (isModalOpen("oxidized-logs-modal")) {
       startOxidizedLogsPolling();
     }
   });

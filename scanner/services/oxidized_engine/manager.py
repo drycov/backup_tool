@@ -104,10 +104,12 @@ class OxidizedManager:
         status, config = self.worker.fetch_node(name)
         return {"status": status, "config": config}
 
-    def backup_all(self) -> dict[str, int]:
+    def backup_all(self, only_names: set[str] | None = None) -> dict[str, int]:
         self.worker.reload()
         count = 0
         for node in list(self.nodes):
+            if only_names is not None and node.name not in only_names:
+                continue
             self.nodes.next(node.name)
             count += 1
         return {"queued": count}

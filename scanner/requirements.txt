@@ -10,6 +10,6 @@ PyJWT>=2.9
 bcrypt>=4.2
 ldap3>=2.9
 
-# Dev / CI (optional)
-# pytest>=8.0
-# pytest-django>=4.9
+# Dev / CI
+pytest>=8.0
+pytest-django>=4.9

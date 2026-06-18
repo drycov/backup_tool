@@ -34,8 +34,10 @@ def initialize() -> None:
     update_oxidized_credentials(inventory)
 
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() == "python":
+        from services.oxidized_logging import configure_oxidized_file_logging
         from services.oxidized_engine import start_engine
 
+        configure_oxidized_file_logging()
         start_engine()
         logger.info("oxidized | python engine started")
         logger.info(

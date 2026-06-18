@@ -15,6 +15,7 @@ class CredentialProfile(models.Model):
     group_name = models.CharField(max_length=64, db_index=True)
     username = models.CharField(max_length=128, default="admin")
     password = models.CharField(max_length=256, default="changeme")
+    model = models.CharField(max_length=64, blank=True, default="")
 
     class Meta:
         db_table = "credential_profiles"
@@ -66,6 +67,7 @@ class User(models.Model):
     role = models.CharField(max_length=32, default="viewer")
     is_active = models.BooleanField(default=True)
     auth_source = models.CharField(max_length=16, default="local")
+    role_locked = models.BooleanField(default=False)
     allowed_groups = LegacyJSONField(default=list, blank=True)
     allowed_sites = LegacyJSONField(default=list, blank=True)
     created_at = models.DateTimeField(null=True, blank=True)

@@ -42,6 +42,7 @@ class CredentialProfile(BaseModel):
     group_name: str
     username: str
     password: str
+    model: str = ""
 
 
 class CredentialProfileUpdate(BaseModel):

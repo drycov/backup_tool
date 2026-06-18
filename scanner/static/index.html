@@ -2,16 +2,19 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <meta name="color-scheme" content="light dark">
   <title>Backup Tools</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,600,700&display=swap">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3@5.0.12/index.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.11.0/styles/overlayscrollbars.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/css/adminlte.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body class="hold-transition">
+<body class="layout-fixed sidebar-expand-lg bg-body-tertiary">
 
   <!-- Login -->
   <div id="login-screen" class="login-page" style="display:none;">
@@ -23,25 +26,21 @@
         <div class="card-body login-card-body">
           <p class="login-box-msg">Вход в систему</p>
           <p class="text-center text-muted small mb-3" id="login-ldap-hint" style="display:none;">
-            <i class="fas fa-network-wired mr-1"></i> <span id="login-auth-hint-text">LDAP / Active Directory</span>
+            <i class="fas fa-network-wired me-1"></i> <span id="login-auth-hint-text">LDAP / Active Directory</span>
           </p>
           <form id="login-form">
             <div class="input-group mb-3">
               <input type="text" id="login-username" class="form-control" placeholder="Логин" autocomplete="username" required>
-              <div class="input-group-append">
-                <div class="input-group-text"><span class="fas fa-user"></span></div>
-              </div>
+              <span class="input-group-text"><i class="fas fa-user"></i></span>
             </div>
             <div class="input-group mb-3">
               <input type="password" id="login-password" class="form-control" placeholder="Пароль" autocomplete="current-password" required>
-              <div class="input-group-append">
-                <div class="input-group-text"><span class="fas fa-lock"></span></div>
-              </div>
+              <span class="input-group-text"><i class="fas fa-lock"></i></span>
             </div>
             <div id="login-alert"></div>
             <div class="row">
               <div class="col-12">
-                <button type="submit" class="btn btn-primary btn-block">Войти</button>
+                <button type="submit" class="btn btn-primary w-100">Войти</button>
               </div>
             </div>
           </form>
@@ -51,53 +50,63 @@
   </div>
 
   <!-- App -->
-  <div class="wrapper" id="app-layout" style="display:none;">
+  <div class="app-wrapper" id="app-layout" style="display:none;">
 
-    <nav class="main-header navbar navbar-expand navbar-white navbar-light border-bottom">
+    <nav class="app-header navbar navbar-expand bg-body border-bottom">
+      <div class="container-fluid">
       <ul class="navbar-nav">
         <li class="nav-item">
-          <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+          <a class="nav-link" data-lte-toggle="sidebar" href="#" role="button"><i class="fas fa-bars"></i></a>
         </li>
-        <li class="nav-item d-none d-sm-inline-block">
-          <span class="nav-link text-muted">Scanner & Oxidized</span>
+        <li class="nav-item d-none d-md-block">
+          <span class="nav-link text-muted">Backup Tools</span>
         </li>
       </ul>
-      <form class="navbar-nav flex-fill px-2 d-flex" id="global-search-form" role="search">
+      <form class="navbar-nav flex-fill px-2 d-flex mx-md-3" id="global-search-form" role="search">
         <div class="input-group input-group-sm w-100 global-search-wrap">
-          <div class="input-group-prepend">
-            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
-          </div>
+          <span class="input-group-text bg-body"><i class="fas fa-search text-muted"></i></span>
           <input type="search" id="global-search" class="form-control" placeholder="Поиск: имя, IP, группа, модель…" autocomplete="off" aria-label="Поиск">
-          <div class="input-group-append">
-            <span class="input-group-text bg-white text-muted small d-none" id="global-search-count"></span>
-            <button type="button" class="btn btn-default" id="global-search-clear" title="Очистить (Esc)" tabindex="-1">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
+          <span class="input-group-text bg-body text-muted small d-none" id="global-search-count"></span>
+          <button type="button" class="btn btn-outline-secondary" id="global-search-clear" title="Очистить (Esc)" tabindex="-1">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
       </form>
-      <ul class="navbar-nav ml-auto">
+      <ul class="navbar-nav ms-auto align-items-center">
+        <li class="nav-item dropdown me-2">
+          <button class="btn btn-link nav-link py-1 px-2" data-bs-toggle="dropdown" aria-expanded="false" title="Тема">
+            <i class="bi bi-circle-half"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button type="button" class="dropdown-item" data-bs-theme-value="light"><i class="bi bi-sun me-2"></i> Светлая</button></li>
+            <li><button type="button" class="dropdown-item" data-bs-theme-value="dark"><i class="bi bi-moon-stars me-2"></i> Тёмная</button></li>
+            <li><button type="button" class="dropdown-item" data-bs-theme-value="auto"><i class="bi bi-circle-half me-2"></i> Авто</button></li>
+          </ul>
+        </li>
         <li class="nav-item dropdown">
-          <a class="nav-link" data-toggle="dropdown" href="#">
-            <i class="far fa-user mr-1"></i>
+          <a class="nav-link" data-bs-toggle="dropdown" href="#">
+            <i class="far fa-user me-1"></i>
             <span id="navbar-username">—</span>
           </a>
-          <div class="dropdown-menu dropdown-menu-right">
-            <span class="dropdown-item dropdown-header" id="navbar-user-role">—</span>
+          <div class="dropdown-menu dropdown-menu-end">
+            <span class="dropdown-item-text text-muted small" id="navbar-user-role">—</span>
             <div class="dropdown-divider"></div>
-            <a href="#" class="dropdown-item" id="btn-logout"><i class="fas fa-sign-out-alt mr-2"></i> Выход</a>
+            <a href="#" class="dropdown-item" id="btn-logout"><i class="fas fa-sign-out-alt me-2"></i> Выход</a>
           </div>
         </li>
       </ul>
+      </div>
     </nav>
 
-    <aside class="main-sidebar sidebar-dark-primary elevation-4">
-      <a href="#" class="brand-link">
-        <span class="brand-text font-weight-light">Backup Tools</span>
-      </a>
-      <div class="sidebar">
+    <aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
+      <div class="sidebar-brand">
+        <a href="#" class="brand-link">
+          <span class="brand-text fw-light">Backup Tools</span>
+        </a>
+      </div>
+      <div class="sidebar-wrapper">
         <nav class="mt-2">
-          <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
+          <ul class="nav sidebar-menu flex-column" data-lte-toggle="treeview" role="navigation">
             <li class="nav-item" data-permission="inventory:read">
               <a href="#" class="nav-link nav-page active" data-page="dashboard">
                 <i class="nav-icon fas fa-tachometer-alt"></i>
@@ -151,16 +160,25 @@
       </div>
     </aside>
 
-    <div class="content-wrapper">
-      <div class="content-header" id="content-header">
+    <main class="app-main">
+      <div class="app-content-header" id="content-header">
         <div class="container-fluid">
           <div class="row mb-2">
-            <div class="col-sm-6"><h1 class="m-0">Дашборд</h1></div>
+            <div class="col-sm-6"><h3 class="mb-0" id="page-title">Дашборд</h3></div>
+            <div class="col-sm-6">
+              <ol class="breadcrumb float-sm-end mb-0">
+                <li class="breadcrumb-item"><a href="#" class="nav-page" data-page="dashboard">Home</a></li>
+                <li class="breadcrumb-item active" id="page-breadcrumb-active">Дашборд</li>
+              </ol>
+            </div>
           </div>
         </div>
       </div>
+      <div class="container-fluid px-3" id="user-scope-banner-wrap" style="display:none;">
+        <div class="alert alert-info py-2 mb-2 small scope-banner" id="user-scope-banner" role="status"></div>
+      </div>
 
-      <section class="content">
+      <div class="app-content">
         <div class="container-fluid">
 
           <!-- Dashboard -->
@@ -176,11 +194,11 @@
                       <button type="button" class="btn btn-tool btn-sm" id="btn-compliance-export" title="Экспорт CSV">
                         <i class="fas fa-file-csv"></i> CSV
                       </button>
-                      <span class="badge badge-light" id="compliance-generated-at">—</span>
+                      <span class="badge text-bg-light" id="compliance-generated-at">—</span>
                     </div>
                   </div>
                   <div class="card-body py-2 border-bottom">
-                    <div class="form-row align-items-end">
+                    <div class=".row align-items-end">
                       <div class="form-group col-md-2 col-6 mb-1">
                         <label for="cf-site" class="small text-muted mb-0">Site</label>
                         <input type="text" id="cf-site" class="form-control form-control-sm" placeholder="hex-dc1">
@@ -214,8 +232,8 @@
                         </select>
                       </div>
                       <div class="form-group col-md-2 col-12 mb-1">
-                        <button type="button" class="btn btn-outline-primary btn-sm btn-block" id="btn-compliance-apply">
-                          <i class="fas fa-filter mr-1"></i> Применить
+                        <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-compliance-apply">
+                          <i class="fas fa-filter me-1"></i> Применить
                         </button>
                       </div>
                     </div>
@@ -250,17 +268,17 @@
                 <h3 class="card-title">Быстрые действия</h3>
               </div>
               <div class="card-body">
-                <button class="btn btn-primary mr-1 mb-1" id="btn-quick-scan" data-permission="scan:run">
-                  <i class="fas fa-search mr-1"></i> Сканировать
+                <button class="btn btn-primary me-1 mb-1" id="btn-quick-scan" data-permission="scan:run">
+                  <i class="fas fa-search me-1"></i> Сканировать
                 </button>
-                <button class="btn btn-secondary mr-1 mb-1" id="btn-quick-discover" data-permission="scan:run">
-                  <i class="fas fa-network-wired mr-1"></i> Discovery
+                <button class="btn btn-secondary me-1 mb-1" id="btn-quick-discover" data-permission="scan:run">
+                  <i class="fas fa-network-wired me-1"></i> Discovery
                 </button>
-                <button class="btn btn-info mr-1 mb-1" id="btn-quick-sync" data-permission="oxidized:write">
-                  <i class="fas fa-sync mr-1"></i> Sync Oxidized
+                <button class="btn btn-info me-1 mb-1" id="btn-quick-sync" data-permission="oxidized:write">
+                  <i class="fas fa-sync me-1"></i> Sync Oxidized
                 </button>
                 <a class="btn btn-outline-secondary mb-1" id="link-oxidized" href="#" target="_blank">
-                  <i class="fas fa-external-link-alt mr-1"></i> Oxidized ↗
+                  <i class="fas fa-external-link-alt me-1"></i> Oxidized ↗
                 </a>
               </div>
             </div>
@@ -268,9 +286,9 @@
             <div id="dashboard-scan-activity" class="scan-activity-panel mb-3" style="display:none;">
               <div class="card card-outline card-info">
                 <div class="card-header">
-                  <h3 class="card-title mb-0"><i class="fas fa-spinner fa-spin mr-1 scan-running-icon"></i> Сканирование</h3>
+                  <h3 class="card-title mb-0"><i class="fas fa-spinner fa-spin me-1 scan-running-icon"></i> Сканирование</h3>
                   <div class="card-tools">
-                    <span class="badge badge-info scan-phase-badge">—</span>
+                    <span class="badge text-bg-info scan-phase-badge">—</span>
                   </div>
                 </div>
                 <div class="card-body pb-2">
@@ -295,7 +313,7 @@
                 <h3 class="card-title">Подсети для discovery</h3>
               </div>
               <div class="card-body">
-                <div class="form-row align-items-end">
+                <div class=".row align-items-end">
                   <div class="col-md-5 mb-2">
                     <input type="text" id="network-input" class="form-control" placeholder="10.216.92.0/23">
                   </div>
@@ -303,7 +321,7 @@
                     <select id="network-group" class="form-control group-select"></select>
                   </div>
                   <div class="col-md-2 mb-2">
-                    <button class="btn btn-primary btn-block" id="btn-add-network" data-permission="inventory:write">Добавить</button>
+                    <button class="btn btn-primary w-100" id="btn-add-network" data-permission="inventory:write">Добавить</button>
                   </div>
                 </div>
                 <div class="table-responsive mt-2">
@@ -319,17 +337,17 @@
 
             <div class="card card-outline card-success">
               <div class="card-header">
-                <h3 class="card-title">Устройства <span class="badge badge-secondary ml-1" id="devices-count-badge" style="display:none;"></span></h3>
+                <h3 class="card-title">Устройства <span class="badge text-bg-secondary ms-1" id="devices-count-badge" style="display:none;"></span></h3>
                 <div class="card-tools">
                   <button class="btn btn-primary btn-sm" id="btn-add-device" data-permission="inventory:devices">
-                    <i class="fas fa-plus mr-1"></i> Добавить
+                    <i class="fas fa-plus me-1"></i> Добавить
                   </button>
                 </div>
               </div>
               <div class="card-body table-responsive p-0">
                 <table class="table table-hover table-striped">
                   <thead>
-                    <tr><th>Имя</th><th>IP</th><th>Model</th><th>Group</th><th>Порты</th><th>Enabled</th><th></th></tr>
+                    <tr><th>Имя</th><th>IP</th><th>Model</th><th>Group</th><th>Теги</th><th>Порты</th><th>On</th><th></th></tr>
                   </thead>
                   <tbody id="devices-table"></tbody>
                 </table>
@@ -340,20 +358,20 @@
           <!-- Scan -->
           <div id="page-scan" class="page d-none">
             <div class="mb-3">
-              <button class="btn btn-primary mr-1" id="btn-scan" data-permission="scan:run">
-                <i class="fas fa-play mr-1"></i> Сканирование
+              <button class="btn btn-primary me-1" id="btn-scan" data-permission="scan:run">
+                <i class="fas fa-play me-1"></i> Сканирование
               </button>
               <button class="btn btn-secondary" id="btn-scan-discover" data-permission="scan:run">
-                <i class="fas fa-network-wired mr-1"></i> + Discovery
+                <i class="fas fa-network-wired me-1"></i> + Discovery
               </button>
             </div>
             <div id="scan-alert" class="page-alert"></div>
             <div id="scan-activity-panel" class="scan-activity-panel mb-3" style="display:none;">
               <div class="card card-outline card-info">
                 <div class="card-header">
-                  <h3 class="card-title mb-0"><i class="fas fa-spinner fa-spin mr-1 scan-running-icon"></i> Ход выполнения</h3>
+                  <h3 class="card-title mb-0"><i class="fas fa-spinner fa-spin me-1 scan-running-icon"></i> Ход выполнения</h3>
                   <div class="card-tools">
-                    <span class="badge badge-info scan-phase-badge">—</span>
+                    <span class="badge text-bg-info scan-phase-badge">—</span>
                     <button type="button" class="btn btn-tool btn-sm scan-log-clear" title="Очистить лог"><i class="fas fa-eraser"></i></button>
                   </div>
                 </div>
@@ -388,7 +406,7 @@
             </div>
             <div class="card card-outline card-warning">
               <div class="card-header">
-                <h3 class="card-title">Результаты <span class="badge badge-secondary ml-1" id="scan-results-count-badge" style="display:none;"></span></h3>
+                <h3 class="card-title">Результаты <span class="badge text-bg-secondary ms-1" id="scan-results-count-badge" style="display:none;"></span></h3>
               </div>
               <div class="card-body table-responsive p-0">
                 <table class="table table-bordered table-sm">
@@ -409,24 +427,24 @@
             <div id="oxidized-models-warning" class="alert alert-warning py-2 small mb-2" style="display:none;" role="status"></div>
             <div class="row" id="oxidized-stats"></div>
             <div class="mb-3">
-              <button class="btn btn-secondary mr-1" id="btn-refresh-oxidized"><i class="fas fa-redo mr-1"></i> Обновить</button>
-              <button class="btn btn-primary mr-1" id="btn-sync-oxidized" data-permission="oxidized:write">
-                <i class="fas fa-sync mr-1"></i> Sync конфиг
+              <button class="btn btn-secondary me-1" id="btn-refresh-oxidized"><i class="fas fa-redo me-1"></i> Обновить</button>
+              <button class="btn btn-primary me-1" id="btn-sync-oxidized" data-permission="oxidized:write">
+                <i class="fas fa-sync me-1"></i> Sync конфиг
               </button>
-              <button class="btn btn-warning mr-1" id="btn-backup-all" data-permission="oxidized:write">
-                <i class="fas fa-database mr-1"></i> Backup все
+              <button class="btn btn-warning me-1" id="btn-backup-all" data-permission="oxidized:write">
+                <i class="fas fa-database me-1"></i> Backup все
               </button>
-              <a class="btn btn-outline-secondary mr-1" id="link-oxidized-2" href="#" target="_blank">
-                <i class="fas fa-external-link-alt mr-1"></i> Oxidized Web ↗
+              <a class="btn btn-outline-secondary me-1" id="link-oxidized-2" href="#" target="_blank">
+                <i class="fas fa-external-link-alt me-1"></i> Oxidized Web ↗
               </a>
               <button type="button" class="btn btn-outline-dark" id="btn-open-oxidized-logs" title="Лог Oxidized">
-                <i class="fas fa-terminal mr-1"></i> Лог
-                <span class="badge badge-secondary ml-1" id="oxidized-logs-btn-badge" style="display:none;"></span>
+                <i class="fas fa-terminal me-1"></i> Лог
+                <span class="badge text-bg-secondary ms-1" id="oxidized-logs-btn-badge" style="display:none;"></span>
               </button>
             </div>
             <div class="card card-outline card-primary">
               <div class="card-header">
-                <h3 class="card-title">Узлы Oxidized <span class="badge badge-secondary ml-1" id="oxidized-count-badge" style="display:none;"></span></h3>
+                <h3 class="card-title">Узлы Oxidized <span class="badge text-bg-secondary ms-1" id="oxidized-count-badge" style="display:none;"></span></h3>
               </div>
               <div class="card-body table-responsive p-0">
                 <table class="table table-hover table-striped">
@@ -443,18 +461,18 @@
           <!-- Oxidized UI -->
           <div id="page-oxidized-ui" class="page d-none">
             <div class="oxidized-ui-toolbar mb-2 d-flex flex-wrap align-items-center">
-              <div class="btn-group btn-group-sm mr-2 mb-1">
+              <div class="btn-group btn-group-sm me-2 mb-1">
                 <button type="button" class="btn btn-outline-secondary" id="btn-oxidized-iframe-reload" title="Обновить">
-                  <i class="fas fa-sync-alt mr-1"></i> Обновить
+                  <i class="fas fa-sync-alt me-1"></i> Обновить
                 </button>
                 <button type="button" class="btn btn-outline-secondary" id="btn-oxidized-iframe-nodes" title="Список узлов">
-                  <i class="fas fa-list mr-1"></i> Узлы
+                  <i class="fas fa-list me-1"></i> Узлы
                 </button>
               </div>
               <a class="btn btn-outline-secondary btn-sm mb-1" id="link-oxidized-3" href="#" target="_blank" rel="noopener">
-                <i class="fas fa-external-link-alt mr-1"></i> Открыть в новой вкладке
+                <i class="fas fa-external-link-alt me-1"></i> Открыть в новой вкладке
               </a>
-              <span class="text-muted small ml-auto mb-1" id="oxidized-ui-hint">
+              <span class="text-muted small ms-auto mb-1" id="oxidized-ui-hint">
                 Встроенный Oxidized Web (Python engine)
               </span>
             </div>
@@ -473,33 +491,33 @@
               <div class="card-header p-2">
                 <ul class="nav nav-pills settings-tab-nav" id="settings-tab-nav" role="tablist">
                   <li class="nav-item" id="settings-tab-backup-li" data-permission-any="oxidized:read,oxidized:write">
-                    <a class="nav-link active" data-toggle="tab" href="#settings-tab-backup" role="tab">
-                      <i class="fas fa-database mr-1"></i> Бэкап
+                    <a class="nav-link active" data-bs-toggle="tab" href="#settings-tab-backup" role="tab">
+                      <i class="fas fa-database me-1"></i> Бэкап
                     </a>
                   </li>
                   <li class="nav-item" id="settings-tab-git-li" data-permission-any="oxidized:read,oxidized:write">
-                    <a class="nav-link" data-toggle="tab" href="#settings-tab-git" role="tab">
-                      <i class="fas fa-code-branch mr-1"></i> Git
+                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-git" role="tab">
+                      <i class="fas fa-code-branch me-1"></i> Git
                     </a>
                   </li>
                   <li class="nav-item" id="settings-tab-notify-li" data-permission-any="oxidized:read,oxidized:write">
-                    <a class="nav-link" data-toggle="tab" href="#settings-tab-notify" role="tab">
-                      <i class="fas fa-bell mr-1"></i> Уведомления
+                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-notify" role="tab">
+                      <i class="fas fa-bell me-1"></i> Уведомления
                     </a>
                   </li>
                   <li class="nav-item">
-                    <a class="nav-link" data-toggle="tab" href="#settings-tab-groups" role="tab">
-                      <i class="fas fa-key mr-1"></i> Группы
+                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-groups" role="tab">
+                      <i class="fas fa-key me-1"></i> Группы
                     </a>
                   </li>
                   <li class="nav-item" id="settings-ldap-tab-li" data-permission="users:manage">
-                    <a class="nav-link" data-toggle="tab" href="#settings-tab-ldap" role="tab">
-                      <i class="fas fa-network-wired mr-1"></i> LDAP
+                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-ldap" role="tab">
+                      <i class="fas fa-network-wired me-1"></i> LDAP
                     </a>
                   </li>
                   <li class="nav-item" data-permission="inventory:write">
-                    <a class="nav-link" data-toggle="tab" href="#settings-tab-service" role="tab">
-                      <i class="fas fa-tools mr-1"></i> Сервис
+                    <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-service" role="tab">
+                      <i class="fas fa-tools me-1"></i> Сервис
                     </a>
                   </li>
                 </ul>
@@ -510,13 +528,13 @@
                 <div class="tab-pane fade show active" id="settings-tab-backup" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
                   <div id="settings-oxidized-card">
                     <div class="d-flex flex-wrap align-items-center mb-3">
-                      <h5 class="mb-0 mr-2"><i class="fas fa-cogs text-warning mr-1"></i> Oxidized worker</h5>
-                      <span class="badge badge-secondary" id="ox-settings-engine-badge">—</span>
-                      <span class="badge badge-info ml-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
+                      <h5 class="mb-0 me-2"><i class="fas fa-cogs text-warning me-1"></i> Oxidized worker</h5>
+                      <span class="badge text-bg-secondary" id="ox-settings-engine-badge">—</span>
+                      <span class="badge text-bg-info ms-1" id="ox-settings-nodes-badge" style="display:none;">—</span>
                     </div>
                     <p class="text-muted small" id="ox-settings-env-note"></p>
                     <form id="oxidized-settings-form">
-                      <div class="form-row">
+                      <div class=".row">
                         <div class="form-group col-md-2 col-sm-4">
                           <label for="ox-interval">Интервал, сек</label>
                           <input type="number" id="ox-interval" class="form-control form-control-sm" min="60" step="60">
@@ -542,11 +560,11 @@
                           <select id="ox-default-model" class="form-control form-control-sm"></select>
                         </div>
                       </div>
-                      <div class="form-row align-items-center mb-3">
+                      <div class=".row align-items-center mb-3">
                         <div class="col-md-4">
-                          <div class="custom-control custom-checkbox">
-                            <input type="checkbox" class="custom-control-input" id="ox-resolve-dns">
-                            <label class="custom-control-label" for="ox-resolve-dns">Resolve DNS</label>
+                          <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="ox-resolve-dns">
+                            <label class="form-check-label" for="ox-resolve-dns">Resolve DNS</label>
                           </div>
                         </div>
                         <div class="col-md-8">
@@ -554,14 +572,14 @@
                         </div>
                       </div>
                       <div class="d-flex flex-wrap mb-4">
-                        <button type="submit" class="btn btn-primary btn-sm mr-2 mb-1" data-permission="oxidized:write">
-                          <i class="fas fa-save mr-1"></i> Сохранить Oxidized
+                        <button type="submit" class="btn btn-primary btn-sm me-2 mb-1" data-permission="oxidized:write">
+                          <i class="fas fa-save me-1"></i> Сохранить Oxidized
                         </button>
-                        <button type="button" class="btn btn-outline-primary btn-sm mr-2 mb-1" id="btn-settings-sync-oxidized" data-permission="oxidized:write">
-                          <i class="fas fa-sync mr-1"></i> Sync конфиг
+                        <button type="button" class="btn btn-outline-primary btn-sm me-2 mb-1" id="btn-settings-sync-oxidized" data-permission="oxidized:write">
+                          <i class="fas fa-sync me-1"></i> Sync конфиг
                         </button>
                         <a class="btn btn-outline-secondary btn-sm mb-1" id="btn-settings-oxidized-ui" href="#" data-permission="oxidized:read">
-                          <i class="fas fa-external-link-alt mr-1"></i> Oxidized UI
+                          <i class="fas fa-external-link-alt me-1"></i> Oxidized UI
                         </a>
                       </div>
                     </form>
@@ -571,42 +589,42 @@
                     <div id="mikrotik-external-note" class="alert alert-secondary py-2 small" style="display:none;">
                       MikroTik binary/export доступны только при <code>OXIDIZED_ENGINE=python</code> (worker в scanner).
                     </div>
-                    <h5 class="mb-2"><i class="fas fa-hdd text-info mr-1"></i> MikroTik backup</h5>
+                    <h5 class="mb-2"><i class="fas fa-hdd text-info me-1"></i> MikroTik backup</h5>
                     <p class="text-muted small mb-3">Binary <code>.backup</code> и export <code>.rsc</code>. Настройки в БД, применяются без перезапуска. Операции пишутся в <strong>лог Oxidized</strong>.</p>
                     <form id="backup-settings-form">
-                      <div class="form-row mb-2">
+                      <div class=".row mb-2">
                         <div class="col-md-3 col-6">
-                          <div class="custom-control custom-switch">
-                            <input type="checkbox" class="custom-control-input" id="bk-binary">
-                            <label class="custom-control-label" for="bk-binary">Binary backup</label>
+                          <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" id="bk-binary">
+                            <label class="form-check-label" for="bk-binary">Binary backup</label>
                           </div>
                         </div>
                         <div class="col-md-3 col-6">
-                          <div class="custom-control custom-switch">
-                            <input type="checkbox" class="custom-control-input" id="bk-export">
-                            <label class="custom-control-label" for="bk-export">Export .rsc</label>
+                          <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" id="bk-export">
+                            <label class="form-check-label" for="bk-export">Export .rsc</label>
                           </div>
                         </div>
                         <div class="col-md-3 col-6">
-                          <div class="custom-control custom-switch">
-                            <input type="checkbox" class="custom-control-input" id="bk-hide-sensitive">
-                            <label class="custom-control-label" for="bk-hide-sensitive">Hide sensitive</label>
+                          <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" id="bk-hide-sensitive">
+                            <label class="form-check-label" for="bk-hide-sensitive">Hide sensitive</label>
                           </div>
                         </div>
                         <div class="col-md-3 col-6">
-                          <div class="custom-control custom-switch">
-                            <input type="checkbox" class="custom-control-input" id="bk-purge">
-                            <label class="custom-control-label" for="bk-purge">Purge old binary</label>
+                          <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" id="bk-purge">
+                            <label class="form-check-label" for="bk-purge">Purge old binary</label>
                           </div>
                         </div>
                         <div class="col-md-3 col-6">
-                          <div class="custom-control custom-switch">
-                            <input type="checkbox" class="custom-control-input" id="bk-git-push">
-                            <label class="custom-control-label" for="bk-git-push">Git push bin/rsc</label>
+                          <div class="form-check form-switch">
+                            <input type="checkbox" class="form-check-input" id="bk-git-push">
+                            <label class="form-check-label" for="bk-git-push">Git push bin/rsc</label>
                           </div>
                         </div>
                       </div>
-                      <div class="form-row">
+                      <div class=".row">
                         <div class="form-group col-md-2 col-sm-6">
                           <label for="bk-purge-keep">Хранить, шт.</label>
                           <input type="number" id="bk-purge-keep" class="form-control form-control-sm" min="1" max="100">
@@ -624,14 +642,14 @@
                           <input type="text" id="bk-rsc-dir" class="form-control form-control-sm">
                         </div>
                       </div>
-                      <div class="form-row">
+                      <div class=".row">
                         <div class="form-group col-md-4">
                           <label for="bk-encrypt-password">Пароль шифрования binary</label>
                           <input type="password" id="bk-encrypt-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Пусто = без шифрования">
                         </div>
                       </div>
                       <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
-                        <i class="fas fa-save mr-1"></i> Сохранить MikroTik backup
+                        <i class="fas fa-save me-1"></i> Сохранить MikroTik backup
                       </button>
                     </form>
                     </div>
@@ -645,7 +663,7 @@
                     Значения из UI сохраняются в БД; при первом запуске подставляются из <code>.env</code>.
                   </p>
                   <form id="git-settings-form">
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-8">
                         <label for="git-remote-url">Git remote URL</label>
                         <input type="text" id="git-remote-url" class="form-control form-control-sm" placeholder="https://gitea.example.com/org/repo.git">
@@ -655,7 +673,7 @@
                         <input type="text" id="git-branch" class="form-control form-control-sm" placeholder="main">
                       </div>
                     </div>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-4">
                         <label for="git-gitea-token">Gitea token</label>
                         <input type="password" id="git-gitea-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
@@ -669,7 +687,7 @@
                         <input type="password" id="git-source-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
                       </div>
                     </div>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-4">
                         <label for="git-commit-user">Commit user</label>
                         <input type="text" id="git-commit-user" class="form-control form-control-sm">
@@ -684,7 +702,7 @@
                       </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
-                      <i class="fas fa-save mr-1"></i> Сохранить Git
+                      <i class="fas fa-save me-1"></i> Сохранить Git
                     </button>
                   </form>
                 </div>
@@ -699,37 +717,37 @@
                     <div class="row mb-3">
                       <div class="col-md-6">
                         <h6 class="text-muted text-uppercase small">При ошибках</h6>
-                        <div class="custom-control custom-checkbox mb-1">
-                          <input type="checkbox" class="custom-control-input" id="nt-error-telegram">
-                          <label class="custom-control-label" for="nt-error-telegram">Telegram</label>
+                        <div class="form-check mb-1">
+                          <input type="checkbox" class="form-check-input" id="nt-error-telegram">
+                          <label class="form-check-label" for="nt-error-telegram">Telegram</label>
                         </div>
-                        <div class="custom-control custom-checkbox">
-                          <input type="checkbox" class="custom-control-input" id="nt-error-email">
-                          <label class="custom-control-label" for="nt-error-email">Email</label>
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="nt-error-email">
+                          <label class="form-check-label" for="nt-error-email">Email</label>
                         </div>
                       </div>
                       <div class="col-md-6">
                         <h6 class="text-muted text-uppercase small">Отчёты об успехе</h6>
-                        <div class="custom-control custom-checkbox mb-1">
-                          <input type="checkbox" class="custom-control-input" id="nt-report-telegram">
-                          <label class="custom-control-label" for="nt-report-telegram">Telegram</label>
+                        <div class="form-check mb-1">
+                          <input type="checkbox" class="form-check-input" id="nt-report-telegram">
+                          <label class="form-check-label" for="nt-report-telegram">Telegram</label>
                         </div>
-                        <div class="custom-control custom-checkbox">
-                          <input type="checkbox" class="custom-control-input" id="nt-report-email">
-                          <label class="custom-control-label" for="nt-report-email">Email</label>
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="nt-report-email">
+                          <label class="form-check-label" for="nt-report-email">Email</label>
                         </div>
                       </div>
                     </div>
                     <div class="row mb-3">
                       <div class="col-md-6">
                         <h6 class="text-muted text-uppercase small">Деградация (stale / offline / overdue)</h6>
-                        <div class="custom-control custom-checkbox mb-1">
-                          <input type="checkbox" class="custom-control-input" id="nt-degrade-telegram">
-                          <label class="custom-control-label" for="nt-degrade-telegram">Telegram</label>
+                        <div class="form-check mb-1">
+                          <input type="checkbox" class="form-check-input" id="nt-degrade-telegram">
+                          <label class="form-check-label" for="nt-degrade-telegram">Telegram</label>
                         </div>
-                        <div class="custom-control custom-checkbox">
-                          <input type="checkbox" class="custom-control-input" id="nt-degrade-email">
-                          <label class="custom-control-label" for="nt-degrade-email">Email</label>
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="nt-degrade-email">
+                          <label class="form-check-label" for="nt-degrade-email">Email</label>
                         </div>
                       </div>
                       <div class="col-md-3">
@@ -748,13 +766,13 @@
                     <div class="row mb-3">
                       <div class="col-md-6">
                         <h6 class="text-muted text-uppercase small">Ежедневный compliance-отчёт</h6>
-                        <div class="custom-control custom-checkbox mb-1">
-                          <input type="checkbox" class="custom-control-input" id="nt-compliance-telegram">
-                          <label class="custom-control-label" for="nt-compliance-telegram">Telegram</label>
+                        <div class="form-check mb-1">
+                          <input type="checkbox" class="form-check-input" id="nt-compliance-telegram">
+                          <label class="form-check-label" for="nt-compliance-telegram">Telegram</label>
                         </div>
-                        <div class="custom-control custom-checkbox">
-                          <input type="checkbox" class="custom-control-input" id="nt-compliance-email">
-                          <label class="custom-control-label" for="nt-compliance-email">Email</label>
+                        <div class="form-check">
+                          <input type="checkbox" class="form-check-input" id="nt-compliance-email">
+                          <label class="form-check-label" for="nt-compliance-email">Email</label>
                         </div>
                       </div>
                       <div class="col-md-3">
@@ -766,15 +784,15 @@
                     <div class="row mb-3">
                       <div class="col-md-12">
                         <h6 class="text-muted text-uppercase small">Webhook при деградации</h6>
-                        <div class="custom-control custom-checkbox mb-2">
-                          <input type="checkbox" class="custom-control-input" id="nt-webhook-enabled">
-                          <label class="custom-control-label" for="nt-webhook-enabled">Отправлять JSON POST (Slack/Teams/тикетница)</label>
+                        <div class="form-check mb-2">
+                          <input type="checkbox" class="form-check-input" id="nt-webhook-enabled">
+                          <label class="form-check-label" for="nt-webhook-enabled">Отправлять JSON POST (Slack/Teams/тикетница)</label>
                         </div>
                         <input type="url" id="nt-webhook-url" class="form-control form-control-sm" placeholder="https://hooks.example.com/...">
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2">Telegram</h6>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-6">
                         <label for="nt-telegram-token">Bot token</label>
                         <input type="password" id="nt-telegram-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
@@ -789,7 +807,7 @@
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2 mt-2">SMTP</h6>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-4">
                         <label for="nt-smtp-server">Сервер</label>
                         <input type="text" id="nt-smtp-server" class="form-control form-control-sm" placeholder="smtp.example.com">
@@ -807,7 +825,7 @@
                         <input type="password" id="nt-smtp-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
                       </div>
                     </div>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-4">
                         <label for="nt-smtp-from">From</label>
                         <input type="email" id="nt-smtp-from" class="form-control form-control-sm">
@@ -821,28 +839,28 @@
                         <input type="email" id="nt-smtp-to-report" class="form-control form-control-sm">
                       </div>
                     </div>
-                    <div class="custom-control custom-checkbox mb-3">
-                      <input type="checkbox" class="custom-control-input" id="nt-smtp-ssl" checked>
-                      <label class="custom-control-label" for="nt-smtp-ssl">SSL (SMTPS)</label>
+                    <div class="form-check mb-3">
+                      <input type="checkbox" class="form-check-input" id="nt-smtp-ssl" checked>
+                      <label class="form-check-label" for="nt-smtp-ssl">SSL (SMTPS)</label>
                     </div>
                     <div class="d-flex flex-wrap align-items-center">
-                      <button type="submit" class="btn btn-primary btn-sm mr-2 mb-1" data-permission="oxidized:write">
-                        <i class="fas fa-save mr-1"></i> Сохранить уведомления
+                      <button type="submit" class="btn btn-primary btn-sm me-2 mb-1" data-permission="oxidized:write">
+                        <i class="fas fa-save me-1"></i> Сохранить уведомления
                       </button>
-                      <button type="button" class="btn btn-outline-secondary btn-sm mr-2 mb-1" id="btn-test-notify-report" data-permission="oxidized:write">
-                        <i class="fas fa-paper-plane mr-1"></i> Тест отчёта
+                      <button type="button" class="btn btn-outline-secondary btn-sm me-2 mb-1" id="btn-test-notify-report" data-permission="oxidized:write">
+                        <i class="fas fa-paper-plane me-1"></i> Тест отчёта
                       </button>
-                      <button type="button" class="btn btn-outline-danger btn-sm mb-1 mr-2" id="btn-test-notify-error" data-permission="oxidized:write">
-                        <i class="fas fa-exclamation-triangle mr-1"></i> Тест ошибки
+                      <button type="button" class="btn btn-outline-danger btn-sm mb-1 me-2" id="btn-test-notify-error" data-permission="oxidized:write">
+                        <i class="fas fa-exclamation-triangle me-1"></i> Тест ошибки
                       </button>
-                      <button type="button" class="btn btn-outline-warning btn-sm mb-1 mr-2" id="btn-test-notify-degrade" data-permission="oxidized:write">
-                        <i class="fas fa-bell mr-1"></i> Тест деградации
+                      <button type="button" class="btn btn-outline-warning btn-sm mb-1 me-2" id="btn-test-notify-degrade" data-permission="oxidized:write">
+                        <i class="fas fa-bell me-1"></i> Тест деградации
                       </button>
-                      <button type="button" class="btn btn-outline-success btn-sm mb-1 mr-2" id="btn-test-compliance-report" data-permission="oxidized:write">
-                        <i class="fas fa-chart-line mr-1"></i> Тест compliance
+                      <button type="button" class="btn btn-outline-success btn-sm mb-1 me-2" id="btn-test-compliance-report" data-permission="oxidized:write">
+                        <i class="fas fa-chart-line me-1"></i> Тест compliance
                       </button>
                       <button type="button" class="btn btn-outline-info btn-sm mb-1" id="btn-degrade-check-now" data-permission="oxidized:write">
-                        <i class="fas fa-sync mr-1"></i> Проверить деградацию
+                        <i class="fas fa-sync me-1"></i> Проверить деградацию
                       </button>
                     </div>
                     <div id="notify-test-result" class="small mt-2 text-muted"></div>
@@ -884,7 +902,7 @@
                     <div class="card-header py-2"><h3 class="card-title h6 mb-0">Добавить группу</h3></div>
                     <div class="card-body py-3">
                       <form id="credential-create-form">
-                        <div class="form-row">
+                        <div class=".row">
                           <div class="form-group col-md-3 col-sm-6">
                             <label for="new-cred-name">Имя профиля</label>
                             <input type="text" id="new-cred-name" class="form-control form-control-sm" placeholder="hex" required>
@@ -909,7 +927,7 @@
                           </div>
                           <div class="form-group col-md-12 col-lg-auto d-flex align-items-end">
                             <button type="submit" class="btn btn-primary btn-sm">
-                              <i class="fas fa-plus mr-1"></i> Добавить
+                              <i class="fas fa-plus me-1"></i> Добавить
                             </button>
                           </div>
                         </div>
@@ -942,7 +960,7 @@
                         </table>
                       </div>
                       <div id="group-policies-empty" class="text-muted small mb-2" style="display:none;">Нет политик — добавьте для группы hex/us</div>
-                      <form id="group-policy-form" class="form-row align-items-end" data-permission="oxidized:write">
+                      <form id="group-policy-form" class=".row align-items-end" data-permission="oxidized:write">
                         <div class="form-group col-md-2 col-6 mb-1">
                           <label for="gp-group" class="small">Группа</label>
                           <input type="text" id="gp-group" class="form-control form-control-sm" placeholder="hex" required>
@@ -975,8 +993,8 @@
                           </select>
                         </div>
                         <div class="form-group col-md-2 col-12 mb-1">
-                          <button type="submit" class="btn btn-primary btn-sm btn-block">
-                            <i class="fas fa-save mr-1"></i> Сохранить
+                          <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-save me-1"></i> Сохранить
                           </button>
                         </div>
                       </form>
@@ -991,11 +1009,11 @@
                       Настройки в БД, без перезапуска. При первом запуске — импорт из <code>.env</code>.
                     </p>
                     <form id="ldap-settings-form">
-                  <div class="form-row align-items-center mb-3">
+                  <div class=".row align-items-center mb-3">
                     <div class="form-group col-md-3 mb-md-0">
-                      <div class="custom-control custom-switch">
-                        <input type="checkbox" class="custom-control-input" id="ldap-enabled">
-                        <label class="custom-control-label" for="ldap-enabled">Включить LDAP</label>
+                      <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" id="ldap-enabled">
+                        <label class="form-check-label" for="ldap-enabled">Включить LDAP</label>
                       </div>
                     </div>
                     <div class="form-group col-md-3 mb-md-0">
@@ -1006,14 +1024,14 @@
                       </select>
                     </div>
                     <div class="form-group col-md-6 mb-md-0 d-flex align-items-end">
-                      <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="btn-ldap-apply-preset">
-                        <i class="fas fa-magic mr-1"></i> Применить шаблон
+                      <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="btn-ldap-apply-preset">
+                        <i class="fas fa-magic me-1"></i> Применить шаблон
                       </button>
                       <span class="text-muted small" id="ldap-preset-hint"></span>
                     </div>
                   </div>
 
-                  <div class="form-row">
+                  <div class=".row">
                     <div class="form-group col-md-8">
                       <label for="ldap-server">Сервер</label>
                       <input type="text" id="ldap-server" class="form-control" placeholder="ldap://dc.example.com:389">
@@ -1024,13 +1042,13 @@
                       <input type="number" id="ldap-timeout" class="form-control" min="1" max="120" value="10">
                     </div>
                     <div class="form-group col-md-2 d-flex flex-column justify-content-end">
-                      <div class="custom-control custom-checkbox mb-1">
-                        <input type="checkbox" class="custom-control-input" id="ldap-use-ssl">
-                        <label class="custom-control-label" for="ldap-use-ssl">LDAPS (SSL)</label>
+                      <div class="form-check mb-1">
+                        <input type="checkbox" class="form-check-input" id="ldap-use-ssl">
+                        <label class="form-check-label" for="ldap-use-ssl">LDAPS (SSL)</label>
                       </div>
-                      <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input" id="ldap-start-tls" checked>
-                        <label class="custom-control-label" for="ldap-start-tls">StartTLS</label>
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="ldap-start-tls" checked>
+                        <label class="form-check-label" for="ldap-start-tls">StartTLS</label>
                       </div>
                     </div>
                   </div>
@@ -1061,7 +1079,7 @@
                     </div>
                   </div>
 
-                  <div class="form-row">
+                  <div class=".row">
                     <div class="form-group col-md-6">
                       <label for="ldap-upn-suffix">UPN suffix (AD)</label>
                       <input type="text" id="ldap-upn-suffix" class="form-control" placeholder="@corp.local">
@@ -1073,7 +1091,7 @@
                     </div>
                   </div>
 
-                  <div class="form-row">
+                  <div class=".row">
                     <div class="form-group col-md-6">
                       <label for="ldap-admin-groups">Группы → admin</label>
                       <input type="text" id="ldap-admin-groups" class="form-control" placeholder="CN=Backup Admins,OU=Groups,DC=corp,DC=local">
@@ -1085,7 +1103,7 @@
                     </div>
                   </div>
 
-                  <div class="form-row">
+                  <div class=".row">
                     <div class="form-group col-md-4">
                       <label for="ldap-default-role">Роль по умолчанию</label>
                       <select id="ldap-default-role" class="form-control">
@@ -1095,9 +1113,9 @@
                       </select>
                     </div>
                     <div class="form-group col-md-4 d-flex align-items-end">
-                      <div class="custom-control custom-checkbox mb-3">
-                        <input type="checkbox" class="custom-control-input" id="ldap-fallback-local" checked>
-                        <label class="custom-control-label" for="ldap-fallback-local">Разрешить локальный вход при ошибке LDAP</label>
+                      <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="ldap-fallback-local" checked>
+                        <label class="form-check-label" for="ldap-fallback-local">Разрешить локальный вход при ошибке LDAP</label>
                       </div>
                     </div>
                   </div>
@@ -1106,13 +1124,13 @@
                     <h6 class="mb-2">Проверка подключения</h6>
                     <div class="btn-group btn-group-sm mb-2" role="group">
                       <button type="button" class="btn btn-outline-primary" id="btn-ldap-test-bind">
-                        <i class="fas fa-plug mr-1"></i> Bind сервисной УЗ
+                        <i class="fas fa-plug me-1"></i> Bind сервисной УЗ
                       </button>
                       <button type="button" class="btn btn-outline-secondary" id="btn-ldap-test-auth">
-                        <i class="fas fa-user-check mr-1"></i> Вход пользователя
+                        <i class="fas fa-user-check me-1"></i> Вход пользователя
                       </button>
                     </div>
-                    <div class="form-row" id="ldap-test-auth-fields" style="display:none;">
+                    <div class=".row" id="ldap-test-auth-fields" style="display:none;">
                       <div class="form-group col-md-4 mb-2">
                         <input type="text" id="ldap-test-username" class="form-control form-control-sm" placeholder="Логин LDAP">
                       </div>
@@ -1124,7 +1142,7 @@
                   </div>
 
                   <button type="submit" class="btn btn-primary btn-sm">
-                    <i class="fas fa-save mr-1"></i> Сохранить LDAP
+                    <i class="fas fa-save me-1"></i> Сохранить LDAP
                   </button>
                 </form>
                   </div>
@@ -1138,17 +1156,17 @@
                     Параметры scan/discovery и seed-креды OVN/US — в БД (при первом запуске из <code>.env</code>).
                   </p>
                   <div class="d-flex flex-wrap align-items-center mb-3">
-                    <button class="btn btn-secondary btn-sm mr-2 mb-1" id="btn-import-network">
-                      <i class="fas fa-file-import mr-1"></i> Импорт network_inventory.yml
+                    <button class="btn btn-secondary btn-sm me-2 mb-1" id="btn-import-network">
+                      <i class="fas fa-file-import me-1"></i> Импорт network_inventory.yml
                     </button>
                     <button class="btn btn-outline-danger btn-sm mb-1" id="btn-cleanup-discovered">
-                      <i class="fas fa-broom mr-1"></i> Удалить discovered-*
+                      <i class="fas fa-broom me-1"></i> Удалить discovered-*
                     </button>
-                    <span class="text-muted small ml-2 mb-1" id="settings-discovered-count"></span>
+                    <span class="text-muted small ms-2 mb-1" id="settings-discovered-count"></span>
                   </div>
                   <form id="scan-settings-form">
                     <h6 class="text-muted text-uppercase small mb-2">Scan / discovery</h6>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-4 col-sm-6">
                         <label for="scan-concurrency">Concurrency</label>
                         <input type="number" id="scan-concurrency" class="form-control form-control-sm" min="1" max="500">
@@ -1163,7 +1181,7 @@
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2 mt-2">Seed credentials (import)</h6>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-3 col-sm-6">
                         <label for="scan-ovn-user">OVN user</label>
                         <input type="text" id="scan-ovn-user" class="form-control form-control-sm">
@@ -1182,7 +1200,7 @@
                       </div>
                     </div>
                     <button type="submit" class="btn btn-primary btn-sm">
-                      <i class="fas fa-save mr-1"></i> Сохранить scan
+                      <i class="fas fa-save me-1"></i> Сохранить scan
                     </button>
                   </form>
                   <div class="mt-3 pt-3 border-top">
@@ -1191,11 +1209,11 @@
                       Устройства с флагом <strong>Maintenance</strong> не получают <em>scheduled</em> backup в указанные часы UTC.
                       Ручной Fetch по-прежнему доступен.
                     </p>
-                    <div class="custom-control custom-checkbox mb-2">
-                      <input type="checkbox" class="custom-control-input" id="bk-maint-enabled" checked>
-                      <label class="custom-control-label" for="bk-maint-enabled">Пауза scheduled backup</label>
+                    <div class="form-check mb-2">
+                      <input type="checkbox" class="form-check-input" id="bk-maint-enabled" checked>
+                      <label class="form-check-label" for="bk-maint-enabled">Пауза scheduled backup</label>
                     </div>
-                    <div class="form-row">
+                    <div class=".row">
                       <div class="form-group col-md-3 col-6">
                         <label for="bk-maint-start" class="small">Начало UTC</label>
                         <input type="number" id="bk-maint-start" class="form-control form-control-sm" min="0" max="23" value="22">
@@ -1205,6 +1223,29 @@
                         <input type="number" id="bk-maint-end" class="form-control form-control-sm" min="0" max="23" value="6">
                       </div>
                     </div>
+                    <div class="mb-2">
+                      <span class="small text-muted d-block mb-1">Дни недели (UTC)</span>
+                      <div id="bk-maint-days" class="d-flex flex-wrap align-items-center mb-2">
+                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="0" checked> Пн</label>
+                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="1" checked> Вт</label>
+                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="2" checked> Ср</label>
+                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="3" checked> Чт</label>
+                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="4" checked> Пт</label>
+                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="5" checked> Сб</label>
+                        <label class="btn btn-outline-secondary btn-sm active me-1 mb-1 maint-day-btn"><input type="checkbox" class="d-none" data-day="6" checked> Вс</label>
+                        <span class="text-muted small ms-1 mb-1">
+                          <button type="button" class="btn btn-link btn-sm p-0" id="bk-maint-preset-weekdays">Будни</button>
+                          ·
+                          <button type="button" class="btn btn-link btn-sm p-0" id="bk-maint-preset-all">Все</button>
+                        </span>
+                      </div>
+                      <div class="d-flex flex-wrap align-items-center">
+                        <span class="badge text-bg-secondary me-2 mb-1" id="bk-maint-status">—</span>
+                        <button type="button" class="btn btn-primary btn-sm mb-1" id="btn-save-maintenance" data-permission="oxidized:write">
+                          <i class="fas fa-save me-1"></i> Сохранить окно
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div class="mt-3 pt-3 border-top" data-permission="users:manage">
                     <h6 class="text-muted text-uppercase small mb-2">Резервная копия данных</h6>
@@ -1212,9 +1253,9 @@
                       Копия БД (SQLite или pg_dump) и inventory YAML в <code>BACKUP_DATA_DIR</code> (по умолчанию <code>/data/backups</code>).
                     </p>
                     <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-backup-data">
-                      <i class="fas fa-database mr-1"></i> Backup data now
+                      <i class="fas fa-database me-1"></i> Backup data now
                     </button>
-                    <span class="text-muted small ml-2" id="backup-data-result"></span>
+                    <span class="text-muted small ms-2" id="backup-data-result"></span>
                   </div>
                   </div>
                 </div>
@@ -1268,7 +1309,7 @@
               <div class="card-header"><h3 class="card-title">Новый пользователь</h3></div>
               <div class="card-body">
                 <form id="user-create-form">
-                  <div class="form-row">
+                  <div class=".row">
                     <div class="form-group col-md-3">
                       <label for="new-user-username">Логин</label>
                       <input type="text" id="new-user-username" class="form-control" required>
@@ -1286,7 +1327,7 @@
                       </select>
                     </div>
                     <div class="form-group col-md-3 d-flex align-items-end">
-                      <button type="submit" class="btn btn-primary btn-block">Создать</button>
+                      <button type="submit" class="btn btn-primary w-100">Создать</button>
                     </div>
                   </div>
                 </form>
@@ -1294,10 +1335,14 @@
             </div>
             <div class="card card-outline card-secondary">
               <div class="card-header"><h3 class="card-title">Список пользователей</h3></div>
+              <div class="callout callout-info small mx-3 mt-3 mb-0 py-2">
+                <strong>Object scope:</strong> пустые поля «Группы» / «Sites» — доступ ко всем объектам роли.
+                Для ограничения operator укажите группы Oxidized (<code>hex, us</code>) и site-теги устройств (<code>dc1</code>).
+              </div>
               <div class="card-body table-responsive p-0">
-                <table class="table table-bordered table-striped">
+                <table class="table table-bordered table-striped mb-0">
                   <thead>
-                    <tr><th>Логин</th><th>Роль</th><th>Группы</th><th>Sites</th><th>Источник</th><th>Активен</th><th></th></tr>
+                    <tr><th>Логин</th><th>Роль</th><th>Группы</th><th>Sites</th><th>Источник</th><th title="Не обновлять роль из LDAP">Lock</th><th>Активен</th><th></th></tr>
                   </thead>
                   <tbody id="users-table"></tbody>
                 </table>
@@ -1306,12 +1351,12 @@
           </div>
 
         </div>
-      </section>
-    </div>
+      </div>
+    </main>
 
-    <footer class="main-footer text-sm">
-      <strong>Backup Tools</strong> — Scanner & Oxidized
-      <div class="float-right d-none d-sm-inline-block">AdminLTE 3</div>
+    <footer class="app-footer">
+      <div class="float-end d-none d-sm-inline">Scanner & Oxidized</div>
+      <strong>Backup Tools</strong>
     </footer>
   </div>
 
@@ -1322,9 +1367,9 @@
         <form id="device-form">
           <div class="modal-header bg-light">
             <h5 class="modal-title" id="device-modal-title">
-              <i class="fas fa-server mr-2 text-muted"></i>Добавить устройство
+              <i class="fas fa-server me-2 text-muted"></i>Добавить устройство
             </h5>
-            <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <div class="row">
@@ -1358,11 +1403,9 @@
                   <label for="device-group">Группа Oxidized</label>
                   <div class="input-group">
                     <select id="device-group" class="form-control group-select"></select>
-                    <div class="input-group-append">
-                      <button type="button" class="btn btn-outline-secondary" id="btn-device-goto-settings" title="Настройки групп">
-                        <i class="fas fa-cog"></i>
-                      </button>
-                    </div>
+                    <button type="button" class="btn btn-outline-secondary" id="btn-device-goto-settings" title="Настройки групп">
+                      <i class="fas fa-cog"></i>
+                    </button>
                   </div>
                   <div id="device-group-hint" class="small mt-2"></div>
                 </div>
@@ -1373,9 +1416,9 @@
                 </div>
                 <div class="form-group mb-0">
                   <label>В сканировании</label>
-                  <div class="custom-control custom-switch mt-1">
-                    <input type="checkbox" class="custom-control-input" id="device-enabled" checked>
-                    <label class="custom-control-label" for="device-enabled" id="device-enabled-label">Устройство включено</label>
+                  <div class="form-check form-switch mt-1">
+                    <input type="checkbox" class="form-check-input" id="device-enabled" checked>
+                    <label class="form-check-label" for="device-enabled" id="device-enabled-label">Устройство включено</label>
                   </div>
                 </div>
               </div>
@@ -1398,27 +1441,28 @@
               <div class="col-md-4">
                 <div class="form-group mb-0">
                   <label>Critical</label>
-                  <div class="custom-control custom-switch mt-2">
-                    <input type="checkbox" class="custom-control-input" id="device-critical">
-                    <label class="custom-control-label" for="device-critical">Критичное устройство</label>
+                  <div class="form-check form-switch mt-2">
+                    <input type="checkbox" class="form-check-input" id="device-critical">
+                    <label class="form-check-label" for="device-critical">Критичное устройство</label>
                   </div>
                 </div>
               </div>
               <div class="col-md-4">
                 <div class="form-group mb-0">
                   <label>Maintenance</label>
-                  <div class="custom-control custom-switch mt-2">
-                    <input type="checkbox" class="custom-control-input" id="device-maintenance">
-                    <label class="custom-control-label" for="device-maintenance">Окно обслуживания (ночная пауза)</label>
+                  <div class="form-check form-switch mt-2">
+                    <input type="checkbox" class="form-check-input" id="device-maintenance">
+                    <label class="form-check-label" for="device-maintenance">Maintenance — пауза scheduled backup ночью</label>
                   </div>
+                  <small class="text-muted d-block mt-1" id="device-maintenance-hint">Окно задаётся в <a href="#" id="device-maintenance-settings-link">Настройки → Сервис</a> (UTC).</small>
                 </div>
               </div>
             </div>
           </div>
           <div class="modal-footer bg-light">
-            <button type="button" class="btn btn-secondary" data-dismiss="modal" id="btn-cancel-device">Отмена</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btn-cancel-device">Отмена</button>
             <button type="submit" class="btn btn-primary" id="btn-save-device">
-              <i class="fas fa-save mr-1"></i> Сохранить
+              <i class="fas fa-save me-1"></i> Сохранить
             </button>
           </div>
         </form>
@@ -1432,13 +1476,20 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="fas fa-history mr-2 text-muted"></i>
+            <i class="fas fa-history me-2 text-muted"></i>
             Версии: <span id="oxidized-versions-node"></span>
           </h5>
-          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body p-0">
-          <div class="table-responsive">
+          <div class="px-3 py-2 bg-light border-bottom small text-muted" id="oxidized-versions-hint">
+            <i class="fas fa-info-circle me-1"></i>
+            Отметьте <strong>две</strong> версии для side-by-side или нажмите <strong>Diff</strong> у строки (с предыдущей).
+          </div>
+          <div id="oxidized-versions-loading" class="text-center text-muted py-4" style="display:none;">
+            <i class="fas fa-spinner fa-spin me-1"></i> Загрузка версий…
+          </div>
+          <div class="table-responsive" id="oxidized-versions-table-wrap">
             <table class="table table-sm table-striped mb-0">
               <thead>
                 <tr>
@@ -1446,7 +1497,7 @@
                   <th>#</th>
                   <th>Дата</th>
                   <th>OID</th>
-                  <th class="text-right">Действия</th>
+                  <th class="text-end">Действия</th>
                 </tr>
               </thead>
               <tbody id="oxidized-versions-table"></tbody>
@@ -1457,13 +1508,13 @@
           </div>
         </div>
         <div class="modal-footer bg-light">
-          <button type="button" class="btn btn-outline-primary btn-sm mr-auto" id="btn-versions-compare" disabled>
-            <i class="fas fa-columns mr-1"></i> Сравнить выбранные (2)
+          <button type="button" class="btn btn-outline-primary btn-sm me-auto" id="btn-versions-compare" disabled>
+            <i class="fas fa-columns me-1"></i> Сравнить выбранные (2)
           </button>
           <a href="#" class="btn btn-outline-secondary btn-sm" id="oxidized-versions-open-web" target="_blank" rel="noopener" style="display:none;">
-            <i class="fas fa-globe mr-1"></i> Oxidized Web
+            <i class="fas fa-globe me-1"></i> Oxidized Web
           </a>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Закрыть</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
         </div>
       </div>
     </div>
@@ -1475,14 +1526,14 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="fas fa-archive mr-2 text-muted"></i>
+            <i class="fas fa-archive me-2 text-muted"></i>
             Файлы бэкапа: <span id="oxidized-backups-node"></span>
           </h5>
-          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body p-0">
           <div id="oxidized-backups-loading" class="p-3 text-muted small" style="display:none;">
-            <i class="fas fa-spinner fa-spin mr-1"></i> Загрузка списка файлов…
+            <i class="fas fa-spinner fa-spin me-1"></i> Загрузка списка файлов…
           </div>
           <div id="oxidized-backups-content">
             <h6 class="text-muted px-3 pt-3 mb-2">Binary (.backup)</h6>
@@ -1498,9 +1549,9 @@
         </div>
         <div class="modal-footer bg-light py-2">
           <button type="button" class="btn btn-primary btn-sm" id="btn-run-mikrotik-backup" data-permission="oxidized:write" style="display:none;">
-            <i class="fas fa-play mr-1"></i> Создать файлы сейчас
+            <i class="fas fa-play me-1"></i> Создать файлы сейчас
           </button>
-          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
         </div>
       </div>
     </div>
@@ -1512,19 +1563,19 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="fas fa-file-code mr-2 text-muted"></i>
+            <i class="fas fa-file-code me-2 text-muted"></i>
             Конфиг: <span id="oxidized-config-modal-node"></span>
           </h5>
-          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body p-0 config-editor-wrap">
           <textarea id="oxidized-config-modal-content" spellcheck="false" aria-label="Версия конфигурации"></textarea>
         </div>
         <div class="modal-footer bg-light py-2">
           <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-oxidized-config-versions" title="История версий">
-            <i class="fas fa-history mr-1"></i> Версии
+            <i class="fas fa-history me-1"></i> Версии
           </button>
-          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
         </div>
       </div>
     </div>
@@ -1536,39 +1587,39 @@
       <div class="modal-content">
         <div class="modal-header py-2">
           <h5 class="modal-title">
-            <i class="fas fa-terminal mr-2 text-muted"></i>
+            <i class="fas fa-terminal me-2 text-muted"></i>
             Лог Oxidized
-            <span class="badge badge-info ml-1" id="oxidized-log-engine" style="display:none;"></span>
-            <span class="badge badge-secondary ml-1" id="oxidized-logs-count" style="display:none;" title="Число строк"></span>
+            <span class="badge text-bg-info ms-1" id="oxidized-log-engine" style="display:none;"></span>
+            <span class="badge text-bg-secondary ms-1" id="oxidized-logs-count" style="display:none;" title="Число строк"></span>
           </h5>
-          <div class="d-flex align-items-center flex-wrap ml-auto mr-2">
-            <div class="btn-group btn-group-sm mr-2 mb-1" id="oxidized-logs-level-filter" role="group" aria-label="Фильтр уровня">
+          <div class="d-flex align-items-center flex-wrap ms-auto me-2">
+            <div class="btn-group btn-group-sm me-2 mb-1" id="oxidized-logs-level-filter" role="group" aria-label="Фильтр уровня">
               <button type="button" class="btn btn-outline-secondary active" data-level="all">All</button>
               <button type="button" class="btn btn-outline-danger" data-level="error">Error</button>
               <button type="button" class="btn btn-outline-warning" data-level="warn">Warn</button>
               <button type="button" class="btn btn-outline-success" data-level="ok">OK</button>
             </div>
-            <div class="custom-control custom-checkbox custom-control-inline mr-2 mb-1">
-              <input type="checkbox" class="custom-control-input" id="oxidized-logs-autorefresh" checked>
-              <label class="custom-control-label text-sm" for="oxidized-logs-autorefresh">Авто</label>
+            <div class="form-check form-check-inline me-2 mb-1">
+              <input type="checkbox" class="form-check-input" id="oxidized-logs-autorefresh" checked>
+              <label class="form-check-label text-sm" for="oxidized-logs-autorefresh">Авто</label>
             </div>
-            <button type="button" class="btn btn-outline-secondary btn-sm mr-1 mb-1" id="btn-refresh-oxidized-logs" title="Обновить">
+            <button type="button" class="btn btn-outline-secondary btn-sm me-1 mb-1" id="btn-refresh-oxidized-logs" title="Обновить">
               <i class="fas fa-sync-alt"></i>
             </button>
             <button type="button" class="btn btn-outline-secondary btn-sm mb-1" id="btn-copy-oxidized-logs" title="Копировать">
               <i class="fas fa-copy"></i>
             </button>
           </div>
-          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div id="oxidized-logs-search-banner" class="alert alert-warning py-1 px-3 mb-0 small rounded-0 border-0" style="display:none;" role="status"></div>
         <div class="modal-body p-0">
           <pre id="oxidized-log-viewer" class="oxidized-log-viewer p-3 m-0">Загрузка…</pre>
         </div>
         <div class="modal-footer bg-light py-2 flex-wrap">
-          <small class="text-muted text-truncate mr-auto mb-1" id="oxidized-logs-path" title=""></small>
-          <span class="badge badge-warning mr-2 mb-1" id="oxidized-logs-truncated" style="display:none;">обрезано</span>
-          <button type="button" class="btn btn-secondary btn-sm mb-1" data-dismiss="modal">Закрыть</button>
+          <small class="text-muted text-truncate me-auto mb-1" id="oxidized-logs-path" title=""></small>
+          <span class="badge text-bg-warning me-2 mb-1" id="oxidized-logs-truncated" style="display:none;">обрезано</span>
+          <button type="button" class="btn btn-secondary btn-sm mb-1" data-bs-dismiss="modal">Закрыть</button>
         </div>
       </div>
     </div>
@@ -1580,37 +1631,43 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="fas fa-file-diff mr-2 text-muted"></i>
+            <i class="fas fa-file-diff me-2 text-muted"></i>
             Diff: <span id="oxidized-diff-node"></span>
           </h5>
-          <div class="d-flex align-items-center flex-wrap ml-auto mr-3">
-            <input type="search" id="oxidized-diff-search" class="form-control form-control-sm mr-2 mb-1" placeholder="Поиск в diff…" style="width:160px;">
+          <div class="d-flex align-items-center flex-wrap ms-auto me-3">
+            <div class="input-group input-group-sm me-2 mb-1" style="width:190px;">
+              <input type="search" id="oxidized-diff-search" class="form-control" placeholder="Поиск в diff…">
+              <button type="button" class="btn btn-outline-secondary" id="btn-diff-search-clear" title="Очистить поиск"><i class="fas fa-times"></i></button>
+            </div>
             <div class="btn-group btn-group-sm mb-1" role="group">
               <button type="button" class="btn btn-outline-secondary active" id="btn-diff-unified">Unified</button>
               <button type="button" class="btn btn-outline-secondary" id="btn-diff-side">Side-by-side</button>
             </div>
           </div>
-          <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
+        <div class="px-3 py-1 bg-light border-bottom small text-muted" id="oxidized-diff-subtitle"></div>
         <div class="modal-body p-0 oxidized-diff-body">
           <iframe id="oxidized-diff-iframe" title="Oxidized diff" src="about:blank" style="display:none;"></iframe>
           <div id="oxidized-diff-panel" class="oxidized-diff-panel"></div>
         </div>
         <div class="modal-footer bg-light py-2">
           <a href="#" class="btn btn-outline-secondary btn-sm" id="oxidized-diff-open-tab" target="_blank" rel="noopener">
-            <i class="fas fa-external-link-alt mr-1"></i> В новой вкладке
+            <i class="fas fa-external-link-alt me-1"></i> В новой вкладке
           </a>
-          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/js/adminlte.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.11.0/browser/overlayscrollbars.browser.es6.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/js/adminlte.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
+  <script src="/static/js/ui-shell.js"></script>
   <script src="/static/js/config-editor.js"></script>
   <script src="/static/js/app.js"></script>
 </body>

@@ -1,8 +1,8 @@
-/* Backup Tools — дополнения к AdminLTE 3 */
+/* Backup Tools — дополнения к AdminLTE 4 */
 
-/* Шрифт AdminLTE (без него интерфейс выглядит «сломанным») */
+/* Шрифт AdminLTE */
 body {
-  font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 /* ── Login ───────────────────────────────────────────── */
@@ -35,16 +35,34 @@ body.login-page .login-logo {
   margin-bottom: 1rem;
 }
 
+/* BS4-разметка в JS/HTML до полной миграции */
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: calc(var(--bs-gutter-x, 0.75rem) * -0.5);
+  margin-left: calc(var(--bs-gutter-x, 0.75rem) * -0.5);
+}
+.mr-1 { margin-right: 0.25rem !important; }
+.mr-2 { margin-right: 0.5rem !important; }
+.ml-1 { margin-left: 0.25rem !important; }
+.ml-2 { margin-left: 0.5rem !important; }
+.badge.badge-success { background-color: var(--bs-success); color: #fff; }
+.badge.badge-danger { background-color: var(--bs-danger); color: #fff; }
+.badge.badge-warning { background-color: var(--bs-warning); color: #212529; }
+.badge.badge-info { background-color: var(--bs-info); color: #000; }
+.badge.badge-secondary { background-color: var(--bs-secondary); color: #fff; }
+.badge.badge-light { background-color: var(--bs-light); color: #212529; }
+
 /* ── Layout ──────────────────────────────────────────── */
-.content-wrapper {
+.app-main {
   min-height: calc(100vh - 3.5rem);
 }
 
-.content-header {
+.app-content-header {
   padding: 0.75rem 0.5rem;
 }
 
-.content > .container-fluid > .page {
+.app-content > .container-fluid > .page {
   animation: fadeIn 0.15s ease-in;
 }
 
@@ -183,6 +201,53 @@ body.login-page .login-logo {
 
 #oxidized-logs-path {
   max-width: 55%;
+}
+
+.scope-banner {
+  border-left: 4px solid #17a2b8;
+}
+
+.maint-day-btn.active {
+  font-weight: 600;
+}
+
+.device-tags .badge-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+  margin-right: 0.15rem;
+}
+
+.page-alert .alert {
+  border-left-width: 4px;
+}
+
+.page-alert .alert-danger {
+  border-left-color: #dc3545;
+}
+
+.page-alert .alert-success {
+  border-left-color: #28a745;
+}
+
+.page-alert .alert-info {
+  border-left-color: #17a2b8;
+}
+
+#oxidized-diff-subtitle:empty {
+  display: none;
+}
+
+#oxidized-versions-table tr.version-row-selected {
+  background: rgba(0, 123, 255, 0.08);
+}
+
+.oxidized-model-label {
+  font-size: 0.85rem;
+}
+
+.oxidized-model-label code {
+  font-size: 0.72rem;
+  color: #6c757d;
 }
 
 .oxidized-log-viewer .log-warn { color: #d29922; }
@@ -372,7 +437,7 @@ mark.search-hit {
 
 /* ── Mobile ────────────────────────────────────────── */
 @media (max-width: 767.98px) {
-  .content-header h1 {
+  .app-content-header h3 {
     font-size: 1.5rem;
   }
 

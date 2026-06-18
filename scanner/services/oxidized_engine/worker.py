@@ -107,7 +107,19 @@ class Worker:
             )
         from services.mikrotik_backup import run_mikrotik_backups
 
-        binary_ok = run_mikrotik_backups(node)
+        model_key = (node.model_name or "").lower().replace("_", "").replace("-", "")
+        is_routeros = model_key in ("routeros", "mikrotik", "ros") or model_key.startswith(
+            "mikrotik"
+        )
+        if is_routeros:
+            binary_ok = run_mikrotik_backups(node)
+        else:
+            binary_ok = True
+            logger.debug(
+                "mikrotik | skipped | %s | model=%s (non-routeros)",
+                node.name,
+                node.model_name,
+            )
         if stored or not binary_ok:
             from services.backup_notifications import notify_backup_report
 

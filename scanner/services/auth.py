@@ -106,7 +106,8 @@ def upsert_ldap_user(username: str, role: str) -> User:
     )
     if not created:
         user.auth_source = "ldap"
-        user.role = role
+        if not getattr(user, "role_locked", False):
+            user.role = role
         user.is_active = True
         user.password_hash = placeholder_hash
         user.save()
@@ -176,6 +177,7 @@ def update_user(
     role: Optional[str] = None,
     is_active: Optional[bool] = None,
     password: Optional[str] = None,
+    role_locked: Optional[bool] = None,
     allowed_groups: Optional[list[str]] = None,
     allowed_sites: Optional[list[str]] = None,
 ) -> User:
@@ -188,6 +190,8 @@ def update_user(
         user.role = role
     if is_active is not None:
         user.is_active = is_active
+    if role_locked is not None:
+        user.role_locked = role_locked
     if password and user.auth_source == "ldap":
         raise ValueError("LDAP-пользователи не могут иметь локальный пароль")
     if password:

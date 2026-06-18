@@ -203,6 +203,8 @@ def auth_me(request: HttpRequest) -> JsonResponse:
             "username": user.username,
             "role": user.role,
             "permissions": auth.permissions_for_role(user.role),
+            "auth_source": user.auth_source or "local",
+            "role_locked": bool(getattr(user, "role_locked", False)),
             **scope_public(user),
         }
     )
@@ -225,6 +227,7 @@ def _auth_users_list(request: HttpRequest) -> JsonResponse:
             "role": u.role,
             "is_active": u.is_active,
             "auth_source": u.auth_source or "local",
+            "role_locked": bool(getattr(u, "role_locked", False)),
             **scope_public(u),
         }
         for u in auth.list_users()
@@ -270,6 +273,7 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
                 role=body.get("role"),
                 is_active=body.get("is_active"),
                 password=body.get("password"),
+                role_locked=body.get("role_locked"),
                 allowed_groups=body.get("allowed_groups"),
                 allowed_sites=body.get("allowed_sites"),
             )
@@ -286,6 +290,7 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
                 "role": updated.role,
                 "is_active": updated.is_active,
                 "auth_source": updated.auth_source or "local",
+                "role_locked": bool(getattr(updated, "role_locked", False)),
                 **scope_public(updated),
             }
         )
@@ -518,9 +523,16 @@ def oxidized_node_fetch(request: HttpRequest, name: str) -> JsonResponse:
 def oxidized_backup_all(request: HttpRequest) -> JsonResponse:
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
         return error_response("Доступно только для python engine", status=501)
+    from services.object_scope import filter_node_dicts, has_object_scope
     from services.oxidized_engine import get_manager
 
-    result = get_manager().backup_all()
+    user: User = request.api_user
+    manager = get_manager()
+    only_names = None
+    if has_object_scope(user):
+        allowed = filter_node_dicts(user, manager.list_nodes())
+        only_names = {n.get("name") for n in allowed if n.get("name")}
+    result = manager.backup_all(only_names=only_names)
     log_audit_user(
         request.api_user,
         ACTION_OXIDIZED_BACKUP_ALL,
@@ -532,6 +544,9 @@ def oxidized_backup_all(request: HttpRequest) -> JsonResponse:
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_backups(request: HttpRequest, name: str) -> JsonResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     from services.mikrotik_backup import MikrotikBackup, MikrotikBackupError, device_file_prefix
 
     try:
@@ -551,6 +566,9 @@ def oxidized_node_backups(request: HttpRequest, name: str) -> JsonResponse:
 @require_http_methods(["POST"])
 @require_permission(auth.PERMISSION_OXIDIZED_WRITE)
 def oxidized_node_backups_run(request: HttpRequest, name: str) -> JsonResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     from services.audit import ACTION_OXIDIZED_FETCH, log_audit_user
     from services.mikrotik_backup import MikrotikBackupError, run_mikrotik_backup_by_name
 
@@ -570,6 +588,9 @@ def oxidized_node_backups_run(request: HttpRequest, name: str) -> JsonResponse:
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_backup_download(request: HttpRequest, name: str) -> HttpResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     from services.mikrotik_backup import MikrotikBackup, MikrotikBackupError
 
     backup_type = (request.GET.get("type") or "bin").lower()
@@ -590,6 +611,9 @@ def oxidized_node_backup_download(request: HttpRequest, name: str) -> HttpRespon
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_version_view(request: HttpRequest, name: str, oid: str) -> HttpResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
         return error_response("Доступно только для python engine", status=501)
     from services.oxidized_engine import get_manager

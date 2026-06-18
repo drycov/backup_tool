@@ -74,6 +74,7 @@ def _profile_from_model(record: CredentialProfileModel) -> CredentialProfile:
         group_name=record.group_name,
         username=record.username,
         password=record.password,
+        model=getattr(record, "model", "") or "",
     )
 
 
@@ -83,6 +84,7 @@ def _model_from_profile(profile: CredentialProfile) -> CredentialProfileModel:
         group_name=profile.group_name,
         username=profile.username,
         password=profile.password,
+        model=getattr(profile, "model", "") or "",
     )
 
 
@@ -304,6 +306,8 @@ def update_credential_profile(name: str, creds: CredentialProfileUpdate) -> Inve
         profile.group_name = creds.group_name
     profile.username = creds.username
     profile.password = creds.password
+    if creds.model:
+        profile.model = creds.model.strip()
     profile.save()
     if creds.model:
         from services.oxidized_settings import set_group_model
@@ -327,8 +331,14 @@ def add_credential_profile(profile: CredentialProfile) -> Inventory:
             group_name=group_name,
             username=profile.username,
             password=profile.password,
+            model=getattr(profile, "model", "") or "routeros",
         )
     ).save()
+    model = getattr(profile, "model", None) or "routeros"
+    if model:
+        from services.oxidized_settings import set_group_model
+
+        set_group_model(group_name, model)
     return load_inventory()
 
 

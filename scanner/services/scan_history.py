@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+from asgiref.sync import sync_to_async
+
 from core.models import ScanRun
 from services.schemas import ScanSummary
 
@@ -171,3 +173,7 @@ def get_last_scan_from_db() -> tuple[Optional[ScanSummary], Optional[datetime]]:
         results=results,
     )
     return summary, run.scanned_at
+
+
+persist_scan_run_async = sync_to_async(persist_scan_run, thread_sensitive=True)
+persist_failed_scan_async = sync_to_async(persist_failed_scan, thread_sensitive=True)
