@@ -301,4 +301,22 @@ def _paths() -> dict:
         },
         "/api/audit": {"get": {"tags": ["admin"], "summary": "Audit log"}},
         "/api/audit/export": {"get": {"tags": ["admin"], "summary": "Audit CSV export"}},
+        "/api/provisioning/templates": {
+            "get": {"tags": ["admin"], "summary": "List provision templates"},
+            "post": {"tags": ["admin"], "summary": "Create provision template"},
+        },
+        "/api/provisioning/templates/{id}": {
+            "get": {"tags": ["admin"], "summary": "Get provision template"},
+            "put": {"tags": ["admin"], "summary": "Update provision template"},
+            "delete": {"tags": ["admin"], "summary": "Delete provision template"},
+        },
+        "/api/provisioning/preview": {
+            "post": {"tags": ["admin"], "summary": "Render template preview for device"},
+        },
+        "/api/provisioning/run": {
+            "post": {"tags": ["admin"], "summary": "Apply template (or dry-run)"},
+        },
+        "/api/provisioning/runs": {
+            "get": {"tags": ["admin"], "summary": "Provision run history"},
+        },
     }

@@ -1,0 +1,99 @@
+"""Тесты провижионинга (шаблоны Jinja2, preview, dry-run)."""
+
+from __future__ import annotations
+
+import pytest
+
+from core.models import Device as DeviceModel, ProvisionRun, ProvisionTemplate
+from services.provisioning import (
+    ProvisioningError,
+    build_render_context,
+    preview_provision,
+    render_template_body,
+    run_provision,
+    seed_default_templates,
+)
+from services.schemas import Device
+
+
+from tests.helpers import login
+
+
+@pytest.fixture
+def authed(client, db):
+    from core.models import User
+    from services.auth import hash_password, seed_default_admin
+    import os
+
+    admin = User.objects.filter(username="admin").first()
+    if not admin:
+        seed_default_admin()
+    else:
+        admin.password_hash = hash_password(os.environ.get("ADMIN_PASSWORD", "pytest-admin-pass"))
+        admin.must_change_password = False
+        admin.save()
+    login(client)
+    return client
+
+
+@pytest.mark.django_db
+def test_render_template_with_device_context():
+    device = Device(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
+    ctx = build_render_context(device)
+    out = render_template_body("/system identity set name={{ device.name }}\n", ctx)
+    assert "name=r1" in out
+
+
+@pytest.mark.django_db
+def test_preview_provision_model_mismatch():
+    ProvisionTemplate.objects.create(
+        slug="ios-base",
+        name="IOS",
+        model="ios",
+        body="hostname {{ name }}\n",
+    )
+    DeviceModel.objects.create(name="mk1", ip="10.0.0.1", model="routeros", group="hex")
+    with pytest.raises(ProvisioningError, match="не совпадает"):
+        preview_provision(template_slug="ios-base", device_name="mk1")
+
+
+@pytest.mark.django_db
+def test_dry_run_creates_run_record():
+    ProvisionTemplate.objects.create(
+        slug="ros-id",
+        name="ROS",
+        model="routeros",
+        body="/system identity set name={{ device.name }}\n",
+    )
+    DeviceModel.objects.create(name="mk1", ip="10.0.0.1", model="routeros", group="hex")
+    result = run_provision(template_slug="ros-id", device_name="mk1", dry_run=True, triggered_by="test")
+    assert result["status"] == ProvisionRun.STATUS_DRY_RUN
+    assert "name=mk1" in result["rendered_config"]
+    assert ProvisionRun.objects.filter(device_name="mk1").exists()
+
+
+@pytest.mark.django_db
+def test_seed_default_templates():
+    seed_default_templates()
+    assert ProvisionTemplate.objects.filter(slug="routeros-identity").exists()
+    seed_default_templates()
+    assert ProvisionTemplate.objects.filter(slug="routeros-identity").count() == 1
+
+
+@pytest.mark.django_db
+def test_provision_preview_api(authed, client):
+    ProvisionTemplate.objects.create(
+        slug="ros-id",
+        name="ROS",
+        model="routeros",
+        body="/system identity set name={{ device.name }}\n",
+    )
+    DeviceModel.objects.create(name="mk1", ip="10.0.0.1", model="routeros", group="hex")
+    tpl = ProvisionTemplate.objects.get(slug="ros-id")
+    res = client.post(
+        "/api/provisioning/preview",
+        data='{"template_id": %d, "device_name": "mk1"}' % tpl.id,
+        content_type="application/json",
+    )
+    assert res.status_code == 200
+    assert "mk1" in res.json()["rendered_config"]

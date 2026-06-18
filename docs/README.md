@@ -22,6 +22,7 @@ Backup Tools — платформа для **сканирования сети**
 | [API](api.md) | REST-эндпоинты Scanner |
 | [Эксплуатация](operations.md) | Команды, мониторинг, резервное копирование, troubleshooting |
 | [Интеграции](integrations.md) | API keys, Ansible, CI, NetBox |
+| [Провижионинг](provisioning.md) | Шаблоны Jinja2, push конфигураций |
 
 ## Дополнительные материалы
 

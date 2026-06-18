@@ -28,6 +28,8 @@ PERMISSION_SETTINGS_NOTIFY = "settings:notify"
 PERMISSION_AUDIT_READ = "audit:read"
 PERMISSION_SECURITY_READ = "security:read"
 PERMISSION_SECURITY_RUN = "security:run"
+PERMISSION_PROVISION_READ = "provision:read"
+PERMISSION_PROVISION_RUN = "provision:run"
 PERMISSION_API_KEYS_MANAGE = "api_keys:manage"
 PERMISSION_SETTINGS_READ = "settings:read"
 

@@ -44,6 +44,7 @@ const PAGE_TITLES = {
   users: "Пользователи",
   audit: "Аудит",
   security: "Безопасность конфигов",
+  provision: "Провижионинг",
 };
 
 const SECURITY_SEVERITY_BADGE = {
@@ -805,6 +806,7 @@ function initNavigation() {
       }
       if (page === "audit") loadAudit();
       if (page === "security") loadSecurityAudit();
+      if (page === "provision") loadProvisionPage();
       if (page === "dashboard") loadHealth();
       if (page === "settings") {
         loadSettings().then(() => {
@@ -1059,9 +1061,12 @@ async function loadNetboxTopology() {
     const edgeList = (data.edges || []).slice(0, 50).map(e =>
       `<li><code>${escapeHtml(e.source)}</code> ↔ <code>${escapeHtml(e.target)}</code>${e.label ? ` <span class="text-muted">(${escapeHtml(e.label)})</span>` : ""}</li>`
     ).join("");
+    const edgesHtml = edges
+      ? `<ul class="small mb-0">${edgeList}${edges > 50 ? `<li class="text-muted">… ещё ${edges - 50}</li>` : ""}</ul>`
+      : "<p class=\"text-muted mb-0\">Связи не найдены</p>";
     host.innerHTML = `
       <p class="mb-1"><strong>${nodes}</strong> узлов, <strong>${edges}</strong> связей (NetBox cables)</p>
-      ${edges ? `<ul class="small mb-0">${edgeList}${edges > 50 ? `<li class="text-muted">… ещё ${edges - 50}</li>` : ""}</ul>` : "<p class="text-muted mb-0">Связи не найдены</p>"}
+      ${edgesHtml}
     `;
   } catch (e) {
     host.innerHTML = `<span class="text-danger">${escapeHtml(e.message)}</span>`;
@@ -1716,6 +1721,129 @@ function updateSecurityFindingsPager(total, offset, limit) {
   if (meta) meta.textContent = `Показано ${from}–${to} из ${total}`;
   if (prev) prev.disabled = offset <= 0;
   if (next) next.disabled = offset + limit >= total;
+}
+
+let provisionTemplatesCache = [];
+
+async function loadProvisionPage() {
+  try {
+    const [tplRes, runsRes] = await Promise.all([
+      api("/api/provisioning/templates"),
+      api("/api/provisioning/runs?limit=30"),
+    ]);
+    provisionTemplatesCache = tplRes.items || [];
+    renderProvisionTemplates(provisionTemplatesCache);
+    renderProvisionRuns(runsRes.items || []);
+    fillProvisionSelects();
+  } catch (e) {
+    showAlert("provision-alert", e.message, "error");
+  }
+}
+
+function renderProvisionTemplates(rows) {
+  const tbody = qs("#provision-templates-table tbody");
+  if (!tbody) return;
+  if (!rows?.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Нет шаблонов</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(t => `
+    <tr>
+      <td><code>${escapeHtml(t.slug)}</code><div class="small text-muted">${escapeHtml(t.name)}</div></td>
+      <td>${escapeHtml(t.model)}</td>
+      <td class="text-nowrap">
+        <button type="button" class="btn btn-link btn-sm p-0 btn-prov-edit" data-id="${t.id}">edit</button>
+        ${can("provision:run") ? `<button type="button" class="btn btn-link btn-sm text-danger p-0 btn-prov-del" data-id="${t.id}">del</button>` : ""}
+      </td>
+    </tr>`).join("");
+  tbody.querySelectorAll(".btn-prov-edit").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const t = provisionTemplatesCache.find(x => String(x.id) === btn.dataset.id);
+      if (!t) return;
+      qs("#pt-slug").value = t.slug;
+      qs("#pt-name").value = t.name;
+      qs("#pt-model").value = t.model;
+      qs("#pt-body").value = t.body;
+    });
+  });
+  tbody.querySelectorAll(".btn-prov-del").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Удалить шаблон?")) return;
+      try {
+        await api(`/api/provisioning/templates/${btn.dataset.id}`, { method: "DELETE" });
+        showAlert("provision-alert", "Шаблон удалён", "success");
+        loadProvisionPage();
+      } catch (e) {
+        showAlert("provision-alert", e.message, "error");
+      }
+    });
+  });
+}
+
+function renderProvisionRuns(rows) {
+  const tbody = qs("#provision-runs-table tbody");
+  if (!tbody) return;
+  if (!rows?.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-muted">Нет запусков</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="small text-nowrap">${escapeHtml((r.created_at || "").replace("T", " ").slice(0, 19))}</td>
+      <td><code>${escapeHtml(r.template_slug || "—")}</code></td>
+      <td>${escapeHtml(r.device_name)}</td>
+      <td><span class="${badgeCls(r.status === "completed" ? "success" : r.status === "failed" ? "danger" : "secondary")}">${escapeHtml(r.status)}</span></td>
+    </tr>`).join("");
+}
+
+function fillProvisionSelects() {
+  const tplSel = qs("#prov-template-select");
+  const devSel = qs("#prov-device-select");
+  if (tplSel) {
+    tplSel.innerHTML = provisionTemplatesCache
+      .filter(t => t.is_active !== false)
+      .map(t => `<option value="${t.id}">${escapeHtml(t.slug)} (${escapeHtml(t.model)})</option>`)
+      .join("");
+  }
+  if (devSel && inventory?.devices) {
+    devSel.innerHTML = inventory.devices
+      .filter(d => d.enabled)
+      .map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.ip)})</option>`)
+      .join("");
+  }
+}
+
+async function provisionPreview() {
+  const template_id = parseInt(qs("#prov-template-select")?.value || "0", 10);
+  const device_name = qs("#prov-device-select")?.value || "";
+  const out = qs("#prov-preview-output");
+  if (!template_id || !device_name) throw new Error("Выберите шаблон и устройство");
+  const res = await api("/api/provisioning/preview", {
+    method: "POST",
+    body: JSON.stringify({ template_id, device_name }),
+  });
+  if (out) out.textContent = res.rendered_config || "";
+  return res;
+}
+
+async function provisionApply() {
+  const template_id = parseInt(qs("#prov-template-select")?.value || "0", 10);
+  const device_name = qs("#prov-device-select")?.value || "";
+  const dry_run = qs("#prov-dry-run")?.checked ?? true;
+  if (!template_id || !device_name) throw new Error("Выберите шаблон и устройство");
+  if (!dry_run && !confirm(`Применить конфигурацию на ${device_name}?`)) return;
+  const res = await api("/api/provisioning/run", {
+    method: "POST",
+    body: JSON.stringify({ template_id, device_name, dry_run }),
+  });
+  const out = qs("#prov-preview-output");
+  if (out) {
+    out.textContent = res.rendered_config || "";
+    if (res.output) out.textContent += `\n\n--- output ---\n${res.output}`;
+    if (res.error) out.textContent += `\n\n--- error ---\n${res.error}`;
+  }
+  showAlert("provision-alert", dry_run ? "Dry-run выполнен" : "Конфигурация применена", "success");
+  loadProvisionPage();
 }
 
 async function loadSecurityAudit(opts = {}) {
@@ -4882,6 +5010,40 @@ function bindEvents() {
     loadRbacMatrix().then(() => loadCustomRoles());
   });
   qs("#btn-topology-netbox")?.addEventListener("click", () => loadNetboxTopology());
+
+  qs("#btn-provision-refresh")?.addEventListener("click", () => loadProvisionPage());
+  qs("#provision-template-form")?.addEventListener("submit", async e => {
+    e.preventDefault();
+    try {
+      await api("/api/provisioning/templates", {
+        method: "POST",
+        body: JSON.stringify({
+          slug: qs("#pt-slug").value.trim(),
+          name: qs("#pt-name").value.trim(),
+          model: qs("#pt-model").value.trim() || "routeros",
+          body: qs("#pt-body").value,
+        }),
+      });
+      showAlert("provision-alert", "Шаблон создан", "success");
+      loadProvisionPage();
+    } catch (err) {
+      showAlert("provision-alert", err.message, "error");
+    }
+  });
+  qs("#btn-prov-preview")?.addEventListener("click", async () => {
+    try {
+      await provisionPreview();
+    } catch (e) {
+      showAlert("provision-alert", e.message, "error");
+    }
+  });
+  qs("#btn-prov-apply")?.addEventListener("click", async () => {
+    try {
+      await provisionApply();
+    } catch (e) {
+      showAlert("provision-alert", e.message, "error");
+    }
+  });
 }
 
 async function bootstrapApp(uiConfig = {}) {

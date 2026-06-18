@@ -30,6 +30,8 @@ from services.audit import (
     ACTION_CREDENTIAL_DELETE,
     ACTION_CREDENTIAL_UPDATE,
     ACTION_MIKROTIK_RESTORE,
+    ACTION_PROVISION_APPLY,
+    ACTION_PROVISION_PREVIEW,
     ACTION_OXIDIZED_BACKUP_ALL,
     ACTION_OXIDIZED_FETCH,
     ACTION_SCAN_DISCOVER,
@@ -2085,4 +2087,145 @@ def zabbix_get_summary(request: HttpRequest) -> JsonResponse:
     if not auth.user_has_permission(user, auth.PERMISSION_COMPLIANCE_READ):
         return error_response("Недостаточно прав", status=403)
     return json_response(zabbix_service.platform_summary(user=user))
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_templates_dispatch(request: HttpRequest) -> JsonResponse:
+    from services.provisioning import ProvisioningError, create_template, list_templates
+
+    if request.method == "GET":
+        active = request.GET.get("active") == "true"
+        return json_response({"items": list_templates(active_only=active)})
+    if request.method == "POST":
+        if not auth.user_has_permission(request.api_user, auth.PERMISSION_PROVISION_RUN):
+            return error_response("Недостаточно прав", status=403)
+        body = parse_json_body(request)
+        try:
+            row = create_template(
+                slug=body.get("slug", ""),
+                name=body.get("name", ""),
+                body=body.get("body", ""),
+                model=body.get("model", "routeros"),
+                description=body.get("description", ""),
+            )
+        except ProvisioningError as exc:
+            return error_response(str(exc), status=400)
+        log_audit_user(request.api_user, "provision.template_create", target=row["slug"], request=request)
+        return json_response(row, status=201)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_template_detail(request: HttpRequest, template_id: int) -> JsonResponse:
+    from services.provisioning import ProvisioningError, delete_template, get_template, update_template
+
+    if request.method == "GET":
+        try:
+            from services.provisioning import _template_row_public, get_template
+
+            return json_response(_template_row_public(get_template(template_id)))
+        except ProvisioningError as exc:
+            return error_response(str(exc), status=404)
+    if request.method == "PUT":
+        if not auth.user_has_permission(request.api_user, auth.PERMISSION_PROVISION_RUN):
+            return error_response("Недостаточно прав", status=403)
+        body = parse_json_body(request)
+        try:
+            from services.provisioning import _template_row_public
+
+            row = update_template(
+                template_id,
+                name=body.get("name"),
+                body=body.get("body"),
+                model=body.get("model"),
+                description=body.get("description"),
+                is_active=body.get("is_active"),
+            )
+        except ProvisioningError as exc:
+            return error_response(str(exc), status=400)
+        log_audit_user(request.api_user, "provision.template_update", target=row["slug"], request=request)
+        return json_response(row)
+    if request.method == "DELETE":
+        if not auth.user_has_permission(request.api_user, auth.PERMISSION_PROVISION_RUN):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            row = get_template(template_id)
+            slug = row.slug
+            delete_template(template_id)
+        except ProvisioningError as exc:
+            return error_response(str(exc), status=404)
+        log_audit_user(request.api_user, "provision.template_delete", target=slug, request=request)
+        return json_response({"status": "ok"})
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_preview_view(request: HttpRequest) -> JsonResponse:
+    from services.provisioning import ProvisioningError, preview_provision
+
+    body = parse_json_body(request)
+    try:
+        result = preview_provision(
+            template_id=body.get("template_id"),
+            template_slug=body.get("template_slug", ""),
+            device_name=body.get("device_name", ""),
+            extra_vars=body.get("extra_vars") or body.get("vars"),
+            user=request.api_user,
+        )
+    except ProvisioningError as exc:
+        return error_response(str(exc), status=400)
+    log_audit_user(
+        request.api_user,
+        ACTION_PROVISION_PREVIEW,
+        target=f"{result.get('template_slug')}→{result.get('device_name')}",
+        request=request,
+    )
+    return json_response(result)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_PROVISION_RUN)
+def provision_run_view(request: HttpRequest) -> JsonResponse:
+    from services.correlation import get_correlation_id
+    from services.provisioning import ProvisioningError, run_provision
+
+    body = parse_json_body(request)
+    dry_run = bool(body.get("dry_run"))
+    try:
+        result = run_provision(
+            template_id=body.get("template_id"),
+            template_slug=body.get("template_slug", ""),
+            device_name=body.get("device_name", ""),
+            extra_vars=body.get("extra_vars") or body.get("vars"),
+            dry_run=dry_run,
+            triggered_by=request.api_user.username,
+            correlation_id=get_correlation_id() or "",
+            user=request.api_user,
+        )
+    except ProvisioningError as exc:
+        return error_response(str(exc), status=400)
+    if not dry_run:
+        log_audit_user(
+            request.api_user,
+            ACTION_PROVISION_APPLY,
+            target=f"{result.get('template_slug')}→{result.get('device_name')}",
+            request=request,
+        )
+    return json_response(result)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_runs_view(request: HttpRequest) -> JsonResponse:
+    from services.provisioning import list_runs
+
+    limit = int(request.GET.get("limit", "50"))
+    device = request.GET.get("device", "").strip()
+    return json_response({"items": list_runs(limit=limit, device=device)})
 

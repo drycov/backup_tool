@@ -163,6 +163,12 @@
                 <p>Настройки</p>
               </a>
             </li>
+            <li class="nav-item" data-permission="provision:read">
+              <a href="#provision" class="nav-link nav-page" data-page="provision">
+                <i class="nav-icon fas fa-magic"></i>
+                <p>Провижионинг</p>
+              </a>
+            </li>
             <li class="nav-item" data-permission="security:read">
               <a href="#security" class="nav-link nav-page" data-page="security">
                 <i class="nav-icon fas fa-user-shield"></i>
@@ -1821,6 +1827,72 @@
               </div>
             </div>
           </div>
+          <div id="page-provision" class="page d-none">
+            <div id="provision-alert" class="page-alert"></div>
+            <div class="row g-3">
+              <div class="col-lg-5">
+                <div class="card card-outline card-primary">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0">Шаблоны</h3>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-provision-refresh"><i class="fas fa-sync"></i></button>
+                  </div>
+                  <div class="card-body p-0 table-responsive">
+                    <table class="table table-sm table-striped mb-0" id="provision-templates-table">
+                      <thead><tr><th>slug</th><th>model</th><th></th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="card card-outline card-secondary mt-3" data-permission="provision:run">
+                  <div class="card-header"><h3 class="card-title">Новый шаблон</h3></div>
+                  <div class="card-body">
+                    <form id="provision-template-form">
+                      <div class="mb-2"><input type="text" class="form-control form-control-sm" id="pt-slug" placeholder="slug" required pattern="[a-z][a-z0-9_-]{1,62}"></div>
+                      <div class="mb-2"><input type="text" class="form-control form-control-sm" id="pt-name" placeholder="Название" required></div>
+                      <div class="mb-2"><input type="text" class="form-control form-control-sm" id="pt-model" placeholder="model" value="routeros"></div>
+                      <div class="mb-2"><textarea class="form-control form-control-sm font-monospace" id="pt-body" rows="8" placeholder="/system identity set name={{ device.name }}" required></textarea></div>
+                      <button type="submit" class="btn btn-primary btn-sm">Создать</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-7">
+                <div class="card card-outline card-success">
+                  <div class="card-header"><h3 class="card-title">Preview / Apply</h3></div>
+                  <div class="card-body">
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Шаблон</label>
+                        <select id="prov-template-select" class="form-control form-control-sm"></select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Устройство</label>
+                        <select id="prov-device-select" class="form-control form-control-sm"></select>
+                      </div>
+                      <div class="col-md-4 d-flex align-items-end gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-prov-preview">Preview</button>
+                        <button type="button" class="btn btn-warning btn-sm" id="btn-prov-apply" data-permission="provision:run">Apply</button>
+                      </div>
+                    </div>
+                    <div class="form-check mb-2" data-permission="provision:run">
+                      <input type="checkbox" class="form-check-input" id="prov-dry-run" checked>
+                      <label class="form-check-label small" for="prov-dry-run">Dry-run (без применения)</label>
+                    </div>
+                    <pre class="bg-light border rounded p-2 small mb-0" id="prov-preview-output" style="max-height:320px;overflow:auto;">—</pre>
+                  </div>
+                </div>
+                <div class="card card-outline card-info mt-3">
+                  <div class="card-header"><h3 class="card-title">История запусков</h3></div>
+                  <div class="card-body p-0 table-responsive">
+                    <table class="table table-sm mb-0" id="provision-runs-table">
+                      <thead><tr><th>Время</th><th>Шаблон</th><th>Устройство</th><th>Статус</th></tr></thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div id="page-security" class="page d-none">
             <div id="security-alert" class="page-alert"></div>
             <div class="row g-3 mb-3" id="security-stats"></div>
@@ -2394,6 +2466,6 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
   <script defer src="/static/js/ui-shell.js"></script>
   <script defer src="/static/js/config-editor.js"></script>
-  <script defer src="/static/js/app.js"></script>
+  <script defer src="/static/js/app.js?v=20260618-2"></script>
 </body>
 </html>

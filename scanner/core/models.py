@@ -477,3 +477,56 @@ class ConfigFinding(models.Model):
             models.Index(fields=["run", "severity"], name="config_find_run_sev_idx"),
             models.Index(fields=["device_name", "rule_id"], name="config_find_dev_rule_idx"),
         ]
+
+
+class ProvisionTemplate(models.Model):
+    """Шаблон конфигурации (Jinja2) для провижионинга устройств."""
+
+    slug = models.CharField(max_length=64, unique=True, db_index=True)
+    name = models.CharField(max_length=128)
+    description = models.TextField(blank=True, default="")
+    model = models.CharField(max_length=64, default="routeros", db_index=True)
+    body = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "provision_templates"
+        ordering = ["name"]
+
+
+class ProvisionRun(models.Model):
+    """История применения шаблона на устройство."""
+
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_DRY_RUN = "dry_run"
+
+    template = models.ForeignKey(
+        ProvisionTemplate,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="runs",
+    )
+    template_slug = models.CharField(max_length=64, blank=True, default="")
+    device_name = models.CharField(max_length=128, db_index=True)
+    device_ip = models.CharField(max_length=64, blank=True, default="")
+    device_model = models.CharField(max_length=64, blank=True, default="")
+    status = models.CharField(max_length=16, default=STATUS_PENDING, db_index=True)
+    dry_run = models.BooleanField(default=False)
+    rendered_config = models.TextField(blank=True, default="")
+    output = models.TextField(blank=True, default="")
+    error = models.TextField(blank=True, default="")
+    triggered_by = models.CharField(max_length=64, blank=True, default="")
+    correlation_id = models.CharField(max_length=64, blank=True, default="")
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "provision_runs"
+        ordering = ["-created_at"]

@@ -123,6 +123,9 @@ def init_db() -> None:
         from services.custom_roles import seed_system_roles
 
         seed_system_roles()
+        from services.provisioning import seed_default_templates
+
+        seed_default_templates()
     except Exception as exc:
         logger.exception("inventory | database init failed: %s", exc)
         reset_availability_cache()

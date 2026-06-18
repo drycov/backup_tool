@@ -25,6 +25,8 @@ PERMISSION_SECURITY_READ = "security:read"
 PERMISSION_SECURITY_RUN = "security:run"
 PERMISSION_API_KEYS_MANAGE = "api_keys:manage"
 PERMISSION_SETTINGS_READ = "settings:read"
+PERMISSION_PROVISION_READ = "provision:read"
+PERMISSION_PROVISION_RUN = "provision:run"
 
 PERMISSION_LABELS: dict[str, str] = {
     PERMISSION_VIEW_INVENTORY: "Инвентарь — чтение",
@@ -44,6 +46,8 @@ PERMISSION_LABELS: dict[str, str] = {
     PERMISSION_SECURITY_RUN: "Безопасность конфигов — запуск аудита",
     PERMISSION_API_KEYS_MANAGE: "API keys — управление",
     PERMISSION_SETTINGS_READ: "Настройки — чтение",
+    PERMISSION_PROVISION_READ: "Провижионинг — шаблоны и preview",
+    PERMISSION_PROVISION_RUN: "Провижионинг — применение на устройства",
 }
 
 ROLE_LABELS: dict[str, str] = {
@@ -68,6 +72,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_COMPLIANCE_READ,
         PERMISSION_SECURITY_READ,
         PERMISSION_SETTINGS_READ,
+        PERMISSION_PROVISION_READ,
     },
     ROLE_COMPLIANCE_AUDITOR: {
         PERMISSION_COMPLIANCE_READ,
@@ -85,6 +90,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_SECURITY_RUN,
         PERMISSION_SETTINGS_NOTIFY,
         PERMISSION_SETTINGS_READ,
+        PERMISSION_PROVISION_READ,
+        PERMISSION_PROVISION_RUN,
     },
     ROLE_ADMIN: set(PERMISSION_LABELS.keys()),
 }
