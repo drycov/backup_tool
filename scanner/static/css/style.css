@@ -127,8 +127,7 @@ body.login-page .login-logo {
   background: #282a36;
 }
 
-#oxidized-config-modal .CodeMirror,
-#config-card .CodeMirror {
+#oxidized-config-modal .CodeMirror {
   border-radius: 0 0 0.25rem 0.25rem;
 }
 

@@ -399,12 +399,30 @@ def _parse_version_epoch(raw_time) -> int:
     return 0
 
 
+def _browser_prefers_html(request: HttpRequest) -> bool:
+    accept = request.headers.get("Accept", "")
+    if not accept:
+        return False
+    parts = [p.strip().split(";")[0] for p in accept.split(",") if p.strip()]
+    if parts and parts[0] == "*/*":
+        return False
+    if parts and parts[0] == "application/json":
+        return False
+    return "text/html" in parts
+
+
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
-def oxidized_node_versions(request: HttpRequest, name: str) -> JsonResponse:
+def oxidized_node_versions(request: HttpRequest, name: str) -> HttpResponse:
     data, err = get_node_versions(name)
     if err:
         status = 404 if "не найден" in err.lower() else 503
         return error_response(err, status=status)
+    if _browser_prefers_html(request):
+        from django.shortcuts import redirect
+
+        return redirect(
+            build_versions_proxy_path(data["node"], data.get("group") or "")
+        )
     versions = data.get("versions") or []
     enriched = []
     total = len(versions)
@@ -905,6 +923,7 @@ def backup_settings_dispatch(request: HttpRequest) -> JsonResponse:
 @require_permission(auth.PERMISSION_OXIDIZED_WRITE)
 def backup_settings_test_notify(request: HttpRequest) -> JsonResponse:
     from services.backup_notifications import send_test_notification
+    from services.backup_settings import PASSWORD_MASK
 
     try:
         body = parse_json_body(request)
@@ -912,10 +931,25 @@ def backup_settings_test_notify(request: HttpRequest) -> JsonResponse:
     except ValidationError as exc:
         return error_response(str(exc))
     kind = payload.kind.strip().lower()
-    if kind not in ("error", "report"):
-        return error_response("kind must be error or report", status=400)
-    result = send_test_notification(kind)
+    if kind not in ("error", "report", "degrade"):
+        return error_response("kind must be error, report or degrade", status=400)
+
+    overrides = payload.model_dump(exclude={"kind"}, exclude_none=True)
+    for secret_field in ("telegram_token", "smtp_password"):
+        if overrides.get(secret_field) == PASSWORD_MASK:
+            overrides.pop(secret_field, None)
+    result = send_test_notification(kind, overrides or None)
     return json_response(result)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+def backup_settings_degrade_check(request: HttpRequest) -> JsonResponse:
+    from services.degradation_monitor import run_degradation_check
+
+    result = run_degradation_check()
+    return json_response({"status": "ok", **result})
 
 
 @csrf_exempt

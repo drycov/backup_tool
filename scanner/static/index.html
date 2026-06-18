@@ -393,19 +393,6 @@
               </div>
               <div id="oxidized-empty" class="empty-state text-center text-muted" style="display:none;">Нет данных от Oxidized</div>
             </div>
-            <div class="card card-outline card-dark" id="config-card" style="display:none;">
-              <div class="card-header">
-                <h3 class="card-title">Конфигурация: <span id="config-node-name"></span></h3>
-                <div class="card-tools">
-                  <button type="button" class="btn btn-tool btn-show-versions" title="История версий">
-                    <i class="fas fa-history"></i>
-                  </button>
-                </div>
-              </div>
-              <div class="card-body p-0 config-editor-wrap">
-                <textarea id="config-content" spellcheck="false" aria-label="Конфигурация устройства"></textarea>
-              </div>
-            </div>
           </div>
 
           <!-- Oxidized UI -->
@@ -659,7 +646,10 @@
 
                 <!-- Tab: Notifications -->
                 <div class="tab-pane fade" id="settings-tab-notify" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
-                  <p class="text-muted small mb-3">Email и Telegram при ошибках бэкапа и успешных отчётах (как в RealMikrotikBackup).</p>
+                  <p class="text-muted small mb-3">
+                    Telegram и Email: ошибки бэкапа, отчёты об успехе, сводки деградации (stale / offline / overdue).
+                    Тест использует значения из формы; секреты (token) — из БД, если поле пустое.
+                  </p>
                   <form id="notify-settings-form">
                     <div class="row mb-3">
                       <div class="col-md-6">
@@ -769,8 +759,14 @@
                       <button type="button" class="btn btn-outline-secondary btn-sm mr-2 mb-1" id="btn-test-notify-report" data-permission="oxidized:write">
                         <i class="fas fa-paper-plane mr-1"></i> Тест отчёта
                       </button>
-                      <button type="button" class="btn btn-outline-danger btn-sm mb-1" id="btn-test-notify-error" data-permission="oxidized:write">
+                      <button type="button" class="btn btn-outline-danger btn-sm mb-1 mr-2" id="btn-test-notify-error" data-permission="oxidized:write">
                         <i class="fas fa-exclamation-triangle mr-1"></i> Тест ошибки
+                      </button>
+                      <button type="button" class="btn btn-outline-warning btn-sm mb-1 mr-2" id="btn-test-notify-degrade" data-permission="oxidized:write">
+                        <i class="fas fa-bell mr-1"></i> Тест деградации
+                      </button>
+                      <button type="button" class="btn btn-outline-info btn-sm mb-1" id="btn-degrade-check-now" data-permission="oxidized:write">
+                        <i class="fas fa-sync mr-1"></i> Проверить деградацию
                       </button>
                     </div>
                     <div id="notify-test-result" class="small mt-2 text-muted"></div>
@@ -1253,7 +1249,7 @@
           </div>
         </div>
         <div class="modal-footer bg-light">
-          <a href="#" class="btn btn-outline-secondary btn-sm mr-auto" id="oxidized-versions-open-web" target="_blank" rel="noopener">
+          <a href="#" class="btn btn-outline-secondary btn-sm mr-auto" id="oxidized-versions-open-web" target="_blank" rel="noopener" style="display:none;">
             <i class="fas fa-globe mr-1"></i> Oxidized Web
           </a>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Закрыть</button>
@@ -1314,6 +1310,9 @@
           <textarea id="oxidized-config-modal-content" spellcheck="false" aria-label="Версия конфигурации"></textarea>
         </div>
         <div class="modal-footer bg-light py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-oxidized-config-versions" title="История версий">
+            <i class="fas fa-history mr-1"></i> Версии
+          </button>
           <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
         </div>
       </div>

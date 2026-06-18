@@ -1,149 +1,162 @@
 # Уведомления о бэкапах
 
-Backup Tools отправляет уведомления при ошибках и успешных бэкапах — аналог RealMikrotikBackup (Telegram + Email).
-
-Настройки: **UI → Настройки → Уведомления** или `.env` / `GET/PUT /api/settings/backup`.
+Telegram и Email для трёх типов событий. Настройки: **UI → Настройки → Уведомления** или `.env` / `PUT /api/settings/backup`.
 
 ## Типы уведомлений
 
-| Тип | Когда | Каналы |
-|-----|-------|--------|
-| **Error** | Ошибка MikroTik backup, сбой сбора | Telegram notify chat, Email notify |
-| **Report** | После цикла worker (конфиг изменился или binary fail) | Telegram report chat, Email report |
+| Тип | Когда | Telegram chat | Email to |
+|-----|-------|---------------|----------|
+| **Ошибки** | Сбой Oxidized (retries exhausted), ошибка MikroTik backup | `telegram_chat_notify` | `smtp_to_notify` |
+| **Отчёты** | Успешный цикл: конфиг изменился **или** binary/export fail | `telegram_chat_report` (fallback: notify) | `smtp_to_report` |
+| **Деградация** | Фоновая проверка compliance (stale/offline/overdue/failed) | `telegram_chat_notify` | `smtp_to_notify` |
 
-Error-уведомления Oxidized (SSH fail, retries exhausted) логируются; отдельный hook для Ruby external — через логи контейнера.
+### Ошибки (error)
+
+- Oxidized worker: статус `fail` / `no_connection` после исчерпания retries
+- MikroTik binary/export: исключение при SFTP/SSH
+
+### Отчёты (report)
+
+Отправляется **не на каждый успешный бэкап**, а когда:
+
+- конфиг изменился в Git (`stored=true`), **или**
+- MikroTik binary/export завершился с ошибкой
+
+Если конфиг не менялся и binary OK — отчёт **не** шлётся (снижение шума).
+
+### Деградация (degrade)
+
+Фоновый поток `degradation_monitor` (старт при launch scanner):
+
+| Категория | Условие |
+|-----------|---------|
+| Ошибки бэкапа | last status `fail` / `no_connection` |
+| Просроченные | нет бэкапа / last backup старше `2 × interval` |
+| Stale | конфиг не менялся > `stale_days_threshold` дней |
+| Offline | scan: устройство offline |
+
+Параметры UI:
+
+| Поле | По умолчанию | Описание |
+|------|--------------|----------|
+| Stale, дней | 30 | Порог «нет изменений конфига» |
+| Cooldown, ч | 24 | Не повторять alert с тем же числом устройств |
+| Проверка, сек | 3600 | Интервал фоновой проверки |
+
+**Cooldown:** повторное уведомление по категории подавляется, если число устройств не изменилось. Когда проблема исчезает — состояние сбрасывается, следующий инцидент снова уведомит.
+
+## Telegram
+
+1. Создайте bot через [@BotFather](https://t.me/BotFather)
+2. Получите chat ID (`@userinfobot` или `getUpdates` после сообщения боту)
+3. UI: Bot token, Chat ID (ошибки), Chat ID (отчёты)
+
+Для групп chat ID отрицательный (напр. `-1001234567890`).
+
+## SMTP
+
+- SSL (SMTPS) на порту 465 по умолчанию
+- Без SSL — STARTTLS на порту 587
 
 ## Переменные `.env`
 
 ```env
-# Error notifications
 ERROR_NOTIFICATION_TELEGRAM=false
 ERROR_NOTIFICATION_EMAIL=false
-
-# Success reports
 REPORT_SEND_TELEGRAM=false
 REPORT_SEND_EMAIL=false
-
-# Telegram
+DEGRADE_NOTIFICATION_TELEGRAM=false
+DEGRADE_NOTIFICATION_EMAIL=false
 TELEGRAM_ACCESS_TOKEN=
 TELEGRAM_CHATID_NOTIFY=
 TELEGRAM_CHATID_REPORT=
-
-# SMTP
-SMTP_SERVER=smtp.example.com
+STALE_DAYS_THRESHOLD=30
+ALERT_COOLDOWN_HOURS=24
+DEGRADE_CHECK_INTERVAL_SEC=3600
+SMTP_SERVER=
 SMTP_PORT=465
 SMTP_USER=
 SMTP_PASSWORD=
 SMTP_SSL=true
-SMTP_FROM_MAIL=backup@example.com
-SMTP_TO_MAIL_NOTIFY=ops@example.com
-SMTP_TO_MAIL_REPORT=ops@example.com
+SMTP_FROM_MAIL=
+SMTP_TO_MAIL_NOTIFY=
+SMTP_TO_MAIL_REPORT=
 ```
 
-| Переменная | Описание |
-|------------|----------|
-| `ERROR_NOTIFICATION_TELEGRAM` | Telegram при ошибках |
-| `ERROR_NOTIFICATION_EMAIL` | Email при ошибках |
-| `REPORT_SEND_TELEGRAM` | Telegram при успешном отчёте |
-| `REPORT_SEND_EMAIL` | Email при успешном отчёте |
-| `TELEGRAM_ACCESS_TOKEN` | Bot token от @BotFather |
-| `TELEGRAM_CHATID_NOTIFY` | Chat ID для ошибок |
-| `TELEGRAM_CHATID_REPORT` | Chat ID для отчётов |
-| `SMTP_*` | Параметры SMTP (SSL или STARTTLS) |
-
-Секреты (`telegram_token`, `smtp_password`, `encrypt_password`) в API маскируются как `*_set: true/false`.
-
-## Web UI
-
-**Настройки → Уведомления**
-
-- Чекбоксы каналов error/report
-- Поля Telegram и SMTP
-- Кнопки **Тест error** / **Тест report**
+При первом запуске импортируются в `backup_config` (PostgreSQL).
 
 ## API
-
-### Получить / сохранить
 
 ```http
 GET  /api/settings/backup
 PUT  /api/settings/backup
+POST /api/settings/backup/test-notify
+POST /api/settings/backup/degrade-check
 ```
 
-Permission: `oxidized:read` (GET), `oxidized:write` (PUT).
-
-Пример PUT (фрагмент):
-
-```json
-{
-  "error_notify_telegram": true,
-  "telegram_token": "123456:ABC...",
-  "telegram_chat_notify": "-1001234567890",
-  "report_send_email": true,
-  "smtp_server": "smtp.gmail.com",
-  "smtp_port": 465,
-  "smtp_ssl": true,
-  "smtp_from": "backup@corp.local",
-  "smtp_to_report": "netops@corp.local"
-}
-```
-
-Чтобы не менять пароль/token, передайте `"********"` или omit поле.
-
-### Тест
+### Тест уведомления
 
 ```http
 POST /api/settings/backup/test-notify
-Content-Type: application/json
-
 {"kind": "error"}
 {"kind": "report"}
+{"kind": "degrade"}
 ```
 
-Ответ:
+Тест **использует галочки и chat ID из формы** (можно не сохранять перед тестом). Token/password — из формы, если введены; иначе из БД.
+
+Пример с формой:
 
 ```json
 {
-  "ok": true,
-  "messages": ["Telegram: отправлено", "Email → ops@example.com: отправлено"]
+  "kind": "error",
+  "error_notify_telegram": true,
+  "telegram_chat_notify": "8328036041"
 }
 ```
 
-## Формат сообщений
+### Ручная проверка деградации
 
-**Error:**
-
-```
-Backup Tools — ошибка бэкапа
-Устройство: hex_r1_ukg
-IP: 10.216.92.1
-Статус: mikrotik_backup
-Детали: Connection timeout
+```http
+POST /api/settings/backup/degrade-check
 ```
 
-**Report:**
+Ответ: `{"status":"ok","sent":2}` или `{"skipped":1}` если каналы выключены.
 
-```
-Backup Tools — отчёт о бэкапе
-Устройство: hex_r1_ukg
-IP: 10.216.92.1
-Git: конфиг изменён
-Binary/export: OK
-```
+## UI — кнопки
 
-## Требования сети
-
-Контейнер `scanner` должен иметь исходящий доступ:
-
-- `https://api.telegram.org` — Telegram Bot API
-- SMTP-сервер (порт 465/587)
+| Кнопка | Действие |
+|--------|----------|
+| Сохранить уведомления | `PUT /api/settings/backup` |
+| Тест отчёта | test-notify `kind=report` |
+| Тест ошибки | test-notify `kind=error` |
+| Тест деградации | test-notify `kind=degrade` |
+| Проверить деградацию | немедленный `degrade-check` |
 
 ## Troubleshooting
 
 | Проблема | Решение |
 |----------|---------|
-| Telegram 401 | Проверить `TELEGRAM_ACCESS_TOKEN` |
-| Chat not found | Убедиться, что bot добавлен в chat; верный chat ID |
-| SMTP auth fail | `SMTP_USER` / `SMTP_PASSWORD`, SSL vs STARTTLS |
-| Тест OK, реальных нет | Включить соответствующий чекбокс error/report |
-| Нет report | Report шлётся только если конфиг изменился **или** binary fail |
+| Тест: «не задан bot token» | Введите token и **Сохранить**, или укажите в поле перед тестом |
+| Telegram 401 Unauthorized | Неверный token |
+| Chat not found | Напишите боту `/start`; проверьте chat ID |
+| Тест OK, реальных error нет | Включите галочку + **Сохранить** |
+| Нет report | Норма, если конфиг не менялся и binary OK |
+| Нет degrade | Включите Telegram/Email в блоке «Деградация» + **Сохранить** |
+| Degrade с cooldown | Подождите или изменится число устройств в категории |
+
+Проверка исходящего доступа из контейнера:
+
+```bash
+docker compose exec scanner python -c "
+import httpx
+r = httpx.get('https://api.telegram.org')
+print(r.status_code)
+"
+```
+
+## Связанные документы
+
+- [MikroTik бэкапы](mikrotik-backups.md) — ошибки binary → error notify
+- [Oxidized](oxidized.md) — worker errors
+- Dashboard → Compliance — те же метрики, что для degrade

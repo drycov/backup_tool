@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import smtplib
+from dataclasses import replace
 from email.mime.text import MIMEText
+from typing import Any
 
 import httpx
 
@@ -13,9 +15,17 @@ from services.backup_settings import BackupConfigData, get_config
 logger = logging.getLogger(__name__)
 
 
+def _normalize_chat_id(chat_id: str) -> str:
+    return str(chat_id or "").strip()
+
+
 def _send_telegram(token: str, chat_id: str, text: str) -> tuple[bool, str]:
-    if not token or not chat_id:
-        return False, "Telegram не настроен"
+    token = (token or "").strip()
+    chat_id = _normalize_chat_id(chat_id)
+    if not token:
+        return False, "Telegram: не задан bot token"
+    if not chat_id:
+        return False, "Telegram: не задан chat ID"
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
         resp = httpx.post(
@@ -25,7 +35,7 @@ def _send_telegram(token: str, chat_id: str, text: str) -> tuple[bool, str]:
         )
         data = resp.json()
         if resp.is_success and data.get("ok"):
-            return True, "Telegram: отправлено"
+            return True, f"Telegram → {chat_id}: отправлено"
         desc = data.get("description") or resp.text
         return False, f"Telegram: {desc}"
     except Exception as exc:
@@ -34,8 +44,9 @@ def _send_telegram(token: str, chat_id: str, text: str) -> tuple[bool, str]:
 
 
 def _send_email(cfg: BackupConfigData, to_addr: str, subject: str, body: str) -> tuple[bool, str]:
+    to_addr = (to_addr or "").strip()
     if not cfg.smtp_server or not cfg.smtp_from or not to_addr:
-        return False, "SMTP не настроен"
+        return False, "SMTP: задайте сервер, From и адрес получателя"
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
     msg["From"] = cfg.smtp_from
@@ -56,39 +67,76 @@ def _send_email(cfg: BackupConfigData, to_addr: str, subject: str, body: str) ->
         return False, f"Email: {exc}"
 
 
-def _dispatch(cfg: BackupConfigData, *, kind: str, subject: str, body: str) -> None:
+def _dispatch(cfg: BackupConfigData, *, kind: str, subject: str, body: str) -> list[str]:
+    """Send notification; returns log lines for each attempted channel."""
+    messages: list[str] = []
     if kind == "error":
         if cfg.error_notify_telegram:
             ok, msg = _send_telegram(cfg.telegram_token, cfg.telegram_chat_notify, body)
-            logger.log(logging.INFO if ok else logging.WARNING, "backup | notify | %s", msg)
+            messages.append(msg if ok else f"Ошибка: {msg}")
         if cfg.error_notify_email:
             ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, body)
-            logger.log(logging.INFO if ok else logging.WARNING, "backup | notify | %s", msg)
+            messages.append(msg if ok else f"Ошибка: {msg}")
     elif kind == "report":
         if cfg.report_send_telegram:
-            ok, msg = _send_telegram(cfg.telegram_token, cfg.telegram_chat_report, body)
-            logger.log(logging.INFO if ok else logging.WARNING, "backup | notify | %s", msg)
+            chat = cfg.telegram_chat_report or cfg.telegram_chat_notify
+            ok, msg = _send_telegram(cfg.telegram_token, chat, body)
+            messages.append(msg if ok else f"Ошибка: {msg}")
         if cfg.report_send_email:
-            ok, msg = _send_email(cfg, cfg.smtp_to_report, subject, body)
-            logger.log(logging.INFO if ok else logging.WARNING, "backup | notify | %s", msg)
+            to_addr = cfg.smtp_to_report or cfg.smtp_to_notify
+            ok, msg = _send_email(cfg, to_addr, subject, body)
+            messages.append(msg if ok else f"Ошибка: {msg}")
     elif kind == "degrade":
         if cfg.degrade_notify_telegram:
             ok, msg = _send_telegram(cfg.telegram_token, cfg.telegram_chat_notify, body)
-            logger.log(logging.INFO if ok else logging.WARNING, "backup | degrade | %s", msg)
+            messages.append(msg if ok else f"Ошибка: {msg}")
         if cfg.degrade_notify_email:
             ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, body)
-            logger.log(logging.INFO if ok else logging.WARNING, "backup | degrade | %s", msg)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+    return messages
+
+
+def _apply_test_overrides(cfg: BackupConfigData, overrides: dict[str, Any] | None) -> BackupConfigData:
+    if not overrides:
+        return cfg
+    data = {
+        "error_notify_telegram": overrides.get("error_notify_telegram", cfg.error_notify_telegram),
+        "error_notify_email": overrides.get("error_notify_email", cfg.error_notify_email),
+        "report_send_telegram": overrides.get("report_send_telegram", cfg.report_send_telegram),
+        "report_send_email": overrides.get("report_send_email", cfg.report_send_email),
+        "degrade_notify_telegram": overrides.get("degrade_notify_telegram", cfg.degrade_notify_telegram),
+        "degrade_notify_email": overrides.get("degrade_notify_email", cfg.degrade_notify_email),
+        "telegram_token": overrides.get("telegram_token") or cfg.telegram_token,
+        "telegram_chat_notify": overrides.get("telegram_chat_notify", cfg.telegram_chat_notify),
+        "telegram_chat_report": overrides.get("telegram_chat_report", cfg.telegram_chat_report),
+        "smtp_server": overrides.get("smtp_server", cfg.smtp_server),
+        "smtp_port": overrides.get("smtp_port", cfg.smtp_port),
+        "smtp_user": overrides.get("smtp_user", cfg.smtp_user),
+        "smtp_password": overrides.get("smtp_password") or cfg.smtp_password,
+        "smtp_ssl": overrides.get("smtp_ssl", cfg.smtp_ssl),
+        "smtp_from": overrides.get("smtp_from", cfg.smtp_from),
+        "smtp_to_notify": overrides.get("smtp_to_notify", cfg.smtp_to_notify),
+        "smtp_to_report": overrides.get("smtp_to_report", cfg.smtp_to_report),
+    }
+    return replace(cfg, **data)
 
 
 def notify_backup_error(device: str, ip: str, status: str, detail: str = "") -> None:
     cfg = get_config()
     if not cfg.error_notify_telegram and not cfg.error_notify_email:
         return
-    lines = [f"Backup Tools — ошибка бэкапа", f"Устройство: {device}", f"IP: {ip}", f"Статус: {status}"]
+    lines = [
+        "Backup Tools — ошибка бэкапа",
+        f"Устройство: {device}",
+        f"IP: {ip}",
+        f"Статус: {status}",
+    ]
     if detail:
         lines.append(f"Детали: {detail}")
     body = "\n".join(lines)
-    _dispatch(cfg, kind="error", subject="RMBackup: ошибка бэкапа", body=body)
+    for msg in _dispatch(cfg, kind="error", subject="Backup Tools: ошибка бэкапа", body=body):
+        level = logging.WARNING if msg.startswith("Ошибка:") else logging.INFO
+        logger.log(level, "backup | notify | %s", msg)
 
 
 def notify_degradation(kind_label: str, device_lines: list[str], *, stale_days: int = 30) -> None:
@@ -101,12 +149,15 @@ def notify_degradation(kind_label: str, device_lines: list[str], *, stale_days: 
         [
             "Backup Tools — деградация",
             f"Категория: {kind_label}",
+            f"Порог stale: {stale_days} дн.",
             f"Устройств: {len(device_lines)}",
             "",
             *device_lines,
         ]
     )
-    _dispatch(cfg, kind="degrade", subject=f"Backup Tools: {kind_label}", body=body)
+    for msg in _dispatch(cfg, kind="degrade", subject=f"Backup Tools: {kind_label}", body=body):
+        level = logging.WARNING if msg.startswith("Ошибка:") else logging.INFO
+        logger.log(level, "backup | degrade | %s", msg)
 
 
 def notify_backup_report(device: str, ip: str, *, config_changed: bool, binary_ok: bool = True) -> None:
@@ -124,38 +175,42 @@ def notify_backup_report(device: str, ip: str, *, config_changed: bool, binary_o
             f"Binary/export: {binary}",
         ]
     )
-    _dispatch(cfg, kind="report", subject="RMBackup: бэкап выполнен", body=body)
+    for msg in _dispatch(cfg, kind="report", subject="Backup Tools: бэкап выполнен", body=body):
+        level = logging.WARNING if msg.startswith("Ошибка:") else logging.INFO
+        logger.log(level, "backup | notify | %s", msg)
 
 
-def send_test_notification(kind: str = "report") -> dict[str, list[str]]:
-    cfg = get_config()
-    subject = "RMBackup: тестовое уведомление"
-    body = f"Backup Tools — тест ({kind}). Настройки уведомлений работают."
-    results: list[str] = []
+def send_test_notification(
+    kind: str = "report",
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Test notification. Uses DB config + optional form overrides (unsaved UI values)."""
+    cfg = _apply_test_overrides(get_config(), overrides)
+    kind = (kind or "report").strip().lower()
+    subject = f"Backup Tools: тест ({kind})"
+    body = f"Backup Tools — тестовое уведомление ({kind}).\nНастройки каналов работают."
 
-    if kind == "error":
-        if cfg.error_notify_telegram:
-            ok, msg = _send_telegram(cfg.telegram_token, cfg.telegram_chat_notify, body)
-            results.append(msg if ok else f"Ошибка: {msg}")
-        elif cfg.telegram_token and cfg.telegram_chat_notify:
-            ok, msg = _send_telegram(cfg.telegram_token, cfg.telegram_chat_notify, body)
-            results.append(msg if ok else f"Ошибка: {msg}")
-        if cfg.error_notify_email:
-            ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, body)
-            results.append(msg if ok else f"Ошибка: {msg}")
-        elif cfg.smtp_server and cfg.smtp_to_notify:
-            ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, body)
-            results.append(msg if ok else f"Ошибка: {msg}")
-    else:
-        if cfg.report_send_telegram or (cfg.telegram_token and cfg.telegram_chat_report):
-            chat = cfg.telegram_chat_report or cfg.telegram_chat_notify
-            ok, msg = _send_telegram(cfg.telegram_token, chat, body)
-            results.append(msg if ok else f"Ошибка: {msg}")
-        if cfg.report_send_email or (cfg.smtp_server and cfg.smtp_to_report):
-            to_addr = cfg.smtp_to_report or cfg.smtp_to_notify
-            ok, msg = _send_email(cfg, to_addr, subject, body)
-            results.append(msg if ok else f"Ошибка: {msg}")
+    channel_map = {
+        "error": ("error_notify_telegram", "error_notify_email"),
+        "report": ("report_send_telegram", "report_send_email"),
+        "degrade": ("degrade_notify_telegram", "degrade_notify_email"),
+    }
+    if kind not in channel_map:
+        return {"ok": False, "messages": [f"Неизвестный тип: {kind}"]}
 
-    if not results:
-        return {"ok": False, "messages": ["Включите каналы уведомлений и укажите адреса"]}
-    return {"ok": all(not m.startswith("Ошибка:") for m in results), "messages": results}
+    tg_flag, email_flag = channel_map[kind]
+    if not getattr(cfg, tg_flag) and not getattr(cfg, email_flag):
+        return {
+            "ok": False,
+            "messages": [
+                f"Включите Telegram и/или Email для типа «{kind}» (галочки в форме)"
+            ],
+        }
+
+    messages = _dispatch(cfg, kind=kind, subject=subject, body=body)
+    if not messages:
+        return {"ok": False, "messages": ["Нет активных каналов для отправки"]}
+    return {
+        "ok": all(not m.startswith("Ошибка:") for m in messages),
+        "messages": messages,
+    }

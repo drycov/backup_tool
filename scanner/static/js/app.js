@@ -1075,25 +1075,19 @@ function fillBackupSettingsForm(cfg) {
   }
 }
 
-function collectBackupSettingsForm() {
-  const encVal = qs("#bk-encrypt-password")?.value.trim();
+function collectNotifySettingsForm() {
   const tokVal = qs("#nt-telegram-token")?.value.trim();
   const smtpVal = qs("#nt-smtp-password")?.value.trim();
   return {
-    binary_enabled: qs("#bk-binary")?.checked !== false,
-    export_enabled: qs("#bk-export")?.checked !== false,
-    hide_sensitive: qs("#bk-hide-sensitive")?.checked === true,
-    encrypt_password: encVal || (backupSettingsCache?.encrypt_password_set ? SETTINGS_PASSWORD_MASK : ""),
-    purge_enabled: qs("#bk-purge")?.checked !== false,
-    mk_backup_git_push: qs("#bk-git-push")?.checked !== false,
-    purge_keep: parseInt(qs("#bk-purge-keep")?.value, 10) || 10,
-    bin_dir: qs("#bk-bin-dir")?.value.trim() || "/var/lib/oxidized/bin",
-    rsc_dir: qs("#bk-rsc-dir")?.value.trim() || "/var/lib/oxidized/rsc",
-    backup_timeout: parseInt(qs("#bk-timeout")?.value, 10) || 300,
     error_notify_telegram: qs("#nt-error-telegram")?.checked === true,
     error_notify_email: qs("#nt-error-email")?.checked === true,
     report_send_telegram: qs("#nt-report-telegram")?.checked === true,
     report_send_email: qs("#nt-report-email")?.checked === true,
+    degrade_notify_telegram: qs("#nt-degrade-telegram")?.checked === true,
+    degrade_notify_email: qs("#nt-degrade-email")?.checked === true,
+    stale_days_threshold: parseInt(qs("#nt-stale-days")?.value, 10) || 30,
+    alert_cooldown_hours: parseInt(qs("#nt-alert-cooldown")?.value, 10) || 24,
+    degrade_check_interval_sec: parseInt(qs("#nt-degrade-interval")?.value, 10) || 3600,
     telegram_token: tokVal || (backupSettingsCache?.telegram_token_set ? SETTINGS_PASSWORD_MASK : ""),
     telegram_chat_notify: qs("#nt-telegram-chat-notify")?.value.trim() || "",
     telegram_chat_report: qs("#nt-telegram-chat-report")?.value.trim() || "",
@@ -1105,11 +1099,49 @@ function collectBackupSettingsForm() {
     smtp_from: qs("#nt-smtp-from")?.value.trim() || "",
     smtp_to_notify: qs("#nt-smtp-to-notify")?.value.trim() || "",
     smtp_to_report: qs("#nt-smtp-to-report")?.value.trim() || "",
+  };
+}
+
+function collectNotifyTestPayload(kind) {
+  const tokVal = qs("#nt-telegram-token")?.value.trim();
+  const smtpVal = qs("#nt-smtp-password")?.value.trim();
+  const payload = {
+    kind,
+    error_notify_telegram: qs("#nt-error-telegram")?.checked === true,
+    error_notify_email: qs("#nt-error-email")?.checked === true,
+    report_send_telegram: qs("#nt-report-telegram")?.checked === true,
+    report_send_email: qs("#nt-report-email")?.checked === true,
     degrade_notify_telegram: qs("#nt-degrade-telegram")?.checked === true,
     degrade_notify_email: qs("#nt-degrade-email")?.checked === true,
-    stale_days_threshold: parseInt(qs("#nt-stale-days")?.value, 10) || 30,
-    alert_cooldown_hours: parseInt(qs("#nt-alert-cooldown")?.value, 10) || 24,
-    degrade_check_interval_sec: parseInt(qs("#nt-degrade-interval")?.value, 10) || 3600,
+    telegram_chat_notify: qs("#nt-telegram-chat-notify")?.value.trim() || "",
+    telegram_chat_report: qs("#nt-telegram-chat-report")?.value.trim() || "",
+    smtp_server: qs("#nt-smtp-server")?.value.trim() || "",
+    smtp_port: parseInt(qs("#nt-smtp-port")?.value, 10) || 465,
+    smtp_user: qs("#nt-smtp-user")?.value.trim() || "",
+    smtp_ssl: qs("#nt-smtp-ssl")?.checked !== false,
+    smtp_from: qs("#nt-smtp-from")?.value.trim() || "",
+    smtp_to_notify: qs("#nt-smtp-to-notify")?.value.trim() || "",
+    smtp_to_report: qs("#nt-smtp-to-report")?.value.trim() || "",
+  };
+  if (tokVal) payload.telegram_token = tokVal;
+  if (smtpVal) payload.smtp_password = smtpVal;
+  return payload;
+}
+
+function collectBackupSettingsForm() {
+  const encVal = qs("#bk-encrypt-password")?.value.trim();
+  return {
+    ...collectNotifySettingsForm(),
+    binary_enabled: qs("#bk-binary")?.checked !== false,
+    export_enabled: qs("#bk-export")?.checked !== false,
+    hide_sensitive: qs("#bk-hide-sensitive")?.checked === true,
+    encrypt_password: encVal || (backupSettingsCache?.encrypt_password_set ? SETTINGS_PASSWORD_MASK : ""),
+    purge_enabled: qs("#bk-purge")?.checked !== false,
+    mk_backup_git_push: qs("#bk-git-push")?.checked !== false,
+    purge_keep: parseInt(qs("#bk-purge-keep")?.value, 10) || 10,
+    bin_dir: qs("#bk-bin-dir")?.value.trim() || "/var/lib/oxidized/bin",
+    rsc_dir: qs("#bk-rsc-dir")?.value.trim() || "/var/lib/oxidized/rsc",
+    backup_timeout: parseInt(qs("#bk-timeout")?.value, 10) || 300,
   };
 }
 
@@ -1280,10 +1312,13 @@ async function testBackupNotify(kind) {
   if (!can("oxidized:write")) return;
   const resultEl = qs("#notify-test-result");
   try {
-    if (resultEl) resultEl.textContent = "Отправка…";
+    if (resultEl) {
+      resultEl.textContent = "Отправка…";
+      resultEl.className = "small mt-2 text-muted";
+    }
     const res = await api("/api/settings/backup/test-notify", {
       method: "POST",
-      body: JSON.stringify({ kind }),
+      body: JSON.stringify(collectNotifyTestPayload(kind)),
     });
     const text = (res.messages || []).join("; ");
     if (resultEl) {
@@ -1296,6 +1331,25 @@ async function testBackupNotify(kind) {
       resultEl.textContent = e.message;
       resultEl.className = "small mt-2 text-danger";
     }
+    showAlert("settings-alert", e.message, "error");
+  }
+}
+
+async function runDegradeCheckNow() {
+  if (!can("oxidized:write")) return;
+  const resultEl = qs("#notify-test-result");
+  try {
+    if (resultEl) resultEl.textContent = "Проверка деградации…";
+    const res = await api("/api/settings/backup/degrade-check", { method: "POST" });
+    const msg = res.skipped
+      ? "Деградация: каналы уведомлений выключены"
+      : `Проверка завершена, отправлено категорий: ${res.sent || 0}`;
+    if (resultEl) {
+      resultEl.textContent = msg;
+      resultEl.className = "small mt-2 text-muted";
+    }
+    showAlert("settings-alert", msg, "success");
+  } catch (e) {
     showAlert("settings-alert", e.message, "error");
   }
 }
@@ -2119,7 +2173,18 @@ async function showNodeVersions(name) {
       : data.node;
     const webLink = qs("#oxidized-versions-open-web");
     if (webLink) {
-      webLink.href = `${window.location.origin}${data.versions_proxy_url}`;
+      const proxyPath = data.versions_proxy_url
+        || (data.node_full
+          ? `/oxidized-proxy/node/version?node_full=${encodeURIComponent(data.node_full)}`
+          : "");
+      if (proxyPath.startsWith("/api/oxidized/")) {
+        webLink.style.display = "none";
+      } else if (proxyPath) {
+        webLink.style.display = "";
+        webLink.href = `${window.location.origin}${proxyPath}`;
+      } else {
+        webLink.style.display = "none";
+      }
     }
 
     const tbody = qs("#oxidized-versions-table");
@@ -2393,42 +2458,42 @@ function stopOxidizedLogsPolling() {
   }
 }
 
-async function showNodeConfig(name, model) {
+let oxidizedConfigModalNode = null;
+
+async function openOxidizedConfigInModal(name, viewUrl, label, model) {
+  oxidizedConfigModalNode = name;
+  const titleEl = qs("#oxidized-config-modal-node");
+  if (titleEl) {
+    titleEl.textContent = label ? `${name} · ${label}` : name;
+  }
   try {
-    const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}`);
-    qs("#config-card").style.display = "block";
-    qs("#config-node-name").textContent = name;
-    qs("#config-card")?.setAttribute("data-node-name", name);
-    const content = typeof data === "string" ? data : (data.full || JSON.stringify(data, null, 2));
+    let text;
+    if (viewUrl) {
+      text = await api(viewUrl);
+    } else {
+      const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}`);
+      text = typeof data === "string" ? data : (data.full || JSON.stringify(data, null, 2));
+    }
     const nodeModel = model || oxidizedNodesCache.find(n => n.name === name)?.model;
     if (window.ConfigEditor) {
-      ConfigEditor.setContent("config-content", content || "Пустой конфиг", { model: nodeModel });
+      ConfigEditor.setContent("oxidized-config-modal-content", text || "Пустой конфиг", { model: nodeModel });
     } else {
-      const el = qs("#config-content");
-      if (el) el.value = content || "Пустой конфиг";
+      const el = qs("#oxidized-config-modal-content");
+      if (el) el.value = text || "Пустой конфиг";
     }
-    qs("#config-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#oxidized-config-modal").modal("show");
     window.setTimeout(() => window.ConfigEditor?.refreshAll(), 120);
   } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
   }
 }
 
+async function showNodeConfig(name, model) {
+  await openOxidizedConfigInModal(name, null, null, model);
+}
+
 async function openOxidizedConfigView(name, viewUrl, label) {
-  const titleEl = qs("#oxidized-config-modal-node");
-  if (titleEl) {
-    titleEl.textContent = label ? `${name} · ${label}` : name;
-  }
-  try {
-    const text = await api(viewUrl);
-    const nodeModel = oxidizedNodesCache.find(n => n.name === name)?.model;
-    if (window.ConfigEditor) {
-      ConfigEditor.setContent("oxidized-config-modal-content", text, { model: nodeModel });
-    }
-    $("#oxidized-config-modal").modal("show");
-  } catch (e) {
-    showAlert("oxidized-alert", e.message, "error");
-  }
+  await openOxidizedConfigInModal(name, viewUrl, label);
 }
 
 async function fetchNodeConfig(name) {
@@ -2580,6 +2645,8 @@ function bindEvents() {
   qs("#audit-action-filter")?.addEventListener("change", () => loadAudit());
   qs("#btn-test-notify-report")?.addEventListener("click", () => testBackupNotify("report"));
   qs("#btn-test-notify-error")?.addEventListener("click", () => testBackupNotify("error"));
+  qs("#btn-test-notify-degrade")?.addEventListener("click", () => testBackupNotify("degrade"));
+  qs("#btn-degrade-check-now")?.addEventListener("click", runDegradeCheckNow);
   qs("#btn-settings-sync-oxidized")?.addEventListener("click", syncOxidizedFromSettings);
   qs("#btn-cleanup-discovered")?.addEventListener("click", cleanupDiscoveredDevices);
   qs("#btn-ldap-apply-preset")?.addEventListener("click", () => applyLdapPreset(true));
@@ -2680,9 +2747,10 @@ function bindEvents() {
   $("#oxidized-logs-modal").on("hidden.bs.modal", stopOxidizedLogsPolling);
   qs("#btn-oxidized-iframe-reload")?.addEventListener("click", () => loadOxidizedIframe(true));
   qs("#btn-oxidized-iframe-nodes")?.addEventListener("click", () => navigateOxidizedIframe("/nodes"));
-  qs("#config-card")?.querySelector(".btn-show-versions")?.addEventListener("click", () => {
-    const name = qs("#config-card")?.getAttribute("data-node-name");
-    if (name) showNodeVersions(name);
+  qs("#btn-oxidized-config-versions")?.addEventListener("click", () => {
+    if (!oxidizedConfigModalNode) return;
+    $("#oxidized-config-modal").modal("hide");
+    showNodeVersions(oxidizedConfigModalNode);
   });
   $("#oxidized-diff-modal").on("hidden.bs.modal", closeOxidizedDiffModal);
   $("#oxidized-config-modal").on("shown.bs.modal", () => window.ConfigEditor?.refreshAll());

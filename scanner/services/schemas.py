@@ -279,6 +279,23 @@ class ScanSettingsUpdate(BaseModel):
 
 class BackupNotifyTestRequest(BaseModel):
     kind: str = "report"
+    error_notify_telegram: Optional[bool] = None
+    error_notify_email: Optional[bool] = None
+    report_send_telegram: Optional[bool] = None
+    report_send_email: Optional[bool] = None
+    degrade_notify_telegram: Optional[bool] = None
+    degrade_notify_email: Optional[bool] = None
+    telegram_token: Optional[str] = None
+    telegram_chat_notify: Optional[str] = None
+    telegram_chat_report: Optional[str] = None
+    smtp_server: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_ssl: Optional[bool] = None
+    smtp_from: Optional[str] = None
+    smtp_to_notify: Optional[str] = None
+    smtp_to_report: Optional[str] = None
 
 
 class LdapTestResponse(BaseModel):

@@ -15,16 +15,13 @@ from services.compliance import collect_degradation_issues
 
 logger = logging.getLogger(__name__)
 
-_CHECK_INTERVAL_SEC = 3600
-
 
 def _check_interval_sec() -> int:
     try:
-        from services.backup_settings import get_config
-
         return max(300, get_config().degrade_check_interval_sec)
     except Exception:
         return max(300, int(os.environ.get("DEGRADE_CHECK_INTERVAL_SEC", "3600")))
+
 
 _thread: threading.Thread | None = None
 _stop = threading.Event()
@@ -38,12 +35,12 @@ _KIND_LABELS = {
 
 
 def _should_notify(alert_key: str, device_count: int, cooldown_hours: int) -> bool:
+    if device_count <= 0:
+        return False
     now = datetime.now(timezone.utc)
     row = AlertState.objects.filter(alert_key=alert_key).first()
     if not row:
-        return device_count > 0
-    if device_count == 0:
-        return False
+        return True
     cooldown = timedelta(hours=max(1, cooldown_hours))
     if now - row.last_notified_at < cooldown and row.device_count == device_count:
         return False
@@ -58,6 +55,10 @@ def _mark_notified(alert_key: str, device_count: int) -> None:
     )
 
 
+def _clear_alert(alert_key: str) -> None:
+    AlertState.objects.filter(alert_key=alert_key).delete()
+
+
 def run_degradation_check() -> dict[str, int]:
     cfg = get_config()
     if not cfg.degrade_notify_telegram and not cfg.degrade_notify_email:
@@ -66,13 +67,19 @@ def run_degradation_check() -> dict[str, int]:
     buckets = collect_degradation_issues()
     sent = 0
     for kind, devices in buckets.items():
-        if not devices:
-            continue
         alert_key = f"degrade:{kind}"
+        if not devices:
+            _clear_alert(alert_key)
+            continue
         if not _should_notify(alert_key, len(devices), cfg.alert_cooldown_hours):
+            logger.debug(
+                "degrade | skip cooldown | %s | devices=%d",
+                kind,
+                len(devices),
+            )
             continue
         label = _KIND_LABELS.get(kind, kind)
-        lines = [f"{d['name']} ({d['ip']})" for d in devices[:50]]
+        lines = [f"{d['name']} ({d['ip']}) — {d.get('state_label', '')}" for d in devices[:50]]
         if len(devices) > 50:
             lines.append(f"… и ещё {len(devices) - 50}")
         notify_degradation(label, lines, stale_days=cfg.stale_days_threshold)

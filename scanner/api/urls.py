@@ -13,6 +13,7 @@ urlpatterns = [
     path("api/settings/oxidized", views.oxidized_settings_dispatch, name="settings-oxidized"),
     path("api/settings/backup", views.backup_settings_dispatch, name="settings-backup"),
     path("api/settings/backup/test-notify", views.backup_settings_test_notify, name="settings-backup-test-notify"),
+    path("api/settings/backup/degrade-check", views.backup_settings_degrade_check, name="settings-backup-degrade-check"),
     path("api/settings/ldap", views.ldap_settings_dispatch, name="settings-ldap"),
     path("api/settings/ldap/test", views.ldap_settings_test_view, name="settings-ldap-test"),
     path("api/settings/git", views.git_settings_dispatch, name="settings-git"),

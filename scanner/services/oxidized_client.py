@@ -167,9 +167,6 @@ def build_version_view_proxy_path(
 
 
 def build_versions_proxy_path(name: str, group: str = "") -> str:
-    if _use_python_engine():
-        return f"/api/oxidized/nodes/{quote(name, safe='')}/versions"
-
     node_full = _node_full_name(name, group)
     return (
         f"/oxidized-proxy/node/version?"
