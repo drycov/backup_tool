@@ -275,6 +275,16 @@ class BackupSettingsUpdate(BaseModel):
     compliance_report_hour_utc: int = 7
     degrade_webhook_enabled: bool = False
     degrade_webhook_url: str = ""
+    slack_webhook_url: str = ""
+    teams_webhook_url: str = ""
+    error_notify_slack: bool = False
+    error_notify_teams: bool = False
+    report_send_slack: bool = False
+    report_send_teams: bool = False
+    degrade_notify_slack: bool = False
+    degrade_notify_teams: bool = False
+    compliance_report_slack: bool = False
+    compliance_report_teams: bool = False
     maintenance_window_enabled: bool = True
     maintenance_start_hour_utc: int = 22
     maintenance_end_hour_utc: int = 6
@@ -336,6 +346,37 @@ class BackupNotifyTestRequest(BaseModel):
     smtp_from: Optional[str] = None
     smtp_to_notify: Optional[str] = None
     smtp_to_report: Optional[str] = None
+    error_notify_slack: Optional[bool] = None
+    error_notify_teams: Optional[bool] = None
+    report_send_slack: Optional[bool] = None
+    report_send_teams: Optional[bool] = None
+    degrade_notify_slack: Optional[bool] = None
+    degrade_notify_teams: Optional[bool] = None
+    compliance_report_slack: Optional[bool] = None
+    compliance_report_teams: Optional[bool] = None
+    slack_webhook_url: Optional[str] = None
+    teams_webhook_url: Optional[str] = None
+
+
+class IntegrationSettingsUpdate(BaseModel):
+    snow_enabled: bool = False
+    snow_instance_url: str = ""
+    snow_username: str = ""
+    snow_password: Optional[str] = None
+    snow_assignment_group: str = ""
+    jira_enabled: bool = False
+    jira_url: str = ""
+    jira_username: str = ""
+    jira_api_token: Optional[str] = None
+    jira_project_key: str = ""
+    jira_issue_type: str = "Task"
+    ticket_on_backup_failed: bool = True
+    ticket_on_device_offline: bool = True
+    ticket_cooldown_hours: int = 24
+    audit_webhook_enabled: bool = False
+    audit_webhook_url: str = ""
+    audit_webhook_secret: Optional[str] = None
+    audit_webhook_action_prefix: str = ""
 
 
 class LdapTestResponse(BaseModel):
@@ -373,3 +414,20 @@ class MikrotikBackupCompareRequest(BaseModel):
     type: str = Field(pattern=r"^(bin|rsc)$")
     file_a: str
     file_b: str
+
+
+class TotpVerifyRequest(BaseModel):
+    challenge: str
+    code: str = ""
+    recovery_code: str = ""
+
+
+class TotpEnableRequest(BaseModel):
+    secret: str
+    code: str
+    recovery_codes: list[str] = Field(default_factory=list)
+
+
+class TotpDisableRequest(BaseModel):
+    password: str
+    code: str = ""

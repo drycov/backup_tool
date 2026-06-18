@@ -49,19 +49,21 @@ def _layout(title: str, body: str, *, breadcrumb: str = "") -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{_esc(title)} · Oxidized</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-400.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-600.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css">
   <link rel="stylesheet" href="/static/oxidized-ui/style.css">
 </head>
-<body class="oxidized-web bg-light">
-  <nav class="navbar navbar-dark bg-dark mb-3">
+<body class="oxidized-web">
+  <nav class="navbar navbar-dark enterprise-nav mb-3">
     <div class="container-fluid">
       <a class="navbar-brand" href="{_proxy('nodes')}">
         <i class="bi bi-hdd-network me-1"></i> Oxidized
       </a>
-      <span class="navbar-text text-white-50 small">Python engine</span>
+      <span class="navbar-text text-white-50 small">Python engine · Backup Tools</span>
     </div>
   </nav>
   <main class="container-fluid pb-4">

@@ -20,19 +20,26 @@
 | Native models ios/junos/eos | ✅ `model/{ios,junos,eos}.py` + registry |
 | Group policies notify/SLA/maintenance | ✅ migration `0012`, `group_policies.py` |
 | MikroTik restore + compare API | ✅ `mikrotik_restore.py`, UI Restore |
-| Oxidized external unified diff | ⏳ фаза 3.1b |
+| Oxidized external unified diff | ✅ `oxidized_diff.py` (python + external) |
 
 ---
 
-## Фаза 3.2 — Безопасность и доступ (недели 5–8)
+## Фаза 3.2 — Безопасность и доступ (недели 5–8) — частично ✅
+
+| Задача | Статус |
+|--------|--------|
+| 2FA TOTP (local users) | ✅ migration `0013`, `totp_auth.py`, login challenge |
+| TOTP UI (login step + Users page) | ✅ |
+| LDAP scope mappings UI | ✅ Settings → LDAP |
+| LDAP test → scope preview | ✅ `allowed_groups` / `allowed_sites` в ответе |
+| External Oxidized unified diff | ✅ (перенесено из 3.1b) |
+| Custom roles + `scope_locked` | ⏳ |
 
 ### LDAP → object scope (автоматика)
 
-**Реализовано (3.0):** `scope_mappings` — JSON-массив `{ldap_group, allowed_groups[], allowed_sites[]}`.
+**Реализовано:** `scope_mappings` — JSON-массив `{ldap_group, allowed_groups[], allowed_sites[]}`; UI-редактор; preview при LDAP test login.
 
 **Дальше:**
-- UI редактор mappings в Settings → LDAP.
-- Preview scope при LDAP test login.
 - Синхронизация scope при каждом login (не перезаписывать ручные правки если `scope_locked` на user).
 
 ### API keys
@@ -45,11 +52,7 @@
 
 ### 2FA TOTP (local admin)
 
-**План:**
-- `User.totp_secret`, `totp_enabled`
-- Login flow: password → `POST /api/auth/totp` → JWT
-- Recovery codes (10 одноразовых)
-- Библиотека: `pyotp`
+**Реализовано:** `User.totp_secret`, `totp_enabled`, recovery codes; login flow password → `POST /api/auth/totp` → JWT; `pyotp`.
 
 ### Fine-grained permissions
 
@@ -61,26 +64,27 @@
 
 ---
 
-## Фаза 3.3 — Интеграции (недели 7–10)
+## Фаза 3.3 — Интеграции (недели 7–10) — частично ✅
+
+| Задача | Статус |
+|--------|--------|
+| Slack / Teams webhooks | ✅ `notification_channels.py`, toggles per event type |
+| ServiceNow / Jira tickets | ✅ `IntegrationConfig`, dedupe `AlertState` |
+| Audit SIEM webhook + HMAC | ✅ `audit_webhook.py`, task `audit.webhook` |
+| UI Settings → Интеграции | ✅ |
+| OpenAPI autogen drift CI | ⏳ |
 
 ### Slack / Microsoft Teams
 
-Абстракция `NotificationChannel` поверх `backup_notifications.py`:
-- `slack_webhook_url`, `teams_webhook_url` в `BackupConfig`
-- Форматтеры: Block Kit / MessageCard
-- Переключатель per event type (error, report, degrade, compliance)
+**Реализовано:** Block Kit / MessageCard; `slack_webhook_url`, `teams_webhook_url` в BackupConfig; галочки error/report/degrade/compliance.
 
 ### ServiceNow / Jira
 
-- `IntegrationConfig` singleton: SNOW instance, Jira URL, credentials
-- `create_ticket(event, devices)` при `backup_failed` / `device_offline`
-- Dedupe по `alert_key` (как `AlertState`)
+**Реализовано:** `IntegrationConfig` singleton; `create_ticket()` при `backup_failed` и `device_offline`; cooldown через `ticket_cooldown_hours`.
 
 ### Webhook на audit (SIEM)
 
-- `AUDIT_WEBHOOK_URL` + HMAC подпись
-- POST JSON на каждый `AuditEvent.create` (async via task queue)
-- Фильтр action prefix
+**Реализовано:** `audit_webhook_*` в IntegrationConfig; HMAC `X-Backup-Tools-Signature`; async `BackgroundTask.TASK_AUDIT_WEBHOOK`; фильтр `audit_webhook_action_prefix`.
 
 ### OpenAPI
 

@@ -126,13 +126,15 @@
 
     const os = window.OverlayScrollbarsGlobal?.OverlayScrollbars;
 
+    const isDark = resolveTheme(getPreferredTheme()) === "dark";
+
     if (sidebarWrapper && os) {
 
       os(sidebarWrapper, {
 
         scrollbars: {
 
-          theme: "os-theme-light",
+          theme: isDark ? "os-theme-dark" : "os-theme-light",
 
           autoHide: "leave",
 

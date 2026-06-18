@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from services.backup_settings import BackupConfigData, get_config
+from services.notification_channels import send_slack, send_teams
 from services.notification_templates import NotificationBodies, test_notification
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,12 @@ def _dispatch(
         if cfg.error_notify_email:
             ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, bodies.email)
             messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.error_notify_slack:
+            ok, msg = send_slack(cfg.slack_webhook_url, subject, bodies.email, kind=kind)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.error_notify_teams:
+            ok, msg = send_teams(cfg.teams_webhook_url, subject, bodies.email, kind=kind)
+            messages.append(msg if ok else f"Ошибка: {msg}")
     elif kind == "report":
         if cfg.report_send_telegram:
             chat = cfg.telegram_chat_report or cfg.telegram_chat_notify
@@ -112,6 +119,12 @@ def _dispatch(
             to_addr = cfg.smtp_to_report or cfg.smtp_to_notify
             ok, msg = _send_email(cfg, to_addr, subject, bodies.email)
             messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.report_send_slack:
+            ok, msg = send_slack(cfg.slack_webhook_url, subject, bodies.email, kind=kind)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.report_send_teams:
+            ok, msg = send_teams(cfg.teams_webhook_url, subject, bodies.email, kind=kind)
+            messages.append(msg if ok else f"Ошибка: {msg}")
     elif kind == "degrade":
         if cfg.degrade_notify_telegram:
             ok, msg = _send_telegram(
@@ -123,6 +136,12 @@ def _dispatch(
             messages.append(msg if ok else f"Ошибка: {msg}")
         if cfg.degrade_notify_email:
             ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, bodies.email)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.degrade_notify_slack:
+            ok, msg = send_slack(cfg.slack_webhook_url, subject, bodies.email, kind=kind)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.degrade_notify_teams:
+            ok, msg = send_teams(cfg.teams_webhook_url, subject, bodies.email, kind=kind)
             messages.append(msg if ok else f"Ошибка: {msg}")
     elif kind == "compliance":
         if cfg.compliance_report_telegram:
@@ -137,6 +156,12 @@ def _dispatch(
         if cfg.compliance_report_email:
             to_addr = cfg.smtp_to_report or cfg.smtp_to_notify
             ok, msg = _send_email(cfg, to_addr, subject, bodies.email)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.compliance_report_slack:
+            ok, msg = send_slack(cfg.slack_webhook_url, subject, bodies.email, kind=kind)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.compliance_report_teams:
+            ok, msg = send_teams(cfg.teams_webhook_url, subject, bodies.email, kind=kind)
             messages.append(msg if ok else f"Ошибка: {msg}")
     return messages
 
@@ -185,6 +210,16 @@ def _apply_test_overrides(cfg: BackupConfigData, overrides: dict[str, Any] | Non
         "report_send_email": overrides.get("report_send_email", cfg.report_send_email),
         "degrade_notify_telegram": overrides.get("degrade_notify_telegram", cfg.degrade_notify_telegram),
         "degrade_notify_email": overrides.get("degrade_notify_email", cfg.degrade_notify_email),
+        "error_notify_slack": overrides.get("error_notify_slack", cfg.error_notify_slack),
+        "error_notify_teams": overrides.get("error_notify_teams", cfg.error_notify_teams),
+        "report_send_slack": overrides.get("report_send_slack", cfg.report_send_slack),
+        "report_send_teams": overrides.get("report_send_teams", cfg.report_send_teams),
+        "degrade_notify_slack": overrides.get("degrade_notify_slack", cfg.degrade_notify_slack),
+        "degrade_notify_teams": overrides.get("degrade_notify_teams", cfg.degrade_notify_teams),
+        "compliance_report_slack": overrides.get("compliance_report_slack", cfg.compliance_report_slack),
+        "compliance_report_teams": overrides.get("compliance_report_teams", cfg.compliance_report_teams),
+        "slack_webhook_url": overrides.get("slack_webhook_url", cfg.slack_webhook_url),
+        "teams_webhook_url": overrides.get("teams_webhook_url", cfg.teams_webhook_url),
         "telegram_token": overrides.get("telegram_token") or cfg.telegram_token,
         "telegram_chat_notify": overrides.get("telegram_chat_notify", cfg.telegram_chat_notify),
         "telegram_chat_report": overrides.get("telegram_chat_report", cfg.telegram_chat_report),
@@ -215,6 +250,12 @@ def notify_backup_error(
     for msg in _dispatch(cfg, kind="error", subject="Backup Tools: ошибка бэкапа", bodies=bodies):
         level = logging.WARNING if msg.startswith("Ошибка:") else logging.INFO
         logger.log(level, "backup | notify | %s", msg)
+    try:
+        from services.integration_tickets import maybe_create_backup_failed_ticket
+
+        maybe_create_backup_failed_ticket(device, ip, status, detail, group=group)
+    except Exception:
+        logger.exception("backup | ticket create failed | %s", device)
 
 
 def notify_degradation(
@@ -226,7 +267,12 @@ def notify_degradation(
     from services.notification_templates import degradation_alert
 
     cfg = get_config()
-    if not cfg.degrade_notify_telegram and not cfg.degrade_notify_email:
+    if (
+        not cfg.degrade_notify_telegram
+        and not cfg.degrade_notify_email
+        and not cfg.degrade_notify_slack
+        and not cfg.degrade_notify_teams
+    ):
         return
     if not devices:
         return
@@ -259,20 +305,20 @@ def send_test_notification(
     bodies = test_notification(kind)
 
     channel_map = {
-        "error": ("error_notify_telegram", "error_notify_email"),
-        "report": ("report_send_telegram", "report_send_email"),
-        "degrade": ("degrade_notify_telegram", "degrade_notify_email"),
-        "compliance": ("compliance_report_telegram", "compliance_report_email"),
+        "error": ("error_notify_telegram", "error_notify_email", "error_notify_slack", "error_notify_teams"),
+        "report": ("report_send_telegram", "report_send_email", "report_send_slack", "report_send_teams"),
+        "degrade": ("degrade_notify_telegram", "degrade_notify_email", "degrade_notify_slack", "degrade_notify_teams"),
+        "compliance": ("compliance_report_telegram", "compliance_report_email", "compliance_report_slack", "compliance_report_teams"),
     }
     if kind not in channel_map:
         return {"ok": False, "messages": [f"Неизвестный тип: {kind}"]}
 
-    tg_flag, email_flag = channel_map[kind]
-    if not getattr(cfg, tg_flag) and not getattr(cfg, email_flag):
+    flags = channel_map[kind]
+    if not any(getattr(cfg, flag) for flag in flags):
         return {
             "ok": False,
             "messages": [
-                f"Включите Telegram и/или Email для типа «{kind}» (галочки в форме)"
+                f"Включите хотя бы один канал для типа «{kind}» (галочки в форме)"
             ],
         }
 

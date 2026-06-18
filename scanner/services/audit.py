@@ -26,6 +26,8 @@ ACTION_AUTH_LOGIN_FAILED = "auth.login_failed"
 ACTION_USER_SCOPE_UPDATE = "user.scope_update"
 ACTION_COMPLIANCE_EXPORT = "compliance.export"
 ACTION_COMPLIANCE_REPORT_SEND = "compliance.report_send"
+ACTION_SECURITY_AUDIT_RUN = "security.audit_run"
+ACTION_SECURITY_EXPORT = "security.export"
 ACTION_MIKROTIK_RESTORE = "mikrotik.restore"
 
 
@@ -47,7 +49,7 @@ def log_audit(
     request: HttpRequest | None = None,
 ) -> None:
     try:
-        AuditEvent.objects.create(
+        event = AuditEvent.objects.create(
             username=username or "system",
             action=action,
             target=target[:256],
@@ -55,6 +57,12 @@ def log_audit(
             ip_address=_client_ip(request)[:64],
         )
         logger.info("audit | %s | %s | %s | %s", username, action, target, detail)
+        try:
+            from services.audit_webhook import schedule_audit_webhook
+
+            schedule_audit_webhook(event.id)
+        except Exception:
+            logger.exception("audit | webhook schedule failed | %s", action)
     except Exception:
         logger.exception("audit | failed to persist | %s %s", action, target)
 

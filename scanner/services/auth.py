@@ -26,6 +26,8 @@ PERMISSION_MANAGE_USERS = "users:manage"
 PERMISSION_COMPLIANCE_READ = "compliance:read"
 PERMISSION_SETTINGS_NOTIFY = "settings:notify"
 PERMISSION_AUDIT_READ = "audit:read"
+PERMISSION_SECURITY_READ = "security:read"
+PERMISSION_SECURITY_RUN = "security:run"
 PERMISSION_API_KEYS_MANAGE = "api_keys:manage"
 PERMISSION_SETTINGS_READ = "settings:read"
 

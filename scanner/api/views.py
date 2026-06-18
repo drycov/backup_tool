@@ -1,5 +1,6 @@
 
 import httpx
+from datetime import datetime, timezone
 from django.conf import settings
 from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -22,6 +23,8 @@ from services.audit import (
     ACTION_AUTH_LOGIN_LDAP,
     ACTION_COMPLIANCE_EXPORT,
     ACTION_COMPLIANCE_REPORT_SEND,
+    ACTION_SECURITY_AUDIT_RUN,
+    ACTION_SECURITY_EXPORT,
     ACTION_CREDENTIAL_CREATE,
     ACTION_CREDENTIAL_DELETE,
     ACTION_CREDENTIAL_UPDATE,
@@ -91,6 +94,7 @@ from services.schemas import (
     DeviceCreate,
     GitSettingsUpdate,
     GroupPolicyUpdate,
+    IntegrationSettingsUpdate,
     Inventory,
     LdapConfigUpdate,
     LdapTestRequest,
@@ -183,6 +187,21 @@ def login_view(request: HttpRequest) -> JsonResponse:
         return error_response("Неверный логин или пароль", status=401)
 
     login_action = ACTION_AUTH_LOGIN_LDAP if (user.auth_source or "") == "ldap" else ACTION_AUTH_LOGIN
+
+    from services.totp_auth import create_totp_challenge_token, totp_public_status
+
+    if (user.auth_source or "local") != "ldap" and user.totp_enabled:
+        return json_response(
+            {
+                "totp_required": True,
+                "challenge": create_totp_challenge_token(user.id),
+                "user": {
+                    "username": user.username,
+                    **totp_public_status(user),
+                },
+            }
+        )
+
     log_audit_user(user, login_action, request=request)
 
     token = auth.create_access_token(user.id, user.username, user.role)
@@ -196,6 +215,7 @@ def login_view(request: HttpRequest) -> JsonResponse:
                 "role": user.role,
                 "permissions": auth.permissions_for_role(user.role),
                 "must_change_password": bool(getattr(user, "must_change_password", False)),
+                **totp_public_status(user),
             },
         }
     )
@@ -233,6 +253,110 @@ def change_password_view(request: HttpRequest) -> JsonResponse:
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def totp_verify_view(request: HttpRequest) -> JsonResponse:
+    try:
+        body = parse_json_body(request)
+        from services.schemas import TotpVerifyRequest
+
+        payload = TotpVerifyRequest.model_validate(body)
+        from services.totp_auth import (
+            decode_totp_challenge,
+            totp_public_status,
+            verify_login_second_factor,
+        )
+
+        user_id = decode_totp_challenge(payload.challenge)
+        user = auth.get_user_by_id(user_id)
+        if not user or not user.is_active:
+            return error_response("Пользователь не найден", status=401)
+        if not verify_login_second_factor(
+            user, code=payload.code, recovery_code=payload.recovery_code
+        ):
+            log_audit(user.username, ACTION_AUTH_LOGIN_FAILED, detail="totp", request=request)
+            return error_response("Неверный код 2FA", status=401)
+        log_audit_user(user, ACTION_AUTH_LOGIN, detail="totp", request=request)
+        token = auth.create_access_token(user.id, user.username, user.role)
+        response = json_response(
+            {
+                "access_token": token,
+                "token_type": "bearer",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "role": user.role,
+                    "permissions": auth.permissions_for_role(user.role),
+                    "must_change_password": bool(getattr(user, "must_change_password", False)),
+                    **totp_public_status(user),
+                },
+            }
+        )
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            samesite="Lax",
+            secure=getattr(settings, "BEHIND_HTTPS_PROXY", False),
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+        )
+        return response
+    except ValidationError as exc:
+        return error_response(str(exc))
+    except ValueError as exc:
+        return error_response(str(exc), status=401)
+
+
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def totp_setup_view(request: HttpRequest) -> JsonResponse:
+    from services.totp_auth import begin_totp_setup
+
+    user: User = request.api_user
+    try:
+        return json_response(begin_totp_setup(user))
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def totp_enable_view(request: HttpRequest) -> JsonResponse:
+    from services.schemas import TotpEnableRequest
+    from services.totp_auth import enable_totp, totp_public_status
+
+    user: User = request.api_user
+    try:
+        body = parse_json_body(request)
+        payload = TotpEnableRequest.model_validate(body)
+        enable_totp(user, payload.secret, payload.code, payload.recovery_codes)
+    except ValidationError as exc:
+        return error_response(str(exc))
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    return json_response({"ok": True, **totp_public_status(user)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def totp_disable_view(request: HttpRequest) -> JsonResponse:
+    from services.schemas import TotpDisableRequest
+    from services.totp_auth import disable_totp, totp_public_status
+
+    user: User = request.api_user
+    try:
+        body = parse_json_body(request)
+        payload = TotpDisableRequest.model_validate(body)
+        disable_totp(user, password=payload.password, code=payload.code)
+    except ValidationError as exc:
+        return error_response(str(exc))
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    return json_response({"ok": True, **totp_public_status(user)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def logout_view(request: HttpRequest) -> JsonResponse:
     response = json_response({"status": "ok"})
     response.delete_cookie(key=settings.AUTH_COOKIE_NAME, path="/")
@@ -244,6 +368,8 @@ def auth_me(request: HttpRequest) -> JsonResponse:
     user: User = request.api_user
     from services.object_scope import scope_public
 
+    from services.totp_auth import totp_public_status
+
     return json_response(
         {
             "id": user.id,
@@ -253,6 +379,7 @@ def auth_me(request: HttpRequest) -> JsonResponse:
             "auth_source": user.auth_source or "local",
             "role_locked": bool(getattr(user, "role_locked", False)),
             "must_change_password": bool(getattr(user, "must_change_password", False)),
+            **totp_public_status(user),
             **scope_public(user),
         }
     )
@@ -731,18 +858,13 @@ def oxidized_node_version_view(request: HttpRequest, name: str, oid: str) -> Htt
     denied = _node_access_denied(request.api_user, name)
     if denied:
         return denied
-    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
-        return error_response("Доступно только для python engine", status=501)
-    from services.oxidized_engine import get_manager
-    from services.oxidized_engine.exceptions import NodeNotFound
+    from services.oxidized_diff import get_node_version_text
 
-    try:
-        text = get_manager().get_version(name, oid)
-    except NodeNotFound:
-        return error_response(f"Node '{name}' not found", status=404)
-    if text == "version not found":
-        return error_response("version not found", status=404)
-    return HttpResponse(text, content_type="text/plain; charset=utf-8")
+    text, err = get_node_version_text(name, oid)
+    if err:
+        status = 404 if "not found" in err.lower() else 400
+        return error_response(err, status=status)
+    return HttpResponse(text or "", content_type="text/plain; charset=utf-8")
 
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
@@ -750,20 +872,18 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
     denied = _node_access_denied(request.api_user, name)
     if denied:
         return denied
-    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
-        return error_response("Доступно только для python engine", status=501)
     from services.git_diff_html import render_git_diff_html, render_side_by_side_html
-    from services.oxidized_engine import get_manager
-    from services.oxidized_engine.exceptions import NodeNotFound
+    from services.oxidized_diff import get_node_diff, get_node_version_text
 
     oid = request.GET.get("oid", "")
     oid2 = request.GET.get("oid2") or None
     if not oid:
         return error_response("oid required", status=400)
-    try:
-        diff = get_manager().get_diff(name, oid, oid2)
-    except NodeNotFound:
-        return error_response(f"Node '{name}' not found", status=404)
+    diff, err = get_node_diff(name, oid, oid2)
+    if err:
+        status = 404 if "not found" in err.lower() else 400
+        return error_response(err, status=status)
+    diff = diff or {}
 
     fmt = (request.GET.get("format") or "html").lower()
     patch = str(diff.get("patch") or "")
@@ -774,15 +894,11 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
     if fmt == "side_by_side":
         if not oid2:
             return error_response("oid2 required for side_by_side", status=400)
-        try:
-            mgr = get_manager()
-            old_text = mgr.get_version(name, oid2)
-            new_text = mgr.get_version(name, oid)
-        except NodeNotFound:
-            return error_response(f"Node '{name}' not found", status=404)
-        if old_text == "version not found" or new_text == "version not found":
-            return error_response("version not found", status=404)
-        html_body = render_side_by_side_html(old_text, new_text, title=f"Diff {name}")
+        old_text, err_old = get_node_version_text(name, oid2)
+        new_text, err_new = get_node_version_text(name, oid)
+        if err_old or err_new:
+            return error_response(err_old or err_new or "version not found", status=404)
+        html_body = render_side_by_side_html(old_text or "", new_text or "", title=f"Diff {name}")
         return HttpResponse(html_body, content_type="text/html; charset=utf-8")
     html_body = render_git_diff_html(
         patch,
@@ -1173,6 +1289,134 @@ def audit_export_view(request: HttpRequest) -> HttpResponse:
     return response
 
 
+@require_permission(auth.PERMISSION_SECURITY_READ)
+def security_audit_summary_view(request: HttpRequest) -> JsonResponse:
+    from services.config_security_audit import compute_security_summary
+
+    user: User = request.api_user
+    acknowledged = request.GET.get("acknowledged") or None
+    if acknowledged == "":
+        acknowledged = None
+    return json_response(
+        compute_security_summary(
+            severity=request.GET.get("severity", "").strip(),
+            category=request.GET.get("category", "").strip(),
+            device=request.GET.get("device", "").strip(),
+            acknowledged=acknowledged,
+            user=user,
+        )
+    )
+
+
+@require_permission(auth.PERMISSION_SECURITY_READ)
+def security_audit_runs_view(request: HttpRequest) -> JsonResponse:
+    from services.config_security_audit import list_audit_runs
+
+    try:
+        limit = int(request.GET.get("limit", "20"))
+    except ValueError:
+        limit = 20
+    return json_response({"runs": list_audit_runs(limit=limit)})
+
+
+@require_permission(auth.PERMISSION_SECURITY_READ)
+def security_audit_export_view(request: HttpRequest) -> HttpResponse:
+    from services.config_security_audit import compute_security_summary, findings_to_csv
+
+    user: User = request.api_user
+    summary = compute_security_summary(
+        severity=request.GET.get("severity", "").strip(),
+        category=request.GET.get("category", "").strip(),
+        device=request.GET.get("device", "").strip(),
+        user=user,
+    )
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    csv_text = findings_to_csv(summary)
+    response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="security-audit-{stamp}.csv"'
+    log_audit_user(
+        user,
+        ACTION_SECURITY_EXPORT,
+        detail=f"findings={summary.get('findings_total', 0)}",
+        request=request,
+    )
+    return response
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_SECURITY_RUN)
+def security_audit_run_view(request: HttpRequest) -> JsonResponse:
+    from core.models import BackgroundTask, ConfigAuditRun
+    from services.config_security_audit import run_config_audit
+    from services.task_queue import enqueue
+
+    user: User = request.api_user
+    body = parse_json_body(request) or {}
+    device = str(body.get("device") or "").strip()
+    async_mode = bool(body.get("async"))
+
+    if async_mode:
+        now = datetime.now(timezone.utc)
+        run = ConfigAuditRun.objects.create(
+            status=ConfigAuditRun.STATUS_RUNNING,
+            triggered_by=user.username,
+            started_at=now,
+        )
+        task = enqueue(
+            BackgroundTask.TASK_CONFIG_AUDIT,
+            payload={
+                "run_id": run.id,
+                "device": device,
+                "triggered_by": user.username,
+                "user_id": user.id,
+            },
+            dedupe=False,
+        )
+        log_audit_user(
+            user,
+            ACTION_SECURITY_AUDIT_RUN,
+            target=device or "all",
+            detail=f"async run_id={run.id}",
+            request=request,
+        )
+        if not task:
+            run.status = ConfigAuditRun.STATUS_FAILED
+            run.error = "Не удалось поставить задачу в очередь"
+            run.finished_at = now
+            run.save()
+            return error_response("Очередь задач недоступна", status=503)
+        return json_response({"status": "queued", "run_id": run.id, "task_id": task.id})
+
+    result = run_config_audit(
+        device_name=device,
+        triggered_by=user.username,
+        user=user,
+    )
+    log_audit_user(
+        user,
+        ACTION_SECURITY_AUDIT_RUN,
+        target=device or "all",
+        detail=f"findings={result.get('findings_count', 0)}",
+        request=request,
+    )
+    return json_response({"status": "ok", "run": result})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_SECURITY_RUN)
+def security_finding_ack_view(request: HttpRequest, finding_id: int) -> JsonResponse:
+    from services.config_security_audit import acknowledge_finding
+
+    body = parse_json_body(request) or {}
+    acknowledged = bool(body.get("acknowledged", True))
+    row = acknowledge_finding(finding_id, acknowledged=acknowledged)
+    if not row:
+        return error_response("Finding not found", status=404)
+    return json_response(row)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 @require_permission(auth.PERMISSION_OXIDIZED_WRITE)
@@ -1379,6 +1623,44 @@ def git_settings_dispatch(request: HttpRequest) -> JsonResponse:
         log_audit_user(user, ACTION_SETTINGS_UPDATE, target="git", request=request)
         return json_response(saved)
     return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+def integration_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import integration_settings
+
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    if request.method == "GET":
+        if not auth.user_has_permission(user, auth.PERMISSION_SETTINGS_READ):
+            return error_response("Недостаточно прав", status=403)
+        return json_response(integration_settings.get_config_public())
+    if request.method == "PUT":
+        if not auth.user_has_permission(user, auth.PERMISSION_SETTINGS_NOTIFY):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            body = parse_json_body(request)
+            payload = IntegrationSettingsUpdate.model_validate(body)
+            saved = integration_settings.save_config(payload.model_dump())
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        log_audit_user(user, ACTION_SETTINGS_UPDATE, target="integrations", request=request)
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_SETTINGS_NOTIFY)
+def integration_test_audit_webhook(request: HttpRequest) -> JsonResponse:
+    from services.audit_webhook import send_test_audit_webhook
+
+    return json_response(send_test_audit_webhook())
 
 
 @csrf_exempt

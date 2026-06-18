@@ -65,6 +65,8 @@ def run_degradation_check() -> dict[str, int]:
         not cfg.degrade_notify_telegram
         and not cfg.degrade_notify_email
         and not cfg.degrade_webhook_enabled
+        and not cfg.degrade_notify_slack
+        and not cfg.degrade_notify_teams
     ):
         return {"skipped": 1}
 
@@ -85,6 +87,12 @@ def run_degradation_check() -> dict[str, int]:
         label = _KIND_LABELS.get(kind, kind)
         notify_degradation(label, devices, stale_days=cfg.stale_days_threshold)
         notify_degradation_webhook(kind, devices)
+        try:
+            from services.integration_tickets import maybe_create_tickets_for_degradation
+
+            maybe_create_tickets_for_degradation(kind, devices)
+        except Exception:
+            logger.exception("degrade | ticket create failed | %s", kind)
         _mark_notified(alert_key, len(devices))
         sent += 1
         logger.info("degrade | notified | %s | devices=%d", kind, len(devices))

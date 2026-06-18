@@ -54,6 +54,16 @@ class BackupConfigData:
     compliance_report_hour_utc: int
     degrade_webhook_enabled: bool
     degrade_webhook_url: str
+    slack_webhook_url: str
+    teams_webhook_url: str
+    error_notify_slack: bool
+    error_notify_teams: bool
+    report_send_slack: bool
+    report_send_teams: bool
+    degrade_notify_slack: bool
+    degrade_notify_teams: bool
+    compliance_report_slack: bool
+    compliance_report_teams: bool
     maintenance_window_enabled: bool
     maintenance_start_hour_utc: int
     maintenance_end_hour_utc: int
@@ -112,6 +122,16 @@ def _defaults_from_env() -> dict[str, Any]:
         ),
         "degrade_webhook_enabled": _env_bool("DEGRADE_WEBHOOK_ENABLED"),
         "degrade_webhook_url": os.environ.get("DEGRADE_WEBHOOK_URL", ""),
+        "slack_webhook_url": os.environ.get("SLACK_WEBHOOK_URL", ""),
+        "teams_webhook_url": os.environ.get("TEAMS_WEBHOOK_URL", ""),
+        "error_notify_slack": _env_bool("ERROR_NOTIFICATION_SLACK"),
+        "error_notify_teams": _env_bool("ERROR_NOTIFICATION_TEAMS"),
+        "report_send_slack": _env_bool("REPORT_SEND_SLACK"),
+        "report_send_teams": _env_bool("REPORT_SEND_TEAMS"),
+        "degrade_notify_slack": _env_bool("DEGRADE_NOTIFICATION_SLACK"),
+        "degrade_notify_teams": _env_bool("DEGRADE_NOTIFICATION_TEAMS"),
+        "compliance_report_slack": _env_bool("COMPLIANCE_REPORT_SLACK"),
+        "compliance_report_teams": _env_bool("COMPLIANCE_REPORT_TEAMS"),
         "maintenance_window_enabled": _env_bool("MAINTENANCE_WINDOW_ENABLED", default=True),
         "maintenance_start_hour_utc": max(
             0, min(23, int(os.environ.get("MAINTENANCE_START_HOUR_UTC", "22")))
@@ -160,6 +180,16 @@ def _row_to_data(row: BackupConfig) -> BackupConfigData:
         compliance_report_hour_utc=row.compliance_report_hour_utc or 7,
         degrade_webhook_enabled=row.degrade_webhook_enabled,
         degrade_webhook_url=row.degrade_webhook_url or "",
+        slack_webhook_url=getattr(row, "slack_webhook_url", None) or "",
+        teams_webhook_url=getattr(row, "teams_webhook_url", None) or "",
+        error_notify_slack=getattr(row, "error_notify_slack", False),
+        error_notify_teams=getattr(row, "error_notify_teams", False),
+        report_send_slack=getattr(row, "report_send_slack", False),
+        report_send_teams=getattr(row, "report_send_teams", False),
+        degrade_notify_slack=getattr(row, "degrade_notify_slack", False),
+        degrade_notify_teams=getattr(row, "degrade_notify_teams", False),
+        compliance_report_slack=getattr(row, "compliance_report_slack", False),
+        compliance_report_teams=getattr(row, "compliance_report_teams", False),
         maintenance_window_enabled=getattr(row, "maintenance_window_enabled", True),
         maintenance_start_hour_utc=getattr(row, "maintenance_start_hour_utc", None) or 22,
         maintenance_end_hour_utc=getattr(row, "maintenance_end_hour_utc", None) or 6,
@@ -263,12 +293,24 @@ def get_config_public() -> dict[str, Any]:
         "compliance_report_hour_utc": cfg.compliance_report_hour_utc,
         "degrade_webhook_enabled": cfg.degrade_webhook_enabled,
         "degrade_webhook_url": cfg.degrade_webhook_url,
+        "slack_webhook_url": cfg.slack_webhook_url,
+        "teams_webhook_url": cfg.teams_webhook_url,
+        "error_notify_slack": cfg.error_notify_slack,
+        "error_notify_teams": cfg.error_notify_teams,
+        "report_send_slack": cfg.report_send_slack,
+        "report_send_teams": cfg.report_send_teams,
+        "degrade_notify_slack": cfg.degrade_notify_slack,
+        "degrade_notify_teams": cfg.degrade_notify_teams,
+        "compliance_report_slack": cfg.compliance_report_slack,
+        "compliance_report_teams": cfg.compliance_report_teams,
         "compliance_report_last_sent_at": _compliance_report_last_sent_iso(),
         **maintenance_config_public(cfg),
         "storage": "database" if is_database_available() else "env",
         "notifications_configured": bool(
             cfg.telegram_token
             or (cfg.smtp_server and cfg.smtp_from)
+            or cfg.slack_webhook_url
+            or cfg.teams_webhook_url
         ),
     }
 
@@ -373,6 +415,40 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
     row.degrade_webhook_url = str(
         payload.get("degrade_webhook_url", row.degrade_webhook_url)
     ).strip()
+    row.slack_webhook_url = str(
+        payload.get("slack_webhook_url", getattr(row, "slack_webhook_url", ""))
+    ).strip()
+    row.teams_webhook_url = str(
+        payload.get("teams_webhook_url", getattr(row, "teams_webhook_url", ""))
+    ).strip()
+    row.error_notify_slack = bool(
+        payload.get("error_notify_slack", getattr(row, "error_notify_slack", False))
+    )
+    row.error_notify_teams = bool(
+        payload.get("error_notify_teams", getattr(row, "error_notify_teams", False))
+    )
+    row.report_send_slack = bool(
+        payload.get("report_send_slack", getattr(row, "report_send_slack", False))
+    )
+    row.report_send_teams = bool(
+        payload.get("report_send_teams", getattr(row, "report_send_teams", False))
+    )
+    row.degrade_notify_slack = bool(
+        payload.get("degrade_notify_slack", getattr(row, "degrade_notify_slack", False))
+    )
+    row.degrade_notify_teams = bool(
+        payload.get("degrade_notify_teams", getattr(row, "degrade_notify_teams", False))
+    )
+    row.compliance_report_slack = bool(
+        payload.get(
+            "compliance_report_slack", getattr(row, "compliance_report_slack", False)
+        )
+    )
+    row.compliance_report_teams = bool(
+        payload.get(
+            "compliance_report_teams", getattr(row, "compliance_report_teams", False)
+        )
+    )
     row.maintenance_window_enabled = bool(
         payload.get("maintenance_window_enabled", row.maintenance_window_enabled)
     )

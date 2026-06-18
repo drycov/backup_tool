@@ -74,6 +74,9 @@ class User(models.Model):
     auth_source = models.CharField(max_length=16, default="local")
     role_locked = models.BooleanField(default=False)
     must_change_password = models.BooleanField(default=False)
+    totp_enabled = models.BooleanField(default=False)
+    totp_secret = models.CharField(max_length=64, blank=True, default="")
+    totp_recovery_hashes = LegacyJSONField(default=list, blank=True)
     allowed_groups = LegacyJSONField(default=list, blank=True)
     allowed_sites = LegacyJSONField(default=list, blank=True)
     created_at = models.DateTimeField(null=True, blank=True)
@@ -157,6 +160,17 @@ class BackupConfig(models.Model):
     degrade_webhook_enabled = models.BooleanField(default=False)
     degrade_webhook_url = models.CharField(max_length=512, blank=True, default="")
 
+    slack_webhook_url = models.CharField(max_length=512, blank=True, default="")
+    teams_webhook_url = models.CharField(max_length=512, blank=True, default="")
+    error_notify_slack = models.BooleanField(default=False)
+    error_notify_teams = models.BooleanField(default=False)
+    report_send_slack = models.BooleanField(default=False)
+    report_send_teams = models.BooleanField(default=False)
+    degrade_notify_slack = models.BooleanField(default=False)
+    degrade_notify_teams = models.BooleanField(default=False)
+    compliance_report_slack = models.BooleanField(default=False)
+    compliance_report_teams = models.BooleanField(default=False)
+
     maintenance_window_enabled = models.BooleanField(default=True)
     maintenance_start_hour_utc = models.PositiveSmallIntegerField(default=22)
     maintenance_end_hour_utc = models.PositiveSmallIntegerField(default=6)
@@ -183,6 +197,37 @@ class GitConfig(models.Model):
 
     class Meta:
         db_table = "git_config"
+
+
+class IntegrationConfig(models.Model):
+    """Singleton: ServiceNow, Jira, audit SIEM webhook (pk=1)."""
+
+    snow_enabled = models.BooleanField(default=False)
+    snow_instance_url = models.CharField(max_length=512, blank=True, default="")
+    snow_username = models.CharField(max_length=128, blank=True, default="")
+    snow_password = models.CharField(max_length=256, blank=True, default="")
+    snow_assignment_group = models.CharField(max_length=128, blank=True, default="")
+
+    jira_enabled = models.BooleanField(default=False)
+    jira_url = models.CharField(max_length=512, blank=True, default="")
+    jira_username = models.CharField(max_length=128, blank=True, default="")
+    jira_api_token = models.CharField(max_length=256, blank=True, default="")
+    jira_project_key = models.CharField(max_length=32, blank=True, default="")
+    jira_issue_type = models.CharField(max_length=64, default="Task")
+
+    ticket_on_backup_failed = models.BooleanField(default=True)
+    ticket_on_device_offline = models.BooleanField(default=True)
+    ticket_cooldown_hours = models.PositiveIntegerField(default=24)
+
+    audit_webhook_enabled = models.BooleanField(default=False)
+    audit_webhook_url = models.CharField(max_length=512, blank=True, default="")
+    audit_webhook_secret = models.CharField(max_length=256, blank=True, default="")
+    audit_webhook_action_prefix = models.CharField(max_length=64, blank=True, default="")
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "integration_config"
 
 
 class ScanConfig(models.Model):
@@ -248,6 +293,8 @@ class BackgroundTask(models.Model):
     TASK_COMPLIANCE_REPORT = "compliance.report"
     TASK_SCHEDULED_SCAN = "scan.scheduled"
     TASK_AUDIT_PURGE = "audit.purge"
+    TASK_AUDIT_WEBHOOK = "audit.webhook"
+    TASK_CONFIG_AUDIT = "config.audit"
 
     task_type = models.CharField(max_length=64, db_index=True)
     status = models.CharField(max_length=16, default=STATUS_PENDING, db_index=True)
@@ -298,3 +345,58 @@ class AlertState(models.Model):
 
     class Meta:
         db_table = "alert_states"
+
+
+class ConfigAuditRun(models.Model):
+    """Запуск анализа конфигураций на уязвимости и misconfiguration."""
+
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+
+    status = models.CharField(max_length=16, default=STATUS_COMPLETED, db_index=True)
+    triggered_by = models.CharField(max_length=64, default="system")
+    devices_total = models.PositiveIntegerField(default=0)
+    devices_scanned = models.PositiveIntegerField(default=0)
+    devices_skipped = models.PositiveIntegerField(default=0)
+    findings_count = models.PositiveIntegerField(default=0)
+    error = models.TextField(blank=True, default="")
+    started_at = models.DateTimeField(db_index=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "config_audit_runs"
+        ordering = ["-started_at"]
+
+
+class ConfigFinding(models.Model):
+    """Нарушение правила безопасности в конфигурации устройства."""
+
+    run = models.ForeignKey(
+        ConfigAuditRun,
+        on_delete=models.CASCADE,
+        related_name="findings",
+    )
+    device_name = models.CharField(max_length=128, db_index=True)
+    device_ip = models.CharField(max_length=64, blank=True, default="")
+    device_model = models.CharField(max_length=64, blank=True, default="")
+    device_group = models.CharField(max_length=64, blank=True, default="")
+    device_site = models.CharField(max_length=128, blank=True, default="")
+    rule_id = models.CharField(max_length=64, db_index=True)
+    category = models.CharField(max_length=32, default="hardening", db_index=True)
+    severity = models.CharField(max_length=16, db_index=True)
+    title = models.CharField(max_length=256)
+    evidence = models.TextField(blank=True, default="")
+    line_number = models.PositiveIntegerField(null=True, blank=True)
+    remediation = models.TextField(blank=True, default="")
+    acknowledged = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "config_findings"
+        ordering = ["-severity", "device_name"]
+        indexes = [
+            models.Index(fields=["run", "severity"]),
+            models.Index(fields=["device_name", "rule_id"]),
+        ]

@@ -208,6 +208,28 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
 
         return purge_old_audit_events()
 
+    if task.task_type == BackgroundTask.TASK_AUDIT_WEBHOOK:
+        from services.audit_webhook import deliver_audit_webhook
+
+        audit_event_id = int((task.payload or {}).get("audit_event_id") or 0)
+        return deliver_audit_webhook(audit_event_id)
+
+    if task.task_type == BackgroundTask.TASK_CONFIG_AUDIT:
+        from core.models import User
+        from services.config_security_audit import run_config_audit
+
+        payload = task.payload or {}
+        user = None
+        user_id = payload.get("user_id")
+        if user_id:
+            user = User.objects.filter(pk=int(user_id)).first()
+        return run_config_audit(
+            device_name=str(payload.get("device") or ""),
+            triggered_by=str(payload.get("triggered_by") or "system"),
+            user=user,
+            run_id=int(payload["run_id"]) if payload.get("run_id") else None,
+        )
+
     raise ValueError(f"Unknown task type: {task.task_type}")
 
 

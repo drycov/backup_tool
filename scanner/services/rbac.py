@@ -20,6 +20,8 @@ PERMISSION_MANAGE_USERS = "users:manage"
 PERMISSION_COMPLIANCE_READ = "compliance:read"
 PERMISSION_SETTINGS_NOTIFY = "settings:notify"
 PERMISSION_AUDIT_READ = "audit:read"
+PERMISSION_SECURITY_READ = "security:read"
+PERMISSION_SECURITY_RUN = "security:run"
 PERMISSION_API_KEYS_MANAGE = "api_keys:manage"
 PERMISSION_SETTINGS_READ = "settings:read"
 
@@ -37,6 +39,8 @@ PERMISSION_LABELS: dict[str, str] = {
     PERMISSION_COMPLIANCE_READ: "Compliance — чтение и экспорт",
     PERMISSION_SETTINGS_NOTIFY: "Настройки — тест уведомлений",
     PERMISSION_AUDIT_READ: "Аудит — чтение и экспорт",
+    PERMISSION_SECURITY_READ: "Безопасность конфигов — чтение",
+    PERMISSION_SECURITY_RUN: "Безопасность конфигов — запуск аудита",
     PERMISSION_API_KEYS_MANAGE: "API keys — управление",
     PERMISSION_SETTINGS_READ: "Настройки — чтение",
 }
@@ -59,6 +63,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_SCAN_READ,
         PERMISSION_OXIDIZED_READ,
         PERMISSION_COMPLIANCE_READ,
+        PERMISSION_SECURITY_READ,
         PERMISSION_SETTINGS_READ,
     },
     ROLE_OPERATOR: {
@@ -69,6 +74,8 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         PERMISSION_OXIDIZED_READ,
         PERMISSION_OXIDIZED_WRITE,
         PERMISSION_COMPLIANCE_READ,
+        PERMISSION_SECURITY_READ,
+        PERMISSION_SECURITY_RUN,
         PERMISSION_SETTINGS_NOTIFY,
         PERMISSION_SETTINGS_READ,
     },

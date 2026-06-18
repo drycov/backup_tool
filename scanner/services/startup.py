@@ -27,6 +27,9 @@ def initialize() -> None:
     ensure_git_initialized()
     ensure_scan_initialized()
     ensure_backup_initialized()
+    from services.integration_settings import ensure_initialized as ensure_integration_initialized
+
+    ensure_integration_initialized()
 
     from django.conf import settings
 

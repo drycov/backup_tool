@@ -224,10 +224,17 @@ def test_connection(
         result = authenticate_ldap(username.strip(), password)
         if result:
             groups = len(result.get("groups") or [])
+            ag = result.get("allowed_groups") or []
+            ast = result.get("allowed_sites") or []
+            scope = ""
+            if ag or ast:
+                scope = f", scope groups={ag or 'all'}, sites={ast or 'all'}"
             return {
                 "ok": True,
-                "message": f"Вход успешен, роль: {result['role']}, групп: {groups}",
+                "message": f"Вход успешен, роль: {result['role']}, групп: {groups}{scope}",
                 "role": result["role"],
+                "allowed_groups": ag,
+                "allowed_sites": ast,
             }
         return {"ok": False, "message": "LDAP: неверный логин или пароль"}
 

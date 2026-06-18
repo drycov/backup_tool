@@ -40,6 +40,15 @@ const PAGE_TITLES = {
   settings: "Настройки",
   users: "Пользователи",
   audit: "Аудит",
+  security: "Безопасность конфигов",
+};
+
+const SECURITY_SEVERITY_BADGE = {
+  critical: "danger",
+  high: "danger",
+  medium: "warning",
+  low: "info",
+  info: "secondary",
 };
 
 const COMPLIANCE_BADGE = {
@@ -439,7 +448,7 @@ function handleRouteHash() {
     navigateToPage("settings");
     return;
   }
-  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "audit", "users"];
+  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "security", "audit", "users"];
   if (pages.includes(h)) {
     navigateToPage(h);
   }
@@ -578,16 +587,16 @@ function badge(status) {
 }
 
 function smallBox(value, label, bg = "info", icon = "fa-server", valueClass = "") {
-  const h3Class = valueClass ? ` class="${valueClass}"` : "";
-  const theme = smallBoxTheme(bg);
+  const theme = smallBoxTheme(bg).replace(/^text-bg-/, "");
+  const valueCls = valueClass ? ` ${valueClass}` : "";
   return `
     <div class="col-xl-2 col-lg-4 col-md-4 col-sm-6 col-12">
-      <div class="small-box ${theme}">
-        <div class="inner">
-          <h3${h3Class}>${value}</h3>
-          <p>${label}</p>
+      <div class="kpi-card kpi-card--${theme}">
+        <div class="kpi-card__icon" aria-hidden="true"><i class="fas ${icon}"></i></div>
+        <div class="kpi-card__content">
+          <div class="kpi-card__value${valueCls}">${value}</div>
+          <div class="kpi-card__label">${label}</div>
         </div>
-        <i class="small-box-icon fas ${icon}" aria-hidden="true"></i>
       </div>
     </div>
   `;
@@ -739,12 +748,14 @@ function initNavigation() {
       if (page === "users") {
         loadUsers();
         loadRbacMatrix();
+        refreshTotpSettings();
       }
       if (page === "scan") {
         resumeScanIfRunning();
         loadScanHistory();
       }
       if (page === "audit") loadAudit();
+      if (page === "security") loadSecurityAudit();
       if (page === "settings") {
         loadSettings().then(() => {
           activateSettingsTab(resolveInitialSettingsTab(), { updateHash: true });
@@ -779,6 +790,43 @@ async function login(username, password) {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
+  if (data.totp_required) {
+    showLoginTotpStep(data.challenge, data.user?.username || username);
+    return;
+  }
+  await completeLogin(data);
+}
+
+function showLoginTotpStep(challenge, username) {
+  const block = qs("#login-totp-block");
+  const challengeEl = qs("#login-totp-challenge");
+  const codeEl = qs("#login-totp-code");
+  const recoveryEl = qs("#login-recovery-code");
+  if (block) block.style.display = "";
+  if (challengeEl) challengeEl.value = challenge || "";
+  if (codeEl) {
+    codeEl.value = "";
+    codeEl.focus();
+  }
+  if (recoveryEl) recoveryEl.value = "";
+  showAlert("login-alert", `2FA: ${username}`, "info");
+}
+
+async function verifyLoginTotp() {
+  const challenge = qs("#login-totp-challenge")?.value;
+  const code = qs("#login-totp-code")?.value.trim();
+  const recovery_code = qs("#login-recovery-code")?.value.trim();
+  if (!challenge) throw new Error("Нет challenge 2FA — войдите снова");
+  const data = await api("/api/auth/totp", {
+    method: "POST",
+    body: JSON.stringify({ challenge, code, recovery_code }),
+  });
+  const block = qs("#login-totp-block");
+  if (block) block.style.display = "none";
+  await completeLogin(data);
+}
+
+async function completeLogin(data) {
   currentUser = data.user;
   showApp();
   await bootstrapApp();
@@ -847,6 +895,94 @@ async function loadUsers() {
   } catch (e) {
     showAlert("users-alert", e.message, "error");
   }
+}
+
+let totpSetupPending = null;
+
+async function refreshTotpSettings() {
+  const card = qs("#totp-settings-card");
+  if (!card || !currentUser) return;
+  let me;
+  try {
+    me = await api("/api/auth/me");
+  } catch {
+    return;
+  }
+  const status = qs("#totp-status-text");
+  const beginBtn = qs("#btn-totp-begin");
+  const setupPanel = qs("#totp-setup-panel");
+  const disablePanel = qs("#totp-disable-panel");
+  if (!me.totp_available) {
+    if (status) status.textContent = "2FA доступна только для локальных пользователей.";
+    if (beginBtn) beginBtn.style.display = "none";
+    if (setupPanel) setupPanel.style.display = "none";
+    if (disablePanel) disablePanel.style.display = "none";
+    return;
+  }
+  if (me.totp_enabled) {
+    if (status) status.textContent = "2FA включена для вашей учётной записи.";
+    if (beginBtn) beginBtn.style.display = "none";
+    if (setupPanel) setupPanel.style.display = "none";
+    if (disablePanel) disablePanel.style.display = "";
+  } else {
+    if (status) status.textContent = "2FA не включена.";
+    if (beginBtn) beginBtn.style.display = "";
+    if (setupPanel) setupPanel.style.display = "none";
+    if (disablePanel) disablePanel.style.display = "none";
+  }
+}
+
+async function beginTotpSetup() {
+  totpSetupPending = await api("/api/auth/totp/setup");
+  const uriEl = qs("#totp-uri");
+  const recoveryEl = qs("#totp-recovery-codes");
+  if (uriEl) uriEl.textContent = totpSetupPending.provisioning_uri || "";
+  if (recoveryEl) {
+    recoveryEl.textContent = (totpSetupPending.recovery_codes || []).join("\n");
+    recoveryEl.style.display = "";
+  }
+  const beginBtn = qs("#btn-totp-begin");
+  const setupPanel = qs("#totp-setup-panel");
+  if (beginBtn) beginBtn.style.display = "none";
+  if (setupPanel) setupPanel.style.display = "";
+  const codeEl = qs("#totp-enable-code");
+  if (codeEl) {
+    codeEl.value = "";
+    codeEl.focus();
+  }
+}
+
+async function confirmTotpEnable() {
+  if (!totpSetupPending?.secret) throw new Error("Сначала начните настройку 2FA");
+  const code = qs("#totp-enable-code")?.value.trim();
+  if (!code) throw new Error("Введите код из приложения");
+  await api("/api/auth/totp/enable", {
+    method: "POST",
+    body: JSON.stringify({
+      secret: totpSetupPending.secret,
+      code,
+      recovery_codes: totpSetupPending.recovery_codes || [],
+    }),
+  });
+  totpSetupPending = null;
+  showAlert("users-alert", "2FA включена. Сохраните recovery codes — они больше не отобразятся.", "success");
+  await refreshTotpSettings();
+}
+
+async function disableTotp() {
+  await api("/api/auth/totp/disable", {
+    method: "POST",
+    body: JSON.stringify({
+      password: qs("#totp-disable-password")?.value || "",
+      code: qs("#totp-disable-code")?.value.trim() || "",
+    }),
+  });
+  const pwd = qs("#totp-disable-password");
+  const code = qs("#totp-disable-code");
+  if (pwd) pwd.value = "";
+  if (code) code.value = "";
+  showAlert("users-alert", "2FA отключена", "success");
+  await refreshTotpSettings();
 }
 
 function renderUsersTable(users) {
@@ -1224,6 +1360,159 @@ async function loadScanHistory() {
   `).join("");
 }
 
+function securityFilterQuery() {
+  const params = new URLSearchParams();
+  const severity = qs("#security-severity-filter")?.value;
+  const ack = qs("#security-ack-filter")?.value;
+  if (severity) params.set("severity", severity);
+  if (ack) params.set("acknowledged", ack);
+  const q = params.toString();
+  return q ? `?${q}` : "";
+}
+
+async function loadSecurityAudit() {
+  try {
+    const data = await api(`/api/security/audit/summary${securityFilterQuery()}`);
+    const counts = data.counts || {};
+    const run = data.run;
+    qs("#security-stats").innerHTML = `
+      <div class="col-12 stats-row">
+        <div class="row">
+          ${smallBox(counts.critical || 0, "Critical", "bg-danger", "fa-skull-crossbones")}
+          ${smallBox(counts.high || 0, "High", "bg-danger", "fa-exclamation-triangle")}
+          ${smallBox(counts.medium || 0, "Medium", "bg-warning", "fa-exclamation-circle")}
+          ${smallBox(counts.low || 0, "Low", "bg-info", "fa-info-circle")}
+          ${smallBox(data.devices_with_findings || 0, "Устройств с нарушениями", "bg-dark", "fa-server")}
+          ${smallBox(data.rules_total || 0, "Правил", "bg-secondary", "fa-list-check")}
+        </div>
+      </div>`;
+
+    const meta = qs("#security-run-meta");
+    if (meta) {
+      if (run) {
+        meta.textContent = `Последний аудит #${run.id}: ${formatDate(run.finished_at || run.started_at)} · `
+          + `сканировано ${run.devices_scanned}/${run.devices_total} · нарушений ${run.findings_count}`
+          + (run.error ? ` · ${run.error}` : "");
+      } else {
+        meta.textContent = "Аудит ещё не запускался. Нажмите «Запустить аудит».";
+      }
+    }
+
+    const tbody = qs("#security-findings-table");
+    const empty = qs("#security-findings-empty");
+    const findings = data.findings || [];
+    if (!tbody) return;
+    if (!findings.length) {
+      tbody.innerHTML = "";
+      if (empty) empty.style.display = "";
+    } else {
+      if (empty) empty.style.display = "none";
+      tbody.innerHTML = findings.map(f => `
+        <tr data-finding-id="${f.id}">
+          <td><span class="${badgeCls(SECURITY_SEVERITY_BADGE[f.severity] || "secondary")}">${escapeHtml(f.severity)}</span></td>
+          <td><strong>${escapeHtml(f.device_name)}</strong><div class="text-muted small">${escapeHtml(f.device_model || "")}</div></td>
+          <td>${escapeHtml(f.device_ip || "—")}</td>
+          <td>${escapeHtml(f.category)}</td>
+          <td>
+            <div>${escapeHtml(f.title)}</div>
+            <code class="small text-muted">${escapeHtml(f.rule_id)}</code>
+            ${f.remediation ? `<div class="small text-muted mt-1">${escapeHtml(f.remediation)}</div>` : ""}
+          </td>
+          <td class="text-sm"><code>${escapeHtml(f.evidence || "—")}</code>${f.line_number ? ` <span class="text-muted">:${f.line_number}</span>` : ""}</td>
+          <td class="text-nowrap">
+            ${f.acknowledged
+    ? `<span class="${badgeCls("success", "badge-tag")}">ack</span>`
+    : (can("security:run")
+      ? `<button type="button" class="btn btn-outline-success btn-sm btn-security-ack" data-id="${f.id}" title="Подтвердить"><i class="fas fa-check"></i></button>`
+      : "")}
+          </td>
+        </tr>
+      `).join("");
+
+      tbody.querySelectorAll(".btn-security-ack").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          try {
+            await api(`/api/security/audit/findings/${btn.dataset.id}/ack`, {
+              method: "POST",
+              body: JSON.stringify({ acknowledged: true }),
+            });
+            loadSecurityAudit();
+          } catch (e) {
+            showAlert("security-alert", e.message, "error");
+          }
+        });
+      });
+    }
+
+    const runsData = await api("/api/security/audit/runs?limit=10").catch(() => ({ runs: [] }));
+    const runsBody = qs("#security-runs-table");
+    if (runsBody) {
+      const runs = runsData.runs || [];
+      runsBody.innerHTML = runs.length
+        ? runs.map(r => `
+          <tr>
+            <td class="text-sm">${formatDate(r.finished_at || r.started_at)}</td>
+            <td><span class="${badgeCls(r.status === "completed" ? "success" : r.status === "failed" ? "danger" : "warning")}">${escapeHtml(r.status)}</span></td>
+            <td>${escapeHtml(r.triggered_by)}</td>
+            <td>${r.devices_scanned}/${r.devices_total}</td>
+            <td>${r.findings_count}</td>
+            <td class="text-sm text-muted">${escapeHtml(r.error || "—")}</td>
+          </tr>`).join("")
+        : `<tr><td colspan="6" class="text-muted text-center">Нет запусков</td></tr>`;
+    }
+  } catch (e) {
+    showAlert("security-alert", e.message, "error");
+  }
+}
+
+async function runSecurityAudit() {
+  if (!can("security:run")) return;
+  const btn = qs("#btn-security-run");
+  if (btn) btn.disabled = true;
+  try {
+    showAlert("security-alert", "Аудит запущен (фоновая задача)…", "info");
+    const res = await api("/api/security/audit/run", {
+      method: "POST",
+      body: JSON.stringify({ async: true }),
+    });
+    showAlert(
+      "security-alert",
+      res.status === "queued"
+        ? `Аудит #${res.run_id} в очереди`
+        : `Аудит завершён: ${res.run?.findings_count ?? 0} нарушений`,
+      "success",
+    );
+    window.setTimeout(() => loadSecurityAudit(), 2000);
+  } catch (e) {
+    showAlert("security-alert", e.message, "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function exportSecurityCsv() {
+  try {
+    const q = securityFilterQuery();
+    const res = await fetch(`/api/security/audit/export${q}`, { credentials: "include" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("content-disposition") || "";
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : "security-audit.csv";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showAlert("security-alert", e.message, "error");
+  }
+}
+
 async function loadAudit() {
   const filter = qs("#audit-action-filter")?.value || "";
   const query = filter ? `?limit=100&action=${encodeURIComponent(filter)}` : "?limit=100";
@@ -1424,6 +1713,9 @@ async function loadSettings() {
   if (can("users:manage")) {
     await loadLdapSettings();
   }
+  if (can("settings:read")) {
+    await loadIntegrationSettings();
+  }
   if (can("inventory:write")) {
     await loadScanSettings();
   }
@@ -1563,15 +1855,23 @@ function fillBackupSettingsForm(cfg) {
   }
   if (qs("#nt-error-telegram")) qs("#nt-error-telegram").checked = !!cfg.error_notify_telegram;
   if (qs("#nt-error-email")) qs("#nt-error-email").checked = !!cfg.error_notify_email;
+  if (qs("#nt-error-slack")) qs("#nt-error-slack").checked = !!cfg.error_notify_slack;
+  if (qs("#nt-error-teams")) qs("#nt-error-teams").checked = !!cfg.error_notify_teams;
   if (qs("#nt-report-telegram")) qs("#nt-report-telegram").checked = !!cfg.report_send_telegram;
   if (qs("#nt-report-email")) qs("#nt-report-email").checked = !!cfg.report_send_email;
+  if (qs("#nt-report-slack")) qs("#nt-report-slack").checked = !!cfg.report_send_slack;
+  if (qs("#nt-report-teams")) qs("#nt-report-teams").checked = !!cfg.report_send_teams;
   if (qs("#nt-degrade-telegram")) qs("#nt-degrade-telegram").checked = !!cfg.degrade_notify_telegram;
   if (qs("#nt-degrade-email")) qs("#nt-degrade-email").checked = !!cfg.degrade_notify_email;
+  if (qs("#nt-degrade-slack")) qs("#nt-degrade-slack").checked = !!cfg.degrade_notify_slack;
+  if (qs("#nt-degrade-teams")) qs("#nt-degrade-teams").checked = !!cfg.degrade_notify_teams;
   if (qs("#nt-stale-days")) qs("#nt-stale-days").value = cfg.stale_days_threshold ?? 30;
   if (qs("#nt-alert-cooldown")) qs("#nt-alert-cooldown").value = cfg.alert_cooldown_hours ?? 24;
   if (qs("#nt-degrade-interval")) qs("#nt-degrade-interval").value = cfg.degrade_check_interval_sec ?? 3600;
   if (qs("#nt-compliance-telegram")) qs("#nt-compliance-telegram").checked = !!cfg.compliance_report_telegram;
   if (qs("#nt-compliance-email")) qs("#nt-compliance-email").checked = !!cfg.compliance_report_email;
+  if (qs("#nt-compliance-slack")) qs("#nt-compliance-slack").checked = !!cfg.compliance_report_slack;
+  if (qs("#nt-compliance-teams")) qs("#nt-compliance-teams").checked = !!cfg.compliance_report_teams;
   if (qs("#nt-compliance-hour")) qs("#nt-compliance-hour").value = cfg.compliance_report_hour_utc ?? 7;
   const lastSentEl = qs("#nt-compliance-last-sent");
   if (lastSentEl) {
@@ -1581,6 +1881,8 @@ function fillBackupSettingsForm(cfg) {
   }
   if (qs("#nt-webhook-enabled")) qs("#nt-webhook-enabled").checked = !!cfg.degrade_webhook_enabled;
   if (qs("#nt-webhook-url")) qs("#nt-webhook-url").value = cfg.degrade_webhook_url || "";
+  if (qs("#nt-slack-webhook")) qs("#nt-slack-webhook").value = cfg.slack_webhook_url || "";
+  if (qs("#nt-teams-webhook")) qs("#nt-teams-webhook").value = cfg.teams_webhook_url || "";
   if (qs("#bk-maint-enabled")) qs("#bk-maint-enabled").checked = cfg.maintenance_window_enabled !== false;
   if (qs("#bk-maint-start")) qs("#bk-maint-start").value = cfg.maintenance_start_hour_utc ?? 22;
   if (qs("#bk-maint-end")) qs("#bk-maint-end").value = cfg.maintenance_end_hour_utc ?? 6;
@@ -1617,18 +1919,28 @@ function collectNotifySettingsForm() {
   return {
     error_notify_telegram: qs("#nt-error-telegram")?.checked === true,
     error_notify_email: qs("#nt-error-email")?.checked === true,
+    error_notify_slack: qs("#nt-error-slack")?.checked === true,
+    error_notify_teams: qs("#nt-error-teams")?.checked === true,
     report_send_telegram: qs("#nt-report-telegram")?.checked === true,
     report_send_email: qs("#nt-report-email")?.checked === true,
+    report_send_slack: qs("#nt-report-slack")?.checked === true,
+    report_send_teams: qs("#nt-report-teams")?.checked === true,
     degrade_notify_telegram: qs("#nt-degrade-telegram")?.checked === true,
     degrade_notify_email: qs("#nt-degrade-email")?.checked === true,
+    degrade_notify_slack: qs("#nt-degrade-slack")?.checked === true,
+    degrade_notify_teams: qs("#nt-degrade-teams")?.checked === true,
     stale_days_threshold: parseInt(qs("#nt-stale-days")?.value, 10) || 30,
     alert_cooldown_hours: parseInt(qs("#nt-alert-cooldown")?.value, 10) || 24,
     degrade_check_interval_sec: parseInt(qs("#nt-degrade-interval")?.value, 10) || 3600,
     compliance_report_telegram: qs("#nt-compliance-telegram")?.checked === true,
     compliance_report_email: qs("#nt-compliance-email")?.checked === true,
+    compliance_report_slack: qs("#nt-compliance-slack")?.checked === true,
+    compliance_report_teams: qs("#nt-compliance-teams")?.checked === true,
     compliance_report_hour_utc: parseInt(qs("#nt-compliance-hour")?.value, 10) || 7,
     degrade_webhook_enabled: qs("#nt-webhook-enabled")?.checked === true,
     degrade_webhook_url: qs("#nt-webhook-url")?.value.trim() || "",
+    slack_webhook_url: qs("#nt-slack-webhook")?.value.trim() || "",
+    teams_webhook_url: qs("#nt-teams-webhook")?.value.trim() || "",
     maintenance_window_enabled: qs("#bk-maint-enabled")?.checked !== false,
     maintenance_start_hour_utc: parseInt(qs("#bk-maint-start")?.value, 10) || 22,
     maintenance_end_hour_utc: parseInt(qs("#bk-maint-end")?.value, 10) || 6,
@@ -1654,10 +1966,18 @@ function collectNotifyTestPayload(kind) {
     kind,
     error_notify_telegram: qs("#nt-error-telegram")?.checked === true,
     error_notify_email: qs("#nt-error-email")?.checked === true,
+    error_notify_slack: qs("#nt-error-slack")?.checked === true,
+    error_notify_teams: qs("#nt-error-teams")?.checked === true,
     report_send_telegram: qs("#nt-report-telegram")?.checked === true,
     report_send_email: qs("#nt-report-email")?.checked === true,
+    report_send_slack: qs("#nt-report-slack")?.checked === true,
+    report_send_teams: qs("#nt-report-teams")?.checked === true,
     degrade_notify_telegram: qs("#nt-degrade-telegram")?.checked === true,
     degrade_notify_email: qs("#nt-degrade-email")?.checked === true,
+    degrade_notify_slack: qs("#nt-degrade-slack")?.checked === true,
+    degrade_notify_teams: qs("#nt-degrade-teams")?.checked === true,
+    slack_webhook_url: qs("#nt-slack-webhook")?.value.trim() || "",
+    teams_webhook_url: qs("#nt-teams-webhook")?.value.trim() || "",
     telegram_chat_notify: qs("#nt-telegram-chat-notify")?.value.trim() || "",
     telegram_chat_report: qs("#nt-telegram-chat-report")?.value.trim() || "",
     smtp_server: qs("#nt-smtp-server")?.value.trim() || "",
@@ -1825,6 +2145,109 @@ async function loadGitSettings() {
     fillGitSettingsForm(cfg);
   } catch (e) {
     showAlert("settings-alert", `Git: ${e.message}`, "error");
+  }
+}
+
+let integrationSettingsCache = null;
+
+function fillIntegrationSettingsForm(cfg) {
+  integrationSettingsCache = cfg;
+  if (qs("#int-snow-enabled")) qs("#int-snow-enabled").checked = !!cfg.snow_enabled;
+  if (qs("#int-snow-url")) qs("#int-snow-url").value = cfg.snow_instance_url || "";
+  if (qs("#int-snow-user")) qs("#int-snow-user").value = cfg.snow_username || "";
+  if (qs("#int-snow-group")) qs("#int-snow-group").value = cfg.snow_assignment_group || "";
+  const snowPass = qs("#int-snow-password");
+  if (snowPass) {
+    snowPass.value = "";
+    snowPass.placeholder = cfg.snow_password_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "Password";
+  }
+  if (qs("#int-jira-enabled")) qs("#int-jira-enabled").checked = !!cfg.jira_enabled;
+  if (qs("#int-jira-url")) qs("#int-jira-url").value = cfg.jira_url || "";
+  if (qs("#int-jira-user")) qs("#int-jira-user").value = cfg.jira_username || "";
+  if (qs("#int-jira-project")) qs("#int-jira-project").value = cfg.jira_project_key || "";
+  if (qs("#int-jira-type")) qs("#int-jira-type").value = cfg.jira_issue_type || "Task";
+  const jiraTok = qs("#int-jira-token");
+  if (jiraTok) {
+    jiraTok.value = "";
+    jiraTok.placeholder = cfg.jira_api_token_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "API token";
+  }
+  if (qs("#int-ticket-backup-failed")) qs("#int-ticket-backup-failed").checked = cfg.ticket_on_backup_failed !== false;
+  if (qs("#int-ticket-device-offline")) qs("#int-ticket-device-offline").checked = cfg.ticket_on_device_offline !== false;
+  if (qs("#int-ticket-cooldown")) qs("#int-ticket-cooldown").value = cfg.ticket_cooldown_hours ?? 24;
+  if (qs("#int-audit-enabled")) qs("#int-audit-enabled").checked = !!cfg.audit_webhook_enabled;
+  if (qs("#int-audit-url")) qs("#int-audit-url").value = cfg.audit_webhook_url || "";
+  if (qs("#int-audit-prefix")) qs("#int-audit-prefix").value = cfg.audit_webhook_action_prefix || "";
+  const auditSecret = qs("#int-audit-secret");
+  if (auditSecret) {
+    auditSecret.value = "";
+    auditSecret.placeholder = cfg.audit_webhook_secret_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "HMAC secret";
+  }
+}
+
+function collectIntegrationSettingsForm() {
+  const snowVal = qs("#int-snow-password")?.value.trim();
+  const jiraVal = qs("#int-jira-token")?.value.trim();
+  const auditVal = qs("#int-audit-secret")?.value.trim();
+  return {
+    snow_enabled: qs("#int-snow-enabled")?.checked === true,
+    snow_instance_url: qs("#int-snow-url")?.value.trim() || "",
+    snow_username: qs("#int-snow-user")?.value.trim() || "",
+    snow_password: snowVal || (integrationSettingsCache?.snow_password_set ? SETTINGS_PASSWORD_MASK : ""),
+    snow_assignment_group: qs("#int-snow-group")?.value.trim() || "",
+    jira_enabled: qs("#int-jira-enabled")?.checked === true,
+    jira_url: qs("#int-jira-url")?.value.trim() || "",
+    jira_username: qs("#int-jira-user")?.value.trim() || "",
+    jira_api_token: jiraVal || (integrationSettingsCache?.jira_api_token_set ? SETTINGS_PASSWORD_MASK : ""),
+    jira_project_key: qs("#int-jira-project")?.value.trim() || "",
+    jira_issue_type: qs("#int-jira-type")?.value.trim() || "Task",
+    ticket_on_backup_failed: qs("#int-ticket-backup-failed")?.checked !== false,
+    ticket_on_device_offline: qs("#int-ticket-device-offline")?.checked !== false,
+    ticket_cooldown_hours: parseInt(qs("#int-ticket-cooldown")?.value, 10) || 24,
+    audit_webhook_enabled: qs("#int-audit-enabled")?.checked === true,
+    audit_webhook_url: qs("#int-audit-url")?.value.trim() || "",
+    audit_webhook_secret: auditVal || (integrationSettingsCache?.audit_webhook_secret_set ? SETTINGS_PASSWORD_MASK : ""),
+    audit_webhook_action_prefix: qs("#int-audit-prefix")?.value.trim() || "",
+  };
+}
+
+async function loadIntegrationSettings() {
+  try {
+    const cfg = await api("/api/settings/integrations");
+    fillIntegrationSettingsForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `Интеграции: ${e.message}`, "error");
+  }
+}
+
+async function saveIntegrationSettings(e) {
+  e.preventDefault();
+  if (!can("settings:notify")) return;
+  try {
+    const saved = await api("/api/settings/integrations", {
+      method: "PUT",
+      body: JSON.stringify(collectIntegrationSettingsForm()),
+    });
+    fillIntegrationSettingsForm(saved);
+    showAlert("settings-alert", "Интеграции сохранены", "success");
+    markSettingsSaved();
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+async function testAuditWebhook() {
+  if (!can("settings:notify")) return;
+  try {
+    const res = await api("/api/settings/integrations/test-audit-webhook", { method: "POST" });
+    showAlert("settings-alert", res.message || (res.ok ? "Webhook OK" : "Ошибка"), res.ok ? "success" : "error");
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
   }
 }
 
@@ -2256,7 +2679,36 @@ function fillLdapForm(cfg) {
   qs("#ldap-default-role").value = cfg.default_role || "viewer";
   qs("#ldap-fallback-local").checked = cfg.fallback_local !== false;
   qs("#ldap-timeout").value = cfg.connect_timeout || 10;
+  renderLdapScopeMappings(cfg.scope_mappings || []);
   updateLdapPresetHint();
+}
+
+function renderLdapScopeMappings(rows) {
+  const tbody = qs("#ldap-scope-mappings-body");
+  if (!tbody) return;
+  const data = rows?.length ? rows : [{ ldap_group: "", allowed_groups: [], allowed_sites: [] }];
+  tbody.innerHTML = data.map((row, idx) => `
+    <tr data-idx="${idx}">
+      <td><input type="text" class="form-control form-control-sm ldap-scope-group" value="${escapeHtml(row.ldap_group || "")}" placeholder="CN=NetOps,..."></td>
+      <td><input type="text" class="form-control form-control-sm ldap-scope-groups" value="${escapeHtml((row.allowed_groups || []).join(", "))}" placeholder="hex, us"></td>
+      <td><input type="text" class="form-control form-control-sm ldap-scope-sites" value="${escapeHtml((row.allowed_sites || []).join(", "))}" placeholder="msk, spb"></td>
+      <td><button type="button" class="btn btn-outline-danger btn-sm btn-ldap-scope-remove" title="Удалить"><i class="fas fa-trash"></i></button></td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll(".btn-ldap-scope-remove").forEach(btn => {
+    btn.addEventListener("click", () => {
+      btn.closest("tr")?.remove();
+      if (!tbody.querySelector("tr")) renderLdapScopeMappings([]);
+    });
+  });
+}
+
+function collectLdapScopeMappings() {
+  return [...(qs("#ldap-scope-mappings-body")?.querySelectorAll("tr") || [])].map(tr => ({
+    ldap_group: tr.querySelector(".ldap-scope-group")?.value.trim() || "",
+    allowed_groups: (tr.querySelector(".ldap-scope-groups")?.value || "").split(",").map(s => s.trim()).filter(Boolean),
+    allowed_sites: (tr.querySelector(".ldap-scope-sites")?.value || "").split(",").map(s => s.trim()).filter(Boolean),
+  })).filter(row => row.ldap_group);
 }
 
 function collectLdapForm() {
@@ -2278,6 +2730,7 @@ function collectLdapForm() {
     default_role: qs("#ldap-default-role").value,
     fallback_local: qs("#ldap-fallback-local").checked,
     connect_timeout: parseInt(qs("#ldap-timeout").value, 10) || 10,
+    scope_mappings: collectLdapScopeMappings(),
   };
 }
 
@@ -3683,7 +4136,14 @@ function bindEvents() {
   qs("#btn-save-maintenance")?.addEventListener("click", saveMaintenanceSettings);
   qs("#scan-settings-form")?.addEventListener("submit", saveScanSettings);
   qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
+  qs("#integration-settings-form")?.addEventListener("submit", saveIntegrationSettings);
+  qs("#btn-test-audit-webhook")?.addEventListener("click", testAuditWebhook);
   qs("#audit-action-filter")?.addEventListener("change", () => loadAudit());
+  qs("#btn-security-refresh")?.addEventListener("click", () => loadSecurityAudit());
+  qs("#security-severity-filter")?.addEventListener("change", () => loadSecurityAudit());
+  qs("#security-ack-filter")?.addEventListener("change", () => loadSecurityAudit());
+  qs("#btn-security-run")?.addEventListener("click", runSecurityAudit);
+  qs("#btn-security-export")?.addEventListener("click", exportSecurityCsv);
   qs("#btn-test-notify-report")?.addEventListener("click", () => testBackupNotify("report"));
   qs("#btn-test-notify-error")?.addEventListener("click", () => testBackupNotify("error"));
   qs("#btn-test-notify-degrade")?.addEventListener("click", () => testBackupNotify("degrade"));
@@ -3708,6 +4168,15 @@ function bindEvents() {
     if (fields) fields.style.display = "";
     testLdap("auth");
   });
+  qs("#btn-ldap-scope-add")?.addEventListener("click", () => {
+    const tbody = qs("#ldap-scope-mappings-body");
+    const rows = collectLdapScopeMappings();
+    rows.push({ ldap_group: "", allowed_groups: [], allowed_sites: [] });
+    renderLdapScopeMappings(rows);
+  });
+  qs("#btn-totp-begin")?.addEventListener("click", () => beginTotpSetup().catch(err => showAlert("users-alert", err.message, "error")));
+  qs("#btn-totp-enable-confirm")?.addEventListener("click", () => confirmTotpEnable().catch(err => showAlert("users-alert", err.message, "error")));
+  qs("#btn-totp-disable")?.addEventListener("click", () => disableTotp().catch(err => showAlert("users-alert", err.message, "error")));
 
   qs("#credential-create-form")?.addEventListener("submit", async e => {
     e.preventDefault();
@@ -3855,7 +4324,12 @@ function bindEvents() {
   qs("#login-form").addEventListener("submit", async e => {
     e.preventDefault();
     try {
-      await login(qs("#login-username").value.trim(), qs("#login-password").value);
+      const totpBlock = qs("#login-totp-block");
+      if (totpBlock && totpBlock.style.display !== "none") {
+        await verifyLoginTotp();
+      } else {
+        await login(qs("#login-username").value.trim(), qs("#login-password").value);
+      }
     } catch (err) {
       showAlert("login-alert", err.message, "error");
     }
