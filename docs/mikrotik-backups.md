@@ -68,6 +68,9 @@ PURGE_N_PIECE=10
 | `MK_BACKUP_BIN_DIR` | `/var/lib/oxidized/bin` | Каталог binary |
 | `MK_BACKUP_RSC_DIR` | `/var/lib/oxidized/rsc` | Каталог export |
 | `MK_BACKUP_TIMEOUT` | `300` | Таймаут SSH/SFTP (сек) |
+| `MK_BACKUP_GIT_PUSH` | `true`* | Коммит и push `bin/` + `rsc/` в `GIT_REMOTE_URL` |
+
+\* По умолчанию включено, если задан `GIT_REMOTE_URL`.
 | `PURGE_OLD_BACKUP` | `true` | Ротация старых binary |
 | `PURGE_N_PIECE` | `10` | Сколько dated binary хранить |
 
@@ -136,7 +139,7 @@ POST /api/oxidized/backup/all
 |-------------|----------|
 | Только python engine | Worker в scanner; external Ruby не запускает MikrotikBackup |
 | Только routeros | Другие модели пропускаются |
-| Volume | `bin/` и `rsc/` на `oxidized-data`; не в Git remote |
+| Volume | `bin/` и `rsc/` на `oxidized-data`; при `MK_BACKUP_GIT_PUSH` — в том же Git remote |
 | Права SFTP | Учётная запись SSH должна иметь доступ к `/file` на роутере |
 
 ## Troubleshooting

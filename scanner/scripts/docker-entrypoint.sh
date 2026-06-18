@@ -12,6 +12,8 @@ git config --global --add safe.directory "$OX_REPO" 2>/dev/null || true
 mkdir -p "$OX_REPO/bin" "$OX_REPO/rsc"
 chmod -R a+rwx "$OX_REPO/bin" "$OX_REPO/rsc" 2>/dev/null || true
 
+python scripts/wait_for_db.py
+
 WORKERS="${GUNICORN_WORKERS:-2}"
 if [ "${OXIDIZED_ENGINE:-python}" = "python" ]; then
   WORKERS=1

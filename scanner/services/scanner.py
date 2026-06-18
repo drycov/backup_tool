@@ -26,9 +26,24 @@ DISCOVERED_NAME_PREFIX = "discovered-"
 PING_TIMEOUT_SEC = 2
 PORT_TIMEOUT_SEC = 2
 DEFAULT_SCAN_PORTS = [DEFAULT_ROUTEROS_SSH_PORT]
-SCAN_CONCURRENCY = max(1, int(os.environ.get("SCAN_CONCURRENCY", "50")))
-DISCOVER_MAX_HOSTS = max(1, int(os.environ.get("DISCOVER_MAX_HOSTS", "4096")))
-DISCOVER_PING_WORKERS = max(1, int(os.environ.get("DISCOVER_PING_WORKERS", "100")))
+
+
+def _scan_settings():
+    from services.scan_settings import get_config
+
+    return get_config()
+
+
+def scan_concurrency() -> int:
+    return _scan_settings().scan_concurrency
+
+
+def discover_max_hosts() -> int:
+    return _scan_settings().discover_max_hosts
+
+
+def discover_ping_workers() -> int:
+    return _scan_settings().discover_ping_workers
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +220,7 @@ async def apply_device_names(
     ]
 
     rename_map: dict[str, str] = {}
-    sem = asyncio.Semaphore(SCAN_CONCURRENCY)
+    sem = asyncio.Semaphore(scan_concurrency())
 
     async def resolve_name(device: Device) -> tuple[str, str | None]:
         async with sem:
@@ -354,8 +369,8 @@ async def scan_devices(
             results=[],
         )
 
-    logger.info("scan | concurrency=%d", SCAN_CONCURRENCY)
-    sem = asyncio.Semaphore(SCAN_CONCURRENCY)
+    logger.info("scan | concurrency=%d", scan_concurrency())
+    sem = asyncio.Semaphore(scan_concurrency())
 
     async def scan_one(device: Device) -> ScanResult:
         async with sem:
@@ -404,14 +419,15 @@ def discover_hosts_in_network(network: str) -> list[str]:
         return []
 
     hosts = [str(ip) for ip in net.hosts()]
-    if len(hosts) > DISCOVER_MAX_HOSTS:
+    max_hosts = discover_max_hosts()
+    if len(hosts) > max_hosts:
         logger.warning(
             "discover | network=%s hosts=%d exceeds DISCOVER_MAX_HOSTS=%d, truncating",
             network,
             len(hosts),
-            DISCOVER_MAX_HOSTS,
+            max_hosts,
         )
-        hosts = hosts[:DISCOVER_MAX_HOSTS]
+        hosts = hosts[:max_hosts]
 
     logger.info("discover | ping sweep | network=%s hosts=%d", network, len(hosts))
 
@@ -426,7 +442,7 @@ def discover_hosts_in_network(network: str) -> list[str]:
         result = subprocess.run(cmd, capture_output=True, timeout=3)
         return result.returncode == 0
 
-    workers = min(DISCOVER_PING_WORKERS, len(hosts) or 1)
+    workers = min(discover_ping_workers(), len(hosts) or 1)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(ping_one, ip): ip for ip in hosts}
         for future in as_completed(futures):
@@ -462,7 +478,7 @@ async def discover_and_enrich(
         "discover | start | networks=%d existing_devices=%d concurrency=%d",
         len(network_entries),
         len(existing_devices),
-        SCAN_CONCURRENCY,
+        scan_concurrency(),
     )
     known_ips = {d.ip for d in existing_devices}
     names_in_use = {d.name for d in existing_devices}
@@ -470,7 +486,7 @@ async def discover_and_enrich(
     saved_devices: list[Device] = []
     port = DEFAULT_ROUTEROS_SSH_PORT
     state_lock = asyncio.Lock()
-    sem = asyncio.Semaphore(SCAN_CONCURRENCY)
+    sem = asyncio.Semaphore(scan_concurrency())
 
     for idx, entry in enumerate(network_entries, start=1):
         subnet = entry.network if hasattr(entry, "network") else str(entry)

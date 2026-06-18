@@ -252,6 +252,29 @@ class BackupSettingsUpdate(BaseModel):
     degrade_notify_email: bool = False
     stale_days_threshold: int = 30
     alert_cooldown_hours: int = 24
+    mk_backup_git_push: bool = True
+    degrade_check_interval_sec: int = 3600
+
+
+class GitSettingsUpdate(BaseModel):
+    git_remote_url: str = ""
+    gitea_token: Optional[str] = None
+    gitea_http_user: str = "oauth2"
+    git_commit_user: str = "Oxidized"
+    git_commit_email: str = "oxidized@localhost"
+    git_branch: str = "main"
+    oxidized_source_token: Optional[str] = None
+    oxidized_public_url: str = ""
+
+
+class ScanSettingsUpdate(BaseModel):
+    scan_concurrency: int = 50
+    discover_max_hosts: int = 4096
+    discover_ping_workers: int = 100
+    ovn_user: str = "satcoadm"
+    ovn_pass: Optional[str] = None
+    us_user: str = "satcoadm"
+    us_pass: Optional[str] = None
 
 
 class BackupNotifyTestRequest(BaseModel):

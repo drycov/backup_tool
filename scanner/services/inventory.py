@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -17,12 +18,10 @@ from services.schemas import (
     NetworkEntry,
 )
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_ROUTEROS_SSH_PORT = settings.ROUTEROS_SSH_PORT
 OXIDIZED_SOURCE_URL = settings.OXIDIZED_SOURCE_URL
-OXIDIZED_SOURCE_TOKEN = settings.OXIDIZED_SOURCE_TOKEN
-GIT_REMOTE_URL = settings.GIT_REMOTE_URL
-GITEA_TOKEN = settings.GITEA_TOKEN
-GITEA_HTTP_USER = settings.GITEA_HTTP_USER
 GIT_SSH_PRIVATE_KEY = os.environ.get(
     "GIT_SSH_PRIVATE_KEY", "/home/oxidized/.ssh/id_rsa"
 )
@@ -90,13 +89,24 @@ def _network_from_model(record: NetworkModel) -> NetworkEntry:
 
 def init_db() -> None:
     from django.core.management import call_command
+    from services.database import is_database_available, reset_availability_cache
 
-    call_command("migrate", interactive=False, verbosity=0, fake_initial=True)
-    _migrate_device_ports()
-    _seed_if_empty()
-    from services.auth import seed_default_admin
+    if not is_database_available():
+        logger.warning(
+            "inventory | database unavailable — задайте DATABASE_URL "
+            "(по умолчанию sqlite:////data/inventory/scanner.db)"
+        )
+        return
+    try:
+        call_command("migrate", interactive=False, verbosity=0, fake_initial=True)
+        _migrate_device_ports()
+        _seed_if_empty()
+        from services.auth import seed_default_admin
 
-    seed_default_admin()
+        seed_default_admin()
+    except Exception as exc:
+        logger.exception("inventory | database init failed: %s", exc)
+        reset_availability_cache()
 
 
 def _migrate_device_ports() -> None:
@@ -110,7 +120,9 @@ def _migrate_device_ports() -> None:
 
 
 def _env_credentials() -> tuple[str, str, str, str]:
-    return settings.OVN_USER, settings.OVN_PASS, settings.US_USER, settings.US_PASS
+    from services.scan_settings import get_credentials
+
+    return get_credentials()
 
 
 def _seed_if_empty() -> None:
@@ -414,6 +426,10 @@ def update_oxidized_credentials(inventory: Inventory) -> dict[str, str]:
         "ssh": {"secure": False, "port": ssh_port},
     }
 
+    from services.git_settings import get_config as get_git_config
+
+    git_cfg = get_git_config()
+
     http_source: dict = {
         "url": OXIDIZED_SOURCE_URL,
         "map": {
@@ -425,8 +441,8 @@ def update_oxidized_credentials(inventory: Inventory) -> dict[str, str]:
         "vars_map": {"ssh_port": "ssh_port"},
         "headers": {"Accept": "application/json"},
     }
-    if OXIDIZED_SOURCE_TOKEN:
-        http_source["headers"]["X-Auth-Token"] = OXIDIZED_SOURCE_TOKEN
+    if git_cfg.oxidized_source_token:
+        http_source["headers"]["X-Auth-Token"] = git_cfg.oxidized_source_token
 
     config["source"] = {"default": "http", "debug": False, "http": http_source}
 
@@ -456,28 +472,28 @@ def update_oxidized_credentials(inventory: Inventory) -> dict[str, str]:
     config["output"] = {
         "default": "git",
         "git": {
-            "user": os.environ.get("GIT_COMMIT_USER", "Oxidized"),
-            "email": os.environ.get("GIT_COMMIT_EMAIL", "oxidized@localhost"),
+            "user": git_cfg.git_commit_user,
+            "email": git_cfg.git_commit_email,
             "repo": "/var/lib/oxidized",
             "single_repo": True,
             "single_branch": True,
-            "single_branch_name": os.environ.get("GIT_BRANCH", "main"),
+            "single_branch_name": git_cfg.git_branch,
         },
     }
 
-    if GIT_REMOTE_URL:
+    if git_cfg.git_remote_url:
         if engine == "python":
-            # Python HookRunner pushes via subprocess with token from env (not Rugged).
+            # Python HookRunner pushes via subprocess with token from DB (not Rugged).
             config.pop("hooks", None)
         else:
             push_hook: dict = {
                 "type": "githubrepo",
                 "events": ["post_store"],
-                "remote_repo": GIT_REMOTE_URL,
+                "remote_repo": git_cfg.git_remote_url,
             }
-            if GITEA_TOKEN:
-                push_hook["username"] = GITEA_HTTP_USER
-                push_hook["password"] = GITEA_TOKEN
+            if git_cfg.gitea_token:
+                push_hook["username"] = git_cfg.gitea_http_user
+                push_hook["password"] = git_cfg.gitea_token
             else:
                 push_hook["privatekey"] = GIT_SSH_PRIVATE_KEY
                 push_hook["publickey"] = GIT_SSH_PUBLIC_KEY

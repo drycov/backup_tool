@@ -6,7 +6,7 @@
 
 - **Discovery** — ping sweep подсетей, автоматическое добавление устройств
 - **Scan** — проверка доступности (ICMP, TCP, SSH probe)
-- **Инвентарь** — PostgreSQL, Web UI, REST API, импорт из YAML
+- **Инвентарь** — SQLite или PostgreSQL (`DATABASE_URL`), Web UI, REST API, импорт из YAML
 - **Бэкапы** — Oxidized Git + MikroTik binary/export (RealMikrotikBackup)
 - **Уведомления** — Telegram и Email при ошибках и успешных бэкапах
 - **Git push** — сохранение конфигов в Gitea/GitLab через HTTP или SSH
@@ -19,7 +19,7 @@
 |--------|------|----------|
 | Scanner UI | 8000 | Web-интерфейс, API, scan/discovery, Python Oxidized |
 | Oxidized (external) | 8888 | Ruby Oxidized — только при `OXIDIZED_ENGINE=external` |
-| PostgreSQL | — | База инвентаря и пользователей (внутренняя) |
+| PostgreSQL (опционально) | — | `docker compose --profile postgres` — иначе SQLite в `inventory/scanner.db` |
 
 ## Быстрый старт
 

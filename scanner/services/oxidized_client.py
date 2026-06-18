@@ -178,13 +178,15 @@ def build_versions_proxy_path(name: str, group: str = "") -> str:
 
 
 def check_health() -> dict:
+    from services.git_settings import public_url
     from services.oxidized_logging import engine_title, is_python_engine, oxidized_log_path
 
+    pub = public_url()
     if is_python_engine():
         from services.oxidized_engine import get_manager
 
         payload = get_manager().health()
-        payload["public_url"] = settings.OXIDIZED_PUBLIC_URL
+        payload["public_url"] = pub
         payload["internal_url"] = "python-engine"
         payload["proxy_url"] = "/oxidized-proxy/nodes"
         return payload
@@ -197,7 +199,7 @@ def check_health() -> dict:
         "engine": "external",
         "engine_title": engine_title(),
         "log_path": str(oxidized_log_path()),
-        "public_url": settings.OXIDIZED_PUBLIC_URL,
+        "public_url": pub,
         "internal_url": settings.OXIDIZED_URL,
         "proxy_url": "/oxidized-proxy/nodes",
     }

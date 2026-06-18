@@ -445,6 +445,11 @@
                       <i class="fas fa-database mr-1"></i> Бэкап
                     </a>
                   </li>
+                  <li class="nav-item" id="settings-tab-git-li" data-permission-any="oxidized:read,oxidized:write">
+                    <a class="nav-link" data-toggle="tab" href="#settings-tab-git" role="tab">
+                      <i class="fas fa-code-branch mr-1"></i> Git
+                    </a>
+                  </li>
                   <li class="nav-item" id="settings-tab-notify-li" data-permission-any="oxidized:read,oxidized:write">
                     <a class="nav-link" data-toggle="tab" href="#settings-tab-notify" role="tab">
                       <i class="fas fa-bell mr-1"></i> Уведомления
@@ -513,8 +518,7 @@
                           </div>
                         </div>
                         <div class="col-md-8">
-                          <span class="text-muted small">Git remote (.env): </span><code id="ox-git-remote" class="small">—</code>
-                          <span class="text-muted small ml-2" id="ox-settings-log-path"></span>
+                          <span class="text-muted small" id="ox-settings-log-path"></span>
                         </div>
                       </div>
                       <div class="d-flex flex-wrap mb-4">
@@ -563,6 +567,12 @@
                             <label class="custom-control-label" for="bk-purge">Purge old binary</label>
                           </div>
                         </div>
+                        <div class="col-md-3 col-6">
+                          <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="bk-git-push">
+                            <label class="custom-control-label" for="bk-git-push">Git push bin/rsc</label>
+                          </div>
+                        </div>
                       </div>
                       <div class="form-row">
                         <div class="form-group col-md-2 col-sm-6">
@@ -594,6 +604,57 @@
                     </form>
                     </div>
                   </div>
+                </div>
+
+                <!-- Tab: Git -->
+                <div class="tab-pane fade" id="settings-tab-git" role="tabpanel" data-permission-any="oxidized:read,oxidized:write">
+                  <p class="text-muted small mb-3">
+                    Push конфигов Oxidized и MikroTik bin/rsc в удалённый репозиторий.
+                    Значения из UI сохраняются в БД; при первом запуске подставляются из <code>.env</code>.
+                  </p>
+                  <form id="git-settings-form">
+                    <div class="form-row">
+                      <div class="form-group col-md-8">
+                        <label for="git-remote-url">Git remote URL</label>
+                        <input type="text" id="git-remote-url" class="form-control form-control-sm" placeholder="https://gitea.example.com/org/repo.git">
+                      </div>
+                      <div class="form-group col-md-4">
+                        <label for="git-branch">Ветка</label>
+                        <input type="text" id="git-branch" class="form-control form-control-sm" placeholder="main">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group col-md-4">
+                        <label for="git-gitea-token">Gitea token</label>
+                        <input type="password" id="git-gitea-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                      </div>
+                      <div class="form-group col-md-4">
+                        <label for="git-gitea-user">HTTP user</label>
+                        <input type="text" id="git-gitea-user" class="form-control form-control-sm" placeholder="oauth2">
+                      </div>
+                      <div class="form-group col-md-4">
+                        <label for="git-source-token">Source token (X-Auth-Token)</label>
+                        <input type="password" id="git-source-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group col-md-4">
+                        <label for="git-commit-user">Commit user</label>
+                        <input type="text" id="git-commit-user" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-4">
+                        <label for="git-commit-email">Commit email</label>
+                        <input type="email" id="git-commit-email" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-4">
+                        <label for="git-public-url">Oxidized public URL</label>
+                        <input type="text" id="git-public-url" class="form-control form-control-sm" placeholder="http://localhost:8888">
+                      </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm" data-permission="oxidized:write">
+                      <i class="fas fa-save mr-1"></i> Сохранить Git
+                    </button>
+                  </form>
                 </div>
 
                 <!-- Tab: Notifications -->
@@ -643,6 +704,10 @@
                       <div class="col-md-3">
                         <label for="nt-alert-cooldown" class="small text-muted">Cooldown, ч</label>
                         <input type="number" id="nt-alert-cooldown" class="form-control form-control-sm" min="1" max="168">
+                      </div>
+                      <div class="col-md-3">
+                        <label for="nt-degrade-interval" class="small text-muted">Проверка, сек</label>
+                        <input type="number" id="nt-degrade-interval" class="form-control form-control-sm" min="300" max="86400" step="60">
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2">Telegram</h6>
@@ -932,7 +997,7 @@
                   <div id="settings-import-card">
                   <p class="text-muted small mb-3">
                     Импорт подсетей из <code>network_inventory.yml</code>.
-                    Креды по умолчанию — из <code>OVN_*</code> / <code>US_*</code> в .env.
+                    Параметры scan/discovery и seed-креды OVN/US — в БД (при первом запуске из <code>.env</code>).
                   </p>
                   <div class="d-flex flex-wrap align-items-center mb-3">
                     <button class="btn btn-secondary btn-sm mr-2 mb-1" id="btn-import-network">
@@ -943,9 +1008,45 @@
                     </button>
                     <span class="text-muted small ml-2 mb-1" id="settings-discovered-count"></span>
                   </div>
-                  <p class="text-muted small mb-0">
-                    Scan concurrency: <code id="settings-scan-concurrency">—</code> (из .env <code>SCAN_CONCURRENCY</code>)
-                  </p>
+                  <form id="scan-settings-form">
+                    <h6 class="text-muted text-uppercase small mb-2">Scan / discovery</h6>
+                    <div class="form-row">
+                      <div class="form-group col-md-4 col-sm-6">
+                        <label for="scan-concurrency">Concurrency</label>
+                        <input type="number" id="scan-concurrency" class="form-control form-control-sm" min="1" max="500">
+                      </div>
+                      <div class="form-group col-md-4 col-sm-6">
+                        <label for="scan-discover-max">Discover max hosts</label>
+                        <input type="number" id="scan-discover-max" class="form-control form-control-sm" min="1" max="65536">
+                      </div>
+                      <div class="form-group col-md-4 col-sm-6">
+                        <label for="scan-ping-workers">Ping workers</label>
+                        <input type="number" id="scan-ping-workers" class="form-control form-control-sm" min="1" max="1000">
+                      </div>
+                    </div>
+                    <h6 class="text-muted text-uppercase small mb-2 mt-2">Seed credentials (import)</h6>
+                    <div class="form-row">
+                      <div class="form-group col-md-3 col-sm-6">
+                        <label for="scan-ovn-user">OVN user</label>
+                        <input type="text" id="scan-ovn-user" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-3 col-sm-6">
+                        <label for="scan-ovn-pass">OVN password</label>
+                        <input type="password" id="scan-ovn-pass" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                      </div>
+                      <div class="form-group col-md-3 col-sm-6">
+                        <label for="scan-us-user">US user</label>
+                        <input type="text" id="scan-us-user" class="form-control form-control-sm">
+                      </div>
+                      <div class="form-group col-md-3 col-sm-6">
+                        <label for="scan-us-pass">US password</label>
+                        <input type="password" id="scan-us-pass" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                      </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                      <i class="fas fa-save mr-1"></i> Сохранить scan
+                    </button>
+                  </form>
                   </div>
                 </div>
 

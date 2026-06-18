@@ -6,6 +6,8 @@ name: backup-tools
 
 services:
   db:
+    profiles:
+      - postgres
     image: postgres:16-alpine
     restart: unless-stopped
     env_file:
@@ -41,9 +43,6 @@ services:
       - ${STACK_PATH:-.}/oxidized:/data/oxidized
       - oxidized-data:/var/lib/oxidized
       - ${STACK_PATH:-.}/oxidized-ssh:/home/oxidized/.ssh:ro
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - backup-net
     healthcheck:

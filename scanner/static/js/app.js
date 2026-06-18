@@ -904,10 +904,14 @@ async function loadSettings() {
   if (can("oxidized:read") || can("oxidized:write")) {
     await loadOxidizedSettings();
     await loadBackupSettings();
+    await loadGitSettings();
   }
   renderSettingsCredentials();
   if (can("users:manage")) {
     await loadLdapSettings();
+  }
+  if (can("inventory:write")) {
+    await loadScanSettings();
   }
 }
 
@@ -949,7 +953,6 @@ function fillOxidizedSettingsForm(cfg) {
   qs("#ox-retries").value = cfg.retries ?? 3;
   qs("#ox-ssh-port").value = cfg.ssh_port ?? 44333;
   qs("#ox-resolve-dns").checked = cfg.resolve_dns !== false;
-  qs("#ox-git-remote").textContent = cfg.git_remote_url || "не задан (GIT_REMOTE_URL)";
   const logEl = qs("#ox-settings-log-path");
   if (logEl) logEl.textContent = cfg.log_path ? `Лог: ${cfg.log_path}` : "";
   fillModelSelect(qs("#ox-default-model"), cfg.default_model || "routeros", cfg.available_models);
@@ -958,8 +961,6 @@ function fillOxidizedSettingsForm(cfg) {
   if (uiBtn && cfg.proxy_url) {
     uiBtn.href = `${window.location.origin}${cfg.proxy_url}`;
   }
-  const scanConc = qs("#settings-scan-concurrency");
-  if (scanConc) scanConc.textContent = String(cfg.scan_concurrency ?? "—");
 }
 
 function collectOxidizedSettingsForm() {
@@ -984,7 +985,6 @@ function collectOxidizedSettingsForm() {
 async function loadOxidizedSettings() {
   try {
     const cfg = await api("/api/settings/oxidized");
-    cfg.scan_concurrency = cfg.scan_concurrency;
     fillOxidizedSettingsForm(cfg);
   } catch (e) {
     showAlert("settings-alert", `Oxidized: ${e.message}`, "error");
@@ -1020,6 +1020,8 @@ async function syncOxidizedFromSettings() {
 
 const SETTINGS_PASSWORD_MASK = "********";
 let backupSettingsCache = null;
+let gitSettingsCache = null;
+let scanSettingsCache = null;
 
 function fillBackupSettingsForm(cfg) {
   backupSettingsCache = cfg;
@@ -1027,6 +1029,7 @@ function fillBackupSettingsForm(cfg) {
   if (qs("#bk-export")) qs("#bk-export").checked = cfg.export_enabled !== false;
   if (qs("#bk-hide-sensitive")) qs("#bk-hide-sensitive").checked = !!cfg.hide_sensitive;
   if (qs("#bk-purge")) qs("#bk-purge").checked = cfg.purge_enabled !== false;
+  if (qs("#bk-git-push")) qs("#bk-git-push").checked = cfg.mk_backup_git_push !== false;
   if (qs("#bk-purge-keep")) qs("#bk-purge-keep").value = cfg.purge_keep ?? 10;
   if (qs("#bk-timeout")) qs("#bk-timeout").value = cfg.backup_timeout ?? 300;
   if (qs("#bk-bin-dir")) qs("#bk-bin-dir").value = cfg.bin_dir || "/var/lib/oxidized/bin";
@@ -1046,6 +1049,7 @@ function fillBackupSettingsForm(cfg) {
   if (qs("#nt-degrade-email")) qs("#nt-degrade-email").checked = !!cfg.degrade_notify_email;
   if (qs("#nt-stale-days")) qs("#nt-stale-days").value = cfg.stale_days_threshold ?? 30;
   if (qs("#nt-alert-cooldown")) qs("#nt-alert-cooldown").value = cfg.alert_cooldown_hours ?? 24;
+  if (qs("#nt-degrade-interval")) qs("#nt-degrade-interval").value = cfg.degrade_check_interval_sec ?? 3600;
   if (qs("#nt-telegram-chat-notify")) qs("#nt-telegram-chat-notify").value = cfg.telegram_chat_notify || "";
   if (qs("#nt-telegram-chat-report")) qs("#nt-telegram-chat-report").value = cfg.telegram_chat_report || "";
   if (qs("#nt-smtp-server")) qs("#nt-smtp-server").value = cfg.smtp_server || "";
@@ -1081,6 +1085,7 @@ function collectBackupSettingsForm() {
     hide_sensitive: qs("#bk-hide-sensitive")?.checked === true,
     encrypt_password: encVal || (backupSettingsCache?.encrypt_password_set ? SETTINGS_PASSWORD_MASK : ""),
     purge_enabled: qs("#bk-purge")?.checked !== false,
+    mk_backup_git_push: qs("#bk-git-push")?.checked !== false,
     purge_keep: parseInt(qs("#bk-purge-keep")?.value, 10) || 10,
     bin_dir: qs("#bk-bin-dir")?.value.trim() || "/var/lib/oxidized/bin",
     rsc_dir: qs("#bk-rsc-dir")?.value.trim() || "/var/lib/oxidized/rsc",
@@ -1104,6 +1109,7 @@ function collectBackupSettingsForm() {
     degrade_notify_email: qs("#nt-degrade-email")?.checked === true,
     stale_days_threshold: parseInt(qs("#nt-stale-days")?.value, 10) || 30,
     alert_cooldown_hours: parseInt(qs("#nt-alert-cooldown")?.value, 10) || 24,
+    degrade_check_interval_sec: parseInt(qs("#nt-degrade-interval")?.value, 10) || 3600,
   };
 }
 
@@ -1113,6 +1119,130 @@ async function loadBackupSettings() {
     fillBackupSettingsForm(cfg);
   } catch (e) {
     showAlert("settings-alert", `Backup: ${e.message}`, "error");
+  }
+}
+
+function fillGitSettingsForm(cfg) {
+  gitSettingsCache = cfg;
+  if (qs("#git-remote-url")) qs("#git-remote-url").value = cfg.git_remote_url || "";
+  if (qs("#git-branch")) qs("#git-branch").value = cfg.git_branch || "main";
+  if (qs("#git-gitea-user")) qs("#git-gitea-user").value = cfg.gitea_http_user || "oauth2";
+  if (qs("#git-commit-user")) qs("#git-commit-user").value = cfg.git_commit_user || "Oxidized";
+  if (qs("#git-commit-email")) qs("#git-commit-email").value = cfg.git_commit_email || "";
+  if (qs("#git-public-url")) qs("#git-public-url").value = cfg.oxidized_public_url || "";
+  const giteaTok = qs("#git-gitea-token");
+  if (giteaTok) {
+    giteaTok.value = "";
+    giteaTok.placeholder = cfg.gitea_token_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "Gitea personal access token";
+  }
+  const sourceTok = qs("#git-source-token");
+  if (sourceTok) {
+    sourceTok.value = "";
+    sourceTok.placeholder = cfg.oxidized_source_token_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "Токен для /api/oxidized/source";
+  }
+}
+
+function collectGitSettingsForm() {
+  const giteaVal = qs("#git-gitea-token")?.value.trim();
+  const sourceVal = qs("#git-source-token")?.value.trim();
+  return {
+    git_remote_url: qs("#git-remote-url")?.value.trim() || "",
+    git_branch: qs("#git-branch")?.value.trim() || "main",
+    gitea_http_user: qs("#git-gitea-user")?.value.trim() || "oauth2",
+    git_commit_user: qs("#git-commit-user")?.value.trim() || "Oxidized",
+    git_commit_email: qs("#git-commit-email")?.value.trim() || "oxidized@localhost",
+    oxidized_public_url: qs("#git-public-url")?.value.trim() || "",
+    gitea_token: giteaVal || (gitSettingsCache?.gitea_token_set ? SETTINGS_PASSWORD_MASK : ""),
+    oxidized_source_token: sourceVal || (gitSettingsCache?.oxidized_source_token_set ? SETTINGS_PASSWORD_MASK : ""),
+  };
+}
+
+async function loadGitSettings() {
+  try {
+    const cfg = await api("/api/settings/git");
+    fillGitSettingsForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `Git: ${e.message}`, "error");
+  }
+}
+
+async function saveGitSettings(e) {
+  e.preventDefault();
+  if (!can("oxidized:write")) return;
+  try {
+    const saved = await api("/api/settings/git", {
+      method: "PUT",
+      body: JSON.stringify(collectGitSettingsForm()),
+    });
+    fillGitSettingsForm(saved);
+    showAlert("settings-alert", "Настройки Git сохранены", "success");
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+function fillScanSettingsForm(cfg) {
+  scanSettingsCache = cfg;
+  if (qs("#scan-concurrency")) qs("#scan-concurrency").value = cfg.scan_concurrency ?? 50;
+  if (qs("#scan-discover-max")) qs("#scan-discover-max").value = cfg.discover_max_hosts ?? 4096;
+  if (qs("#scan-ping-workers")) qs("#scan-ping-workers").value = cfg.discover_ping_workers ?? 100;
+  if (qs("#scan-ovn-user")) qs("#scan-ovn-user").value = cfg.ovn_user || "satcoadm";
+  if (qs("#scan-us-user")) qs("#scan-us-user").value = cfg.us_user || "satcoadm";
+  const ovnPass = qs("#scan-ovn-pass");
+  if (ovnPass) {
+    ovnPass.value = "";
+    ovnPass.placeholder = cfg.ovn_pass_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "OVN password";
+  }
+  const usPass = qs("#scan-us-pass");
+  if (usPass) {
+    usPass.value = "";
+    usPass.placeholder = cfg.us_pass_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "US password";
+  }
+}
+
+function collectScanSettingsForm() {
+  const ovnVal = qs("#scan-ovn-pass")?.value.trim();
+  const usVal = qs("#scan-us-pass")?.value.trim();
+  return {
+    scan_concurrency: parseInt(qs("#scan-concurrency")?.value, 10) || 50,
+    discover_max_hosts: parseInt(qs("#scan-discover-max")?.value, 10) || 4096,
+    discover_ping_workers: parseInt(qs("#scan-ping-workers")?.value, 10) || 100,
+    ovn_user: qs("#scan-ovn-user")?.value.trim() || "satcoadm",
+    ovn_pass: ovnVal || (scanSettingsCache?.ovn_pass_set ? SETTINGS_PASSWORD_MASK : ""),
+    us_user: qs("#scan-us-user")?.value.trim() || "satcoadm",
+    us_pass: usVal || (scanSettingsCache?.us_pass_set ? SETTINGS_PASSWORD_MASK : ""),
+  };
+}
+
+async function loadScanSettings() {
+  try {
+    const cfg = await api("/api/settings/scan");
+    fillScanSettingsForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `Scan: ${e.message}`, "error");
+  }
+}
+
+async function saveScanSettings(e) {
+  e.preventDefault();
+  if (!can("inventory:write")) return;
+  try {
+    const saved = await api("/api/settings/scan", {
+      method: "PUT",
+      body: JSON.stringify(collectScanSettingsForm()),
+    });
+    fillScanSettingsForm(saved);
+    showAlert("settings-alert", "Настройки scan сохранены", "success");
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
   }
 }
 
@@ -2444,6 +2574,8 @@ function bindEvents() {
   qs("#ldap-settings-form")?.addEventListener("submit", saveLdapSettings);
   qs("#oxidized-settings-form")?.addEventListener("submit", saveOxidizedSettings);
   qs("#backup-settings-form")?.addEventListener("submit", saveBackupSettings);
+  qs("#git-settings-form")?.addEventListener("submit", saveGitSettings);
+  qs("#scan-settings-form")?.addEventListener("submit", saveScanSettings);
   qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
   qs("#audit-action-filter")?.addEventListener("change", () => loadAudit());
   qs("#btn-test-notify-report")?.addEventListener("click", () => testBackupNotify("report"));

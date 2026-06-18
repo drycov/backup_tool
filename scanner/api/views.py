@@ -31,7 +31,6 @@ from services.audit import (
 from services.compliance import compute_compliance_summary
 from services.scan_history import get_scan_history, get_scan_trends
 from services.inventory import (
-    OXIDIZED_SOURCE_TOKEN,
     OXIDIZED_SOURCE_URL,
     add_device,
     devices_for_oxidized_source,
@@ -74,12 +73,14 @@ from services.schemas import (
     CredentialProfileUpdate,
     Device,
     DeviceCreate,
+    GitSettingsUpdate,
     Inventory,
     LdapConfigUpdate,
     LdapTestRequest,
     OxidizedSettingsUpdate,
     ScanJobStatus,
     ScanLogEntry,
+    ScanSettingsUpdate,
     ScanStartResponse,
 )
 from services import ldap_settings
@@ -115,10 +116,13 @@ def ui_page(request: HttpRequest) -> FileResponse:
 
 
 def ui_config(request: HttpRequest) -> JsonResponse:
+    from services.database import is_database_available
+    from services.git_settings import public_url
+
     engine = getattr(settings, "OXIDIZED_ENGINE", "python")
     return json_response(
         {
-            "oxidized_public_url": settings.OXIDIZED_PUBLIC_URL,
+            "oxidized_public_url": public_url(),
             "oxidized_proxy_url": "/oxidized-proxy/nodes",
             "oxidized_engine": engine,
             "oxidized_engine_title": (
@@ -127,6 +131,8 @@ def ui_config(request: HttpRequest) -> JsonResponse:
             "scanner_version": "1.0.0",
             "auth_required": True,
             "auth": auth_methods(),
+            "database": "connected" if is_database_available() else "env-fallback",
+            "database_url": settings.DATABASE_URL_DISPLAY,
         }
     )
 
@@ -291,9 +297,12 @@ def oxidized_health(request: HttpRequest) -> JsonResponse:
 
 
 def oxidized_source(request: HttpRequest) -> JsonResponse:
-    if OXIDIZED_SOURCE_TOKEN:
+    from services.git_settings import source_token
+
+    token_expected = source_token()
+    if token_expected:
         token = request.headers.get("X-Auth-Token", "")
-        if token != OXIDIZED_SOURCE_TOKEN:
+        if token != token_expected:
             return error_response("Invalid X-Auth-Token", status=401)
     return json_response(devices_for_oxidized_source())
 
@@ -567,6 +576,8 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
 
 
 def health(request: HttpRequest) -> JsonResponse:
+    from services.database import is_database_available
+
     inventory = load_inventory()
     summary, last_scan_at = scan_job.get_last_scan()
     if summary is None:
@@ -575,6 +586,7 @@ def health(request: HttpRequest) -> JsonResponse:
         summary, last_scan_at = get_last_scan_from_db()
     payload = {
         "status": "ok",
+        "database": "connected" if is_database_available() else "env-fallback",
         "inventory_devices": len(inventory.devices),
         "networks": len(inventory.networks),
         "last_scan": last_scan_at,
@@ -948,4 +960,60 @@ def ldap_settings_test_view(request: HttpRequest) -> JsonResponse:
         password=payload.password,
     )
     return json_response(result)
+
+
+@csrf_exempt
+def git_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import git_settings
+
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    if request.method == "GET":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_READ):
+            return error_response("Недостаточно прав", status=403)
+        return json_response(git_settings.get_config_public())
+    if request.method == "PUT":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_WRITE):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            body = parse_json_body(request)
+            payload = GitSettingsUpdate.model_validate(body)
+            saved = git_settings.save_config(payload.model_dump())
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+def scan_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import scan_settings
+
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    if request.method == "GET":
+        if not auth.user_has_permission(user, auth.PERMISSION_VIEW_INVENTORY):
+            return error_response("Недостаточно прав", status=403)
+        return json_response(scan_settings.get_config_public())
+    if request.method == "PUT":
+        if not auth.user_has_permission(user, auth.PERMISSION_EDIT_INVENTORY):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            body = parse_json_body(request)
+            payload = ScanSettingsUpdate.model_validate(body)
+            saved = scan_settings.save_config(payload.model_dump())
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
 

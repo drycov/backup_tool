@@ -79,12 +79,8 @@ def get_oxidized_settings() -> dict[str, Any]:
         "default_model": resolve_model_name(str(yaml_cfg.get("model") or "routeros")),
         "ssh_port": yaml_port if yaml_port is not None else settings.ROUTEROS_SSH_PORT,
         "resolve_dns": str(yaml_cfg.get("resolve_dns", "true")).lower() in ("1", "true", "yes"),
-        "git_remote_url": settings.GIT_REMOTE_URL or "",
-        "git_remote_configured": bool(settings.GIT_REMOTE_URL),
-        "gitea_configured": bool(getattr(settings, "GITEA_TOKEN", "")),
         "log_path": str(oxidized_log_path()),
         "proxy_url": "/oxidized-proxy/nodes",
-        "public_url": settings.OXIDIZED_PUBLIC_URL,
         "available_models": list_available_models(),
         "group_models": group_models_from_yaml(yaml_cfg),
         "health": {
@@ -93,8 +89,7 @@ def get_oxidized_settings() -> dict[str, Any]:
             "error": health.get("error"),
         },
         "editable": True,
-        "env_note": "Движок и Git URL задаются в .env; остальное сохраняется в oxidized/config",
-        "scan_concurrency": settings.SCAN_CONCURRENCY,
+        "env_note": "Движок задаётся в .env (OXIDIZED_ENGINE); worker — в oxidized/config; Git и scan — во вкладках настроек",
     }
 
 

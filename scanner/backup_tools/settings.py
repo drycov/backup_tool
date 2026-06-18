@@ -28,36 +28,18 @@ MIDDLEWARE = [
 ROOT_URLCONF = "backup_tools.urls"
 WSGI_APPLICATION = "backup_tools.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "inventory"),
-        "USER": os.environ.get("POSTGRES_USER", "backup"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "backup"),
-        "HOST": os.environ.get("POSTGRES_HOST", "db"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-    }
-}
+from services.database import (  # noqa: E402
+    database_url_for_log,
+    django_db_config,
+    resolved_database_url,
+)
 
-if os.environ.get("DATABASE_URL"):
-    import re
+_resolved_db_url = resolved_database_url(BASE_DIR)
+if _resolved_db_url and not os.environ.get("DATABASE_URL"):
+    os.environ["DATABASE_URL"] = _resolved_db_url
 
-    match = re.match(
-        r"postgresql(\+psycopg2)?://(?P<user>[^:]+):(?P<password>[^@]+)@"
-        r"(?P<host>[^:/]+)(:(?P<port>\d+))?/(?P<name>.+)",
-        os.environ["DATABASE_URL"],
-    )
-    if match:
-        g = match.groupdict()
-        DATABASES["default"].update(
-            {
-                "NAME": g["name"],
-                "USER": g["user"],
-                "PASSWORD": g["password"],
-                "HOST": g["host"],
-                "PORT": g["port"] or "5432",
-            }
-        )
+DATABASES = {"default": django_db_config(BASE_DIR)}
+DATABASE_URL_DISPLAY = database_url_for_log(_resolved_db_url)
 
 LANGUAGE_CODE = "ru-ru"
 TIME_ZONE = "UTC"

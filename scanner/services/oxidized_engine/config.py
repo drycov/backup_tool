@@ -94,9 +94,12 @@ class OxidizedConfig:
             pass
 
         if not groups:
+            from services.scan_settings import get_credentials
+
+            ovn_user, ovn_pass, _, _ = get_credentials()
             groups["default"] = GroupConfig(
-                username=getattr(settings, "OVN_USER", "admin"),
-                password=getattr(settings, "OVN_PASS", ""),
+                username=ovn_user or "admin",
+                password=ovn_pass or "",
                 model=default_model,
             )
 
@@ -109,6 +112,10 @@ class OxidizedConfig:
         repo = Path(os.environ.get("OXIDIZED_GIT_REPO", "/var/lib/oxidized"))
         output_cfg = yaml_cfg.get("output") or {}
         git_cfg = output_cfg.get("git") or {}
+
+        from services.git_settings import get_config as get_git_db_config
+
+        _git_cfg = get_git_db_config()
 
         return cls(
             interval=int(yaml_cfg.get("interval") or os.environ.get("OXIDIZED_INTERVAL", "3600")),
@@ -143,9 +150,9 @@ class OxidizedConfig:
                 ),
             ),
             groups=groups,
-            git_remote_url=getattr(settings, "GIT_REMOTE_URL", ""),
-            gitea_token=getattr(settings, "GITEA_TOKEN", ""),
-            gitea_http_user=getattr(settings, "GITEA_HTTP_USER", "oauth2"),
+            git_remote_url=_git_cfg.git_remote_url,
+            gitea_token=_git_cfg.gitea_token,
+            gitea_http_user=_git_cfg.gitea_http_user,
             git_ssh_private_key=Path(
                 os.environ.get("GIT_SSH_PRIVATE_KEY", "/home/oxidized/.ssh/id_rsa")
             ),

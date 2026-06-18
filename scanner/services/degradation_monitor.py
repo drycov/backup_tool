@@ -15,7 +15,16 @@ from services.compliance import collect_degradation_issues
 
 logger = logging.getLogger(__name__)
 
-_CHECK_INTERVAL_SEC = max(300, int(os.environ.get("DEGRADE_CHECK_INTERVAL_SEC", "3600")))
+_CHECK_INTERVAL_SEC = 3600
+
+
+def _check_interval_sec() -> int:
+    try:
+        from services.backup_settings import get_config
+
+        return max(300, get_config().degrade_check_interval_sec)
+    except Exception:
+        return max(300, int(os.environ.get("DEGRADE_CHECK_INTERVAL_SEC", "3600")))
 
 _thread: threading.Thread | None = None
 _stop = threading.Event()
@@ -80,7 +89,7 @@ def _loop() -> None:
             run_degradation_check()
         except Exception:
             logger.exception("degrade | check failed")
-        _stop.wait(_CHECK_INTERVAL_SEC)
+        _stop.wait(_check_interval_sec())
 
 
 def start_degradation_monitor() -> None:
@@ -90,4 +99,4 @@ def start_degradation_monitor() -> None:
     _stop.clear()
     _thread = threading.Thread(target=_loop, name="degradation-monitor", daemon=True)
     _thread.start()
-    logger.info("degrade | monitor started | interval=%ss", _CHECK_INTERVAL_SEC)
+    logger.info("degrade | monitor started | interval=%ss", _check_interval_sec())

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from core.models import LdapConfig
+from services.database import is_database_available, require_database, reset_availability_cache
 
 logger = logging.getLogger(__name__)
 
@@ -97,18 +98,31 @@ def _row_to_data(row: LdapConfig) -> LdapConfigData:
 
 
 def ensure_initialized() -> None:
-    defaults = _defaults_from_env()
-    row, created = LdapConfig.objects.get_or_create(pk=1, defaults=defaults)
-    if created and row.enabled:
-        logger.info("ldap | конфигурация инициализирована из .env")
+    if not is_database_available():
+        return
+    try:
+        defaults = _defaults_from_env()
+        row, created = LdapConfig.objects.get_or_create(pk=1, defaults=defaults)
+        if created and row.enabled:
+            logger.info("ldap | конфигурация инициализирована из .env")
+    except Exception as exc:
+        logger.warning("ldap | init failed: %s", exc)
+        reset_availability_cache()
 
 
 def get_config() -> LdapConfigData:
-    row = LdapConfig.objects.filter(pk=1).first()
-    if not row:
-        ensure_initialized()
-        row = LdapConfig.objects.get(pk=1)
-    return _row_to_data(row)
+    if not is_database_available():
+        return LdapConfigData(**_defaults_from_env())
+    try:
+        row = LdapConfig.objects.filter(pk=1).first()
+        if not row:
+            ensure_initialized()
+            row = LdapConfig.objects.get(pk=1)
+        return _row_to_data(row)
+    except Exception as exc:
+        logger.warning("ldap | read failed: %s", exc)
+        reset_availability_cache()
+        return LdapConfigData(**_defaults_from_env())
 
 
 def ldap_configured() -> bool:
@@ -136,10 +150,12 @@ def get_config_public() -> dict[str, Any]:
         "fallback_local": cfg.fallback_local,
         "connect_timeout": cfg.connect_timeout,
         "configured": ldap_configured(),
+        "storage": "database" if is_database_available() else "env",
     }
 
 
 def save_config(payload: dict[str, Any]) -> dict[str, Any]:
+    require_database("Сохранение настроек LDAP невозможно")
     row = LdapConfig.objects.filter(pk=1).first()
     if not row:
         ensure_initialized()

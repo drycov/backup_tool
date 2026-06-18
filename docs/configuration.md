@@ -8,16 +8,27 @@
 |------------|--------------|----------|
 | `STACK_PATH` | `.` | Корень репозитория для bind-mount (`inventory`, `oxidized`, `oxidized-ssh`). На Portainer укажите абсолютный путь, если репо не в каталоге compose. |
 
-## PostgreSQL
+## База данных
+
+Достаточно одной переменной **`DATABASE_URL`**. Scanner не использует `POSTGRES_*` — они нужны только контейнеру `db`.
+
+| Режим | `DATABASE_URL` | Docker |
+|-------|----------------|--------|
+| **SQLite (по умолчанию)** | не задавать или `sqlite:////data/inventory/scanner.db` | `docker compose up -d` — без PostgreSQL |
+| **PostgreSQL** | `postgresql://user:pass@db:5432/inventory` | `docker compose --profile postgres up -d` |
+
+При первом запуске SQLite-файл создаётся в `inventory/scanner.db` на хосте (bind-mount `/data/inventory`).
+
+Если БД временно недоступна (например, PostgreSQL ещё не поднялся), **настройки** (Git, scan, backup, LDAP) читаются из `.env`; сохранение в UI вернёт ошибку до восстановления соединения.
 
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
-| `POSTGRES_USER` | `backup` | Пользователь БД |
-| `POSTGRES_PASSWORD` | — | **Обязательно изменить** |
-| `POSTGRES_DB` | `inventory` | Имя базы |
-| `POSTGRES_HOST` | `db` | Хост (в Docker — имя сервиса) |
-| `POSTGRES_PORT` | `5432` | Порт |
-| `DATABASE_URL` | — | Альтернативный DSN: `postgresql+psycopg2://user:pass@host:5432/db` |
+| `DATABASE_URL` | SQLite `…/data/inventory/scanner.db` | DSN: `sqlite:////…` или `postgresql://user:pass@host:5432/db` |
+| `SQLITE_DB_PATH` | `/data/inventory/scanner.db` | Путь к файлу SQLite (если не задан `DATABASE_URL`) |
+| `DB_WAIT_SECONDS` | `60` | Ожидание PostgreSQL при старте scanner |
+| `POSTGRES_USER` | `backup` | Только для контейнера `db` (profile `postgres`) |
+| `POSTGRES_PASSWORD` | — | Пароль PostgreSQL |
+| `POSTGRES_DB` | `inventory` | Имя базы в контейнере `db` |
 
 ## Scanner
 

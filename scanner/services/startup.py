@@ -12,13 +12,20 @@ def initialize() -> None:
     from services.inventory import init_db, load_inventory, update_oxidized_credentials
 
     setup_logging()
-    logger.info("scanner | startup")
+    from django.conf import settings as dj_settings
+
+    logger.info("scanner | startup | database=%s", dj_settings.DATABASE_URL_DISPLAY)
     init_db()
     from services.ldap_settings import ensure_initialized
 
     ensure_initialized()
     from services.backup_settings import ensure_initialized as ensure_backup_initialized
 
+    from services.git_settings import ensure_initialized as ensure_git_initialized
+    from services.scan_settings import ensure_initialized as ensure_scan_initialized
+
+    ensure_git_initialized()
+    ensure_scan_initialized()
     ensure_backup_initialized()
 
     from django.conf import settings

@@ -1,5 +1,7 @@
 .env
 pg-data/
+inventory/scanner.db
+scanner/scanner.db
 
 # Python
 __pycache__/

@@ -320,6 +320,12 @@ def run_mikrotik_backups(node: Node) -> bool:
         return True
     try:
         MikrotikBackup(cfg).run_for_node(node)
+        try:
+            from services.git_mikrotik import commit_mikrotik_backups
+
+            commit_mikrotik_backups(node.name)
+        except Exception:
+            logger.exception("mikrotik | git push failed | %s", node.name)
         return True
     except MikrotikBackupError as exc:
         logger.warning("mikrotik | backup failed | %s: %s", node.name, exc)

@@ -117,11 +117,46 @@ class BackupConfig(models.Model):
     degrade_notify_email = models.BooleanField(default=False)
     stale_days_threshold = models.PositiveIntegerField(default=30)
     alert_cooldown_hours = models.PositiveIntegerField(default=24)
+    mk_backup_git_push = models.BooleanField(default=True)
+    degrade_check_interval_sec = models.PositiveIntegerField(default=3600)
 
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "backup_config"
+
+
+class GitConfig(models.Model):
+    """Singleton: Git push и интеграции (pk=1)."""
+
+    git_remote_url = models.CharField(max_length=512, blank=True, default="")
+    gitea_token = models.CharField(max_length=256, blank=True, default="")
+    gitea_http_user = models.CharField(max_length=64, default="oauth2")
+    git_commit_user = models.CharField(max_length=128, default="Oxidized")
+    git_commit_email = models.CharField(max_length=256, default="oxidized@localhost")
+    git_branch = models.CharField(max_length=64, default="main")
+    oxidized_source_token = models.CharField(max_length=256, blank=True, default="")
+    oxidized_public_url = models.CharField(max_length=512, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "git_config"
+
+
+class ScanConfig(models.Model):
+    """Singleton: scan/discovery и seed credentials (pk=1)."""
+
+    scan_concurrency = models.PositiveIntegerField(default=50)
+    discover_max_hosts = models.PositiveIntegerField(default=4096)
+    discover_ping_workers = models.PositiveIntegerField(default=100)
+    ovn_user = models.CharField(max_length=128, default="satcoadm")
+    ovn_pass = models.CharField(max_length=256, blank=True, default="")
+    us_user = models.CharField(max_length=128, default="satcoadm")
+    us_pass = models.CharField(max_length=256, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "scan_config"
 
 
 class ScanRun(models.Model):

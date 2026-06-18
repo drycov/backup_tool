@@ -80,8 +80,10 @@ def _to_proxy_path(path: str) -> str:
 
 
 def rewrite_proxy_location(location: str) -> str:
+    from services.git_settings import public_url
+
     location = location.strip()
-    for base in (oxidized_base_url(), settings.OXIDIZED_PUBLIC_URL.rstrip("/")):
+    for base in (oxidized_base_url(), public_url()):
         if location.startswith(base):
             suffix = location[len(base) :] or "/"
             if not suffix.startswith("/"):
@@ -107,6 +109,8 @@ def _rewrite_quoted_paths(text: str) -> str:
 
 
 def rewrite_proxy_body(content: bytes, content_type: str) -> bytes:
+    from services.git_settings import public_url
+
     if not content:
         return content
     ct = (content_type or "").lower()
@@ -117,7 +121,8 @@ def rewrite_proxy_body(content: bytes, content_type: str) -> bytes:
     except UnicodeDecodeError:
         return content
 
-    for base in (oxidized_base_url(), settings.OXIDIZED_PUBLIC_URL.rstrip("/")):
+    pub = public_url()
+    for base in (oxidized_base_url(), pub):
         text = text.replace(f"{base}/", f"{OXIDIZED_PROXY_PREFIX}/")
 
     text = _rewrite_quoted_paths(text)
