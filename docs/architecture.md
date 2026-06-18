@@ -77,6 +77,9 @@ scanner/
 │   ├── scanner.py      # Ping, port scan, discovery
 │   ├── inventory.py    # CRUD, seed, oxidized sync
 │   ├── oxidized_engine/  # Встроенный движок бэкапов
+│   ├── backup_notifications.py  # Telegram/SMTP error, report, degrade
+│   ├── degradation_monitor.py   # Фоновая проверка compliance → alerts
+│   ├── compliance.py            # Классификация состояния бэкапов
 │   ├── auth.py         # JWT, пользователи
 │   └── ldap_*.py       # LDAP / AD
 └── static/             # UI (index.html, app.js, style.css)
@@ -89,7 +92,10 @@ scanner/
 - `devices`, `networks`, `credential_profiles` — инвентарь
 - `users` — локальные и LDAP-пользователи
 - `ldap_config` — singleton LDAP (pk=1)
-- `backup_config` — MikroTik backup + уведомления (pk=1)
+- `git_config` — Git push, source token, public URL (pk=1)
+- `scan_config` — scan/discovery tuning + seed OVN/US (pk=1)
+- `backup_config` — MikroTik backup + уведомления + degrade (pk=1)
+- `alert_state` — cooldown для degrade-уведомлений
 
 При первом запуске данные могут быть импортированы из `inventory/network_inventory.yml` и `inventory/inventory.yaml`.
 
@@ -139,9 +145,9 @@ scanner/
 3. **Store**: Git commit на volume `oxidized-data`.
 4. **Push**: `GIT_REMOTE_URL` (Python HookRunner или Ruby hook).
 5. **MikroTik** (python, routeros): binary + export → `bin/`, `rsc/` на том же volume.
-6. **Notify**: Telegram/Email при ошибках и отчётах.
+6. **Notify**: error при сбоях; report при изменении Git или ошибке binary; degrade по compliance (фоновый monitor).
 
-Подробнее: [engines.md](engines.md), [mikrotik-backups.md](mikrotik-backups.md).
+Подробнее: [engines.md](engines.md), [mikrotik-backups.md](mikrotik-backups.md), [compliance.md](compliance.md), [notifications.md](notifications.md).
 
 ### Синхронизация credentials
 

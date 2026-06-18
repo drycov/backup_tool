@@ -160,3 +160,4 @@ print(r.status_code)
 - [MikroTik бэкапы](mikrotik-backups.md) — ошибки binary → error notify
 - [Oxidized](oxidized.md) — worker errors
 - Dashboard → Compliance — те же метрики, что для degrade
+- [Compliance](compliance.md) — состояния, API, связь с alerts

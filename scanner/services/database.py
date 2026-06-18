@@ -69,9 +69,9 @@ def django_db_config(base_dir: Path | None = None) -> dict[str, Any]:
     if parsed.scheme in _SQLITE_SCHEMES:
         db_path = unquote(parsed.path)
         if db_path.startswith("//"):
-            db_path = db_path[1:]
+            db_path = db_path[2:]
         elif db_path.startswith("/") and len(db_path) > 2 and db_path[2] == ":":
-            pass
+            db_path = db_path[1:]
         elif parsed.netloc:
             db_path = f"{parsed.netloc}{parsed.path}"
         path = Path(db_path)

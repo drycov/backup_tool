@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from core.models import AlertState
-from services.backup_notifications import notify_degradation
+from services.backup_notifications import notify_degradation, notify_degradation_webhook
 from services.backup_settings import get_config
 from services.compliance import collect_degradation_issues
 
@@ -61,7 +61,11 @@ def _clear_alert(alert_key: str) -> None:
 
 def run_degradation_check() -> dict[str, int]:
     cfg = get_config()
-    if not cfg.degrade_notify_telegram and not cfg.degrade_notify_email:
+    if (
+        not cfg.degrade_notify_telegram
+        and not cfg.degrade_notify_email
+        and not cfg.degrade_webhook_enabled
+    ):
         return {"skipped": 1}
 
     buckets = collect_degradation_issues()
@@ -83,6 +87,7 @@ def run_degradation_check() -> dict[str, int]:
         if len(devices) > 50:
             lines.append(f"… и ещё {len(devices) - 50}")
         notify_degradation(label, lines, stale_days=cfg.stale_days_threshold)
+        notify_degradation_webhook(kind, devices)
         _mark_notified(alert_key, len(devices))
         sent += 1
         logger.info("degrade | notified | %s | devices=%d", kind, len(devices))

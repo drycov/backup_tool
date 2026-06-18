@@ -37,9 +37,27 @@ class Device(models.Model):
     group = models.CharField(max_length=64, default="default")
     enabled = models.BooleanField(default=True)
     ports = LegacyJSONField(default=list)
+    site = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    role = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    critical = models.BooleanField(default=False, db_index=True)
+    maintenance = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         db_table = "devices"
+
+
+class GroupPolicy(models.Model):
+    """Политики бэкапа per-group (hex, us, …)."""
+
+    group_name = models.CharField(max_length=64, unique=True, db_index=True)
+    backup_interval_sec = models.PositiveIntegerField(default=0)
+    model = models.CharField(max_length=64, blank=True, default="")
+    mk_binary_enabled = models.BooleanField(null=True, blank=True)
+    mk_export_enabled = models.BooleanField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "group_policies"
 
 
 class User(models.Model):
@@ -48,6 +66,8 @@ class User(models.Model):
     role = models.CharField(max_length=32, default="viewer")
     is_active = models.BooleanField(default=True)
     auth_source = models.CharField(max_length=16, default="local")
+    allowed_groups = LegacyJSONField(default=list, blank=True)
+    allowed_sites = LegacyJSONField(default=list, blank=True)
     created_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -119,6 +139,19 @@ class BackupConfig(models.Model):
     alert_cooldown_hours = models.PositiveIntegerField(default=24)
     mk_backup_git_push = models.BooleanField(default=True)
     degrade_check_interval_sec = models.PositiveIntegerField(default=3600)
+
+    compliance_report_telegram = models.BooleanField(default=False)
+    compliance_report_email = models.BooleanField(default=False)
+    compliance_report_hour_utc = models.PositiveSmallIntegerField(default=7)
+    compliance_report_last_sent_at = models.DateTimeField(null=True, blank=True)
+
+    degrade_webhook_enabled = models.BooleanField(default=False)
+    degrade_webhook_url = models.CharField(max_length=512, blank=True, default="")
+
+    maintenance_window_enabled = models.BooleanField(default=True)
+    maintenance_start_hour_utc = models.PositiveSmallIntegerField(default=22)
+    maintenance_end_hour_utc = models.PositiveSmallIntegerField(default=6)
+    maintenance_days = LegacyJSONField(default=list, blank=True)
 
     updated_at = models.DateTimeField(auto_now=True)
 

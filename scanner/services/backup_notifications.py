@@ -93,7 +93,50 @@ def _dispatch(cfg: BackupConfigData, *, kind: str, subject: str, body: str) -> l
         if cfg.degrade_notify_email:
             ok, msg = _send_email(cfg, cfg.smtp_to_notify, subject, body)
             messages.append(msg if ok else f"Ошибка: {msg}")
+    elif kind == "compliance":
+        if cfg.compliance_report_telegram:
+            chat = cfg.telegram_chat_report or cfg.telegram_chat_notify
+            ok, msg = _send_telegram(cfg.telegram_token, chat, body)
+            messages.append(msg if ok else f"Ошибка: {msg}")
+        if cfg.compliance_report_email:
+            to_addr = cfg.smtp_to_report or cfg.smtp_to_notify
+            ok, msg = _send_email(cfg, to_addr, subject, body)
+            messages.append(msg if ok else f"Ошибка: {msg}")
     return messages
+
+
+def notify_webhook(url: str, payload: dict[str, Any]) -> tuple[bool, str]:
+    url = (url or "").strip()
+    if not url:
+        return False, "Webhook URL не задан"
+    try:
+        resp = httpx.post(url, json=payload, timeout=15.0)
+        if resp.is_success:
+            return True, f"Webhook → {url}: {resp.status_code}"
+        return False, f"Webhook: HTTP {resp.status_code}"
+    except Exception as exc:
+        logger.warning("backup | webhook failed: %s", exc)
+        return False, f"Webhook: {exc}"
+
+
+def notify_degradation_webhook(kind: str, devices: list[dict[str, Any]]) -> None:
+    cfg = get_config()
+    if not cfg.degrade_webhook_enabled or not cfg.degrade_webhook_url:
+        return
+    payload = {
+        "event": "degradation",
+        "kind": kind,
+        "device_count": len(devices),
+        "devices": devices[:50],
+    }
+    ok, msg = notify_webhook(cfg.degrade_webhook_url, payload)
+    level = logging.INFO if ok else logging.WARNING
+    logger.log(level, "backup | webhook | %s", msg)
+
+
+def notify_compliance_report(subject: str, body: str) -> list[str]:
+    cfg = get_config()
+    return _dispatch(cfg, kind="compliance", subject=subject, body=body)
 
 
 def _apply_test_overrides(cfg: BackupConfigData, overrides: dict[str, Any] | None) -> BackupConfigData:
@@ -194,6 +237,7 @@ def send_test_notification(
         "error": ("error_notify_telegram", "error_notify_email"),
         "report": ("report_send_telegram", "report_send_email"),
         "degrade": ("degrade_notify_telegram", "degrade_notify_email"),
+        "compliance": ("compliance_report_telegram", "compliance_report_email"),
     }
     if kind not in channel_map:
         return {"ok": False, "messages": [f"Неизвестный тип: {kind}"]}

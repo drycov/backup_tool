@@ -173,7 +173,51 @@
                   <div class="card-header">
                     <h3 class="card-title">Compliance бэкапов</h3>
                     <div class="card-tools">
+                      <button type="button" class="btn btn-tool btn-sm" id="btn-compliance-export" title="Экспорт CSV">
+                        <i class="fas fa-file-csv"></i> CSV
+                      </button>
                       <span class="badge badge-light" id="compliance-generated-at">—</span>
+                    </div>
+                  </div>
+                  <div class="card-body py-2 border-bottom">
+                    <div class="form-row align-items-end">
+                      <div class="form-group col-md-2 col-6 mb-1">
+                        <label for="cf-site" class="small text-muted mb-0">Site</label>
+                        <input type="text" id="cf-site" class="form-control form-control-sm" placeholder="hex-dc1">
+                      </div>
+                      <div class="form-group col-md-2 col-6 mb-1">
+                        <label for="cf-role" class="small text-muted mb-0">Role</label>
+                        <input type="text" id="cf-role" class="form-control form-control-sm" placeholder="core">
+                      </div>
+                      <div class="form-group col-md-2 col-6 mb-1">
+                        <label for="cf-group" class="small text-muted mb-0">Группа</label>
+                        <input type="text" id="cf-group" class="form-control form-control-sm" placeholder="hex">
+                      </div>
+                      <div class="form-group col-md-2 col-6 mb-1">
+                        <label for="cf-state" class="small text-muted mb-0">Статус</label>
+                        <select id="cf-state" class="form-control form-control-sm">
+                          <option value="">Все</option>
+                          <option value="ok">OK</option>
+                          <option value="failed">Ошибка</option>
+                          <option value="stale">Stale</option>
+                          <option value="overdue">Просрочено</option>
+                          <option value="never">Нет бэкапа</option>
+                          <option value="unreachable">Offline</option>
+                        </select>
+                      </div>
+                      <div class="form-group col-md-2 col-6 mb-1">
+                        <label for="cf-critical" class="small text-muted mb-0">Critical</label>
+                        <select id="cf-critical" class="form-control form-control-sm">
+                          <option value="">Все</option>
+                          <option value="true">Да</option>
+                          <option value="false">Нет</option>
+                        </select>
+                      </div>
+                      <div class="form-group col-md-2 col-12 mb-1">
+                        <button type="button" class="btn btn-outline-primary btn-sm btn-block" id="btn-compliance-apply">
+                          <i class="fas fa-filter mr-1"></i> Применить
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div class="card-body table-responsive p-0" style="max-height: 360px; overflow-y: auto;">
@@ -181,6 +225,7 @@
                       <thead>
                         <tr>
                           <th>Статус</th><th>Устройство</th><th>IP</th><th>Группа</th>
+                          <th>Site</th><th>Role</th><th>Critical</th>
                           <th>Последний бэкап</th><th>Scan</th>
                         </tr>
                       </thead>
@@ -700,6 +745,34 @@
                         <input type="number" id="nt-degrade-interval" class="form-control form-control-sm" min="300" max="86400" step="60">
                       </div>
                     </div>
+                    <div class="row mb-3">
+                      <div class="col-md-6">
+                        <h6 class="text-muted text-uppercase small">Ежедневный compliance-отчёт</h6>
+                        <div class="custom-control custom-checkbox mb-1">
+                          <input type="checkbox" class="custom-control-input" id="nt-compliance-telegram">
+                          <label class="custom-control-label" for="nt-compliance-telegram">Telegram</label>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" id="nt-compliance-email">
+                          <label class="custom-control-label" for="nt-compliance-email">Email</label>
+                        </div>
+                      </div>
+                      <div class="col-md-3">
+                        <label for="nt-compliance-hour" class="small text-muted">Час UTC</label>
+                        <input type="number" id="nt-compliance-hour" class="form-control form-control-sm" min="0" max="23">
+                        <small class="text-muted" id="nt-compliance-last-sent">Последний: —</small>
+                      </div>
+                    </div>
+                    <div class="row mb-3">
+                      <div class="col-md-12">
+                        <h6 class="text-muted text-uppercase small">Webhook при деградации</h6>
+                        <div class="custom-control custom-checkbox mb-2">
+                          <input type="checkbox" class="custom-control-input" id="nt-webhook-enabled">
+                          <label class="custom-control-label" for="nt-webhook-enabled">Отправлять JSON POST (Slack/Teams/тикетница)</label>
+                        </div>
+                        <input type="url" id="nt-webhook-url" class="form-control form-control-sm" placeholder="https://hooks.example.com/...">
+                      </div>
+                    </div>
                     <h6 class="text-muted text-uppercase small mb-2">Telegram</h6>
                     <div class="form-row">
                       <div class="form-group col-md-6">
@@ -764,6 +837,9 @@
                       </button>
                       <button type="button" class="btn btn-outline-warning btn-sm mb-1 mr-2" id="btn-test-notify-degrade" data-permission="oxidized:write">
                         <i class="fas fa-bell mr-1"></i> Тест деградации
+                      </button>
+                      <button type="button" class="btn btn-outline-success btn-sm mb-1 mr-2" id="btn-test-compliance-report" data-permission="oxidized:write">
+                        <i class="fas fa-chart-line mr-1"></i> Тест compliance
                       </button>
                       <button type="button" class="btn btn-outline-info btn-sm mb-1" id="btn-degrade-check-now" data-permission="oxidized:write">
                         <i class="fas fa-sync mr-1"></i> Проверить деградацию
@@ -836,6 +912,72 @@
                               <i class="fas fa-plus mr-1"></i> Добавить
                             </button>
                           </div>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                  <div class="card card-outline card-warning mt-3" id="settings-group-policies-card" data-permission-any="oxidized:read,oxidized:write">
+                    <div class="card-header py-2">
+                      <h3 class="card-title h6 mb-0">Политики per-group</h3>
+                    </div>
+                    <div class="card-body py-3">
+                      <p class="text-muted small mb-2">
+                        Интервал бэкапа, модель Oxidized и MikroTik binary/export для группы.
+                        Пустой интервал (0) — глобальный из Oxidized worker; MikroTik «наследовать» — из вкладки Backup.
+                        <strong>MK binary/export</strong> применяются только к <code>routeros</code>; для Cisco/Juniper задайте model=<code>ios</code>/<code>junos</code> и MK=выкл.
+                      </p>
+                      <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-sm mb-2">
+                          <thead>
+                            <tr>
+                              <th>Группа</th>
+                              <th>Интервал, сек</th>
+                              <th>Model</th>
+                              <th>MK binary</th>
+                              <th>MK export</th>
+                              <th></th>
+                            </tr>
+                          </thead>
+                          <tbody id="group-policies-table"></tbody>
+                        </table>
+                      </div>
+                      <div id="group-policies-empty" class="text-muted small mb-2" style="display:none;">Нет политик — добавьте для группы hex/us</div>
+                      <form id="group-policy-form" class="form-row align-items-end" data-permission="oxidized:write">
+                        <div class="form-group col-md-2 col-6 mb-1">
+                          <label for="gp-group" class="small">Группа</label>
+                          <input type="text" id="gp-group" class="form-control form-control-sm" placeholder="hex" required>
+                        </div>
+                        <div class="form-group col-md-2 col-6 mb-1">
+                          <label for="gp-interval" class="small">Интервал</label>
+                          <input type="number" id="gp-interval" class="form-control form-control-sm" min="0" max="604800" value="0" title="0 = глобальный">
+                        </div>
+                        <div class="form-group col-md-2 col-6 mb-1">
+                          <label for="gp-model" class="small">Model</label>
+                          <select id="gp-model" class="form-control form-control-sm">
+                            <option value="">—</option>
+                            <option value="routeros">routeros</option>
+                          </select>
+                        </div>
+                        <div class="form-group col-md-2 col-6 mb-1">
+                          <label for="gp-mk-binary" class="small">MK binary</label>
+                          <select id="gp-mk-binary" class="form-control form-control-sm">
+                            <option value="inherit">Наследовать</option>
+                            <option value="true">Вкл</option>
+                            <option value="false">Выкл</option>
+                          </select>
+                        </div>
+                        <div class="form-group col-md-2 col-6 mb-1">
+                          <label for="gp-mk-export" class="small">MK export</label>
+                          <select id="gp-mk-export" class="form-control form-control-sm">
+                            <option value="inherit">Наследовать</option>
+                            <option value="true">Вкл</option>
+                            <option value="false">Выкл</option>
+                          </select>
+                        </div>
+                        <div class="form-group col-md-2 col-12 mb-1">
+                          <button type="submit" class="btn btn-primary btn-sm btn-block">
+                            <i class="fas fa-save mr-1"></i> Сохранить
+                          </button>
                         </div>
                       </form>
                     </div>
@@ -1043,6 +1185,37 @@
                       <i class="fas fa-save mr-1"></i> Сохранить scan
                     </button>
                   </form>
+                  <div class="mt-3 pt-3 border-top">
+                    <h6 class="text-muted text-uppercase small mb-2">Окно обслуживания (maintenance)</h6>
+                    <p class="text-muted small mb-2">
+                      Устройства с флагом <strong>Maintenance</strong> не получают <em>scheduled</em> backup в указанные часы UTC.
+                      Ручной Fetch по-прежнему доступен.
+                    </p>
+                    <div class="custom-control custom-checkbox mb-2">
+                      <input type="checkbox" class="custom-control-input" id="bk-maint-enabled" checked>
+                      <label class="custom-control-label" for="bk-maint-enabled">Пауза scheduled backup</label>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group col-md-3 col-6">
+                        <label for="bk-maint-start" class="small">Начало UTC</label>
+                        <input type="number" id="bk-maint-start" class="form-control form-control-sm" min="0" max="23" value="22">
+                      </div>
+                      <div class="form-group col-md-3 col-6">
+                        <label for="bk-maint-end" class="small">Конец UTC</label>
+                        <input type="number" id="bk-maint-end" class="form-control form-control-sm" min="0" max="23" value="6">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-3 pt-3 border-top" data-permission="users:manage">
+                    <h6 class="text-muted text-uppercase small mb-2">Резервная копия данных</h6>
+                    <p class="text-muted small mb-2">
+                      Копия БД (SQLite или pg_dump) и inventory YAML в <code>BACKUP_DATA_DIR</code> (по умолчанию <code>/data/backups</code>).
+                    </p>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-backup-data">
+                      <i class="fas fa-database mr-1"></i> Backup data now
+                    </button>
+                    <span class="text-muted small ml-2" id="backup-data-result"></span>
+                  </div>
                   </div>
                 </div>
 
@@ -1124,7 +1297,7 @@
               <div class="card-body table-responsive p-0">
                 <table class="table table-bordered table-striped">
                   <thead>
-                    <tr><th>Логин</th><th>Роль</th><th>Источник</th><th>Фикс. роль</th><th>Активен</th><th></th></tr>
+                    <tr><th>Логин</th><th>Роль</th><th>Группы</th><th>Sites</th><th>Источник</th><th>Активен</th><th></th></tr>
                   </thead>
                   <tbody id="users-table"></tbody>
                 </table>
@@ -1207,6 +1380,40 @@
                 </div>
               </div>
             </div>
+            <hr class="my-3">
+            <h6 class="text-muted text-uppercase small mb-3">Теги (compliance / алерты)</h6>
+            <div class="row">
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="device-site">Site</label>
+                  <input type="text" id="device-site" class="form-control" placeholder="dc1">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group">
+                  <label for="device-role">Role</label>
+                  <input type="text" id="device-role" class="form-control" placeholder="core">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group mb-0">
+                  <label>Critical</label>
+                  <div class="custom-control custom-switch mt-2">
+                    <input type="checkbox" class="custom-control-input" id="device-critical">
+                    <label class="custom-control-label" for="device-critical">Критичное устройство</label>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="form-group mb-0">
+                  <label>Maintenance</label>
+                  <div class="custom-control custom-switch mt-2">
+                    <input type="checkbox" class="custom-control-input" id="device-maintenance">
+                    <label class="custom-control-label" for="device-maintenance">Окно обслуживания (ночная пауза)</label>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="modal-footer bg-light">
             <button type="button" class="btn btn-secondary" data-dismiss="modal" id="btn-cancel-device">Отмена</button>
@@ -1235,6 +1442,7 @@
             <table class="table table-sm table-striped mb-0">
               <thead>
                 <tr>
+                  <th style="width:2rem;"></th>
                   <th>#</th>
                   <th>Дата</th>
                   <th>OID</th>
@@ -1249,7 +1457,10 @@
           </div>
         </div>
         <div class="modal-footer bg-light">
-          <a href="#" class="btn btn-outline-secondary btn-sm mr-auto" id="oxidized-versions-open-web" target="_blank" rel="noopener" style="display:none;">
+          <button type="button" class="btn btn-outline-primary btn-sm mr-auto" id="btn-versions-compare" disabled>
+            <i class="fas fa-columns mr-1"></i> Сравнить выбранные (2)
+          </button>
+          <a href="#" class="btn btn-outline-secondary btn-sm" id="oxidized-versions-open-web" target="_blank" rel="noopener" style="display:none;">
             <i class="fas fa-globe mr-1"></i> Oxidized Web
           </a>
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Закрыть</button>
@@ -1372,10 +1583,18 @@
             <i class="fas fa-file-diff mr-2 text-muted"></i>
             Diff: <span id="oxidized-diff-node"></span>
           </h5>
+          <div class="d-flex align-items-center flex-wrap ml-auto mr-3">
+            <input type="search" id="oxidized-diff-search" class="form-control form-control-sm mr-2 mb-1" placeholder="Поиск в diff…" style="width:160px;">
+            <div class="btn-group btn-group-sm mb-1" role="group">
+              <button type="button" class="btn btn-outline-secondary active" id="btn-diff-unified">Unified</button>
+              <button type="button" class="btn btn-outline-secondary" id="btn-diff-side">Side-by-side</button>
+            </div>
+          </div>
           <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
         </div>
-        <div class="modal-body p-0">
-          <iframe id="oxidized-diff-iframe" title="Oxidized diff" src="about:blank"></iframe>
+        <div class="modal-body p-0 oxidized-diff-body">
+          <iframe id="oxidized-diff-iframe" title="Oxidized diff" src="about:blank" style="display:none;"></iframe>
+          <div id="oxidized-diff-panel" class="oxidized-diff-panel"></div>
         </div>
         <div class="modal-footer bg-light py-2">
           <a href="#" class="btn btn-outline-secondary btn-sm" id="oxidized-diff-open-tab" target="_blank" rel="noopener">

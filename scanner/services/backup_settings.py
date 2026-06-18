@@ -10,6 +10,7 @@ from typing import Any
 
 from core.models import BackupConfig
 from services.database import is_database_available, require_database, reset_availability_cache
+from services.maintenance_window import maintenance_config_public
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,15 @@ class BackupConfigData:
     alert_cooldown_hours: int
     mk_backup_git_push: bool
     degrade_check_interval_sec: int
+    compliance_report_telegram: bool
+    compliance_report_email: bool
+    compliance_report_hour_utc: int
+    degrade_webhook_enabled: bool
+    degrade_webhook_url: str
+    maintenance_window_enabled: bool
+    maintenance_start_hour_utc: int
+    maintenance_end_hour_utc: int
+    maintenance_days: list[int]
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -95,6 +105,21 @@ def _defaults_from_env() -> dict[str, Any]:
         "degrade_check_interval_sec": max(
             300, int(os.environ.get("DEGRADE_CHECK_INTERVAL_SEC", "3600"))
         ),
+        "compliance_report_telegram": _env_bool("COMPLIANCE_REPORT_TELEGRAM"),
+        "compliance_report_email": _env_bool("COMPLIANCE_REPORT_EMAIL"),
+        "compliance_report_hour_utc": max(
+            0, min(23, int(os.environ.get("COMPLIANCE_REPORT_HOUR_UTC", "7")))
+        ),
+        "degrade_webhook_enabled": _env_bool("DEGRADE_WEBHOOK_ENABLED"),
+        "degrade_webhook_url": os.environ.get("DEGRADE_WEBHOOK_URL", ""),
+        "maintenance_window_enabled": _env_bool("MAINTENANCE_WINDOW_ENABLED", default=True),
+        "maintenance_start_hour_utc": max(
+            0, min(23, int(os.environ.get("MAINTENANCE_START_HOUR_UTC", "22")))
+        ),
+        "maintenance_end_hour_utc": max(
+            0, min(23, int(os.environ.get("MAINTENANCE_END_HOUR_UTC", "6")))
+        ),
+        "maintenance_days": list(range(7)),
     }
 
 
@@ -130,6 +155,15 @@ def _row_to_data(row: BackupConfig) -> BackupConfigData:
         alert_cooldown_hours=row.alert_cooldown_hours or 24,
         mk_backup_git_push=row.mk_backup_git_push,
         degrade_check_interval_sec=row.degrade_check_interval_sec or 3600,
+        compliance_report_telegram=row.compliance_report_telegram,
+        compliance_report_email=row.compliance_report_email,
+        compliance_report_hour_utc=row.compliance_report_hour_utc or 7,
+        degrade_webhook_enabled=row.degrade_webhook_enabled,
+        degrade_webhook_url=row.degrade_webhook_url or "",
+        maintenance_window_enabled=getattr(row, "maintenance_window_enabled", True),
+        maintenance_start_hour_utc=getattr(row, "maintenance_start_hour_utc", None) or 22,
+        maintenance_end_hour_utc=getattr(row, "maintenance_end_hour_utc", None) or 6,
+        maintenance_days=list(getattr(row, "maintenance_days", None) or list(range(7))),
     )
 
 
@@ -159,6 +193,18 @@ def get_config() -> BackupConfigData:
         logger.warning("backup | read failed: %s", exc)
         reset_availability_cache()
         return BackupConfigData(**_defaults_from_env())
+
+
+def _compliance_report_last_sent_iso() -> str | None:
+    if not is_database_available():
+        return None
+    try:
+        row = BackupConfig.objects.filter(pk=1).only("compliance_report_last_sent_at").first()
+        if row and row.compliance_report_last_sent_at:
+            return row.compliance_report_last_sent_at.isoformat()
+    except Exception:
+        pass
+    return None
 
 
 def get_mikrotik_config():
@@ -212,6 +258,13 @@ def get_config_public() -> dict[str, Any]:
         "alert_cooldown_hours": cfg.alert_cooldown_hours,
         "mk_backup_git_push": cfg.mk_backup_git_push,
         "degrade_check_interval_sec": cfg.degrade_check_interval_sec,
+        "compliance_report_telegram": cfg.compliance_report_telegram,
+        "compliance_report_email": cfg.compliance_report_email,
+        "compliance_report_hour_utc": cfg.compliance_report_hour_utc,
+        "degrade_webhook_enabled": cfg.degrade_webhook_enabled,
+        "degrade_webhook_url": cfg.degrade_webhook_url,
+        "compliance_report_last_sent_at": _compliance_report_last_sent_iso(),
+        **maintenance_config_public(cfg),
         "storage": "database" if is_database_available() else "env",
         "notifications_configured": bool(
             cfg.telegram_token
@@ -304,6 +357,34 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
     if interval < 300 or interval > 86400:
         raise ValueError("degrade_check_interval_sec должен быть от 300 до 86400")
     row.degrade_check_interval_sec = interval
+    row.compliance_report_telegram = bool(
+        payload.get("compliance_report_telegram", row.compliance_report_telegram)
+    )
+    row.compliance_report_email = bool(
+        payload.get("compliance_report_email", row.compliance_report_email)
+    )
+    hour = int(payload.get("compliance_report_hour_utc", row.compliance_report_hour_utc))
+    if hour < 0 or hour > 23:
+        raise ValueError("compliance_report_hour_utc должен быть 0–23")
+    row.compliance_report_hour_utc = hour
+    row.degrade_webhook_enabled = bool(
+        payload.get("degrade_webhook_enabled", row.degrade_webhook_enabled)
+    )
+    row.degrade_webhook_url = str(
+        payload.get("degrade_webhook_url", row.degrade_webhook_url)
+    ).strip()
+    row.maintenance_window_enabled = bool(
+        payload.get("maintenance_window_enabled", row.maintenance_window_enabled)
+    )
+    m_start = int(payload.get("maintenance_start_hour_utc", row.maintenance_start_hour_utc))
+    m_end = int(payload.get("maintenance_end_hour_utc", row.maintenance_end_hour_utc))
+    if m_start < 0 or m_start > 23 or m_end < 0 or m_end > 23:
+        raise ValueError("maintenance hours должны быть 0–23")
+    row.maintenance_start_hour_utc = m_start
+    row.maintenance_end_hour_utc = m_end
+    days = payload.get("maintenance_days")
+    if days is not None:
+        row.maintenance_days = [int(d) for d in days if 0 <= int(d) <= 6]
     row.save()
 
     try:

@@ -226,6 +226,21 @@ body.login-page .login-logo {
   background: #0d1117;
 }
 
+.oxidized-diff-panel {
+  min-height: 420px;
+  height: 65vh;
+  overflow: auto;
+  font: 13px/1.45 Consolas, "Courier New", monospace;
+  color: #c9d1d9;
+  padding: 8px 12px;
+}
+
+.oxidized-diff-panel .diff-line { white-space: pre-wrap; word-break: break-word; }
+.oxidized-diff-panel .diff-line-add { color: #3fb950; background: rgba(46, 160, 67, 0.12); }
+.oxidized-diff-panel .diff-line-del { color: #f85149; background: rgba(248, 81, 73, 0.12); }
+.oxidized-diff-panel .diff-line-hunk { color: #d2a8ff; }
+.oxidized-diff-panel .diff-line-hit { outline: 1px solid #58a6ff; }
+
 .oxidized-ui-toolbar .btn-group .btn {
   min-width: 6rem;
 }

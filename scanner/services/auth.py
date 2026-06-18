@@ -176,6 +176,8 @@ def update_user(
     role: Optional[str] = None,
     is_active: Optional[bool] = None,
     password: Optional[str] = None,
+    allowed_groups: Optional[list[str]] = None,
+    allowed_sites: Optional[list[str]] = None,
 ) -> User:
     user = get_user_by_id(user_id)
     if not user:
@@ -190,6 +192,10 @@ def update_user(
         raise ValueError("LDAP-пользователи не могут иметь локальный пароль")
     if password:
         user.password_hash = hash_password(password)
+    if allowed_groups is not None:
+        user.allowed_groups = [g.strip() for g in allowed_groups if str(g).strip()]
+    if allowed_sites is not None:
+        user.allowed_sites = [s.strip() for s in allowed_sites if str(s).strip()]
     user.save()
     return user
 

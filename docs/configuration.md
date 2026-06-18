@@ -54,6 +54,8 @@
 
 ### Scan / Discovery
 
+Начальные значения из `.env`; далее — **UI → Настройки → Сервис** (`GET/PUT /api/settings/scan`).
+
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
 | `SCAN_CONCURRENCY` | `50` | Параллельных ping/port-проверок (снижайте при `Errno 24`) |
@@ -143,6 +145,8 @@
 
 ## Git push
 
+Начальные значения из `.env` при первом запуске; далее — **UI → Настройки → Git** (`GET/PUT /api/settings/git`). SSH-ключи остаются в `oxidized-ssh/` и `.env`.
+
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
 | `GIT_REMOTE_URL` | — | URL удалённого репозитория (HTTP или SSH) |
@@ -182,6 +186,11 @@
 | `ERROR_NOTIFICATION_EMAIL` | `false` | Email при ошибках |
 | `REPORT_SEND_TELEGRAM` | `false` | Telegram при успешном отчёте |
 | `REPORT_SEND_EMAIL` | `false` | Email при отчёте |
+| `DEGRADE_NOTIFICATION_TELEGRAM` | `false` | Telegram при деградации (compliance) |
+| `DEGRADE_NOTIFICATION_EMAIL` | `false` | Email при деградации |
+| `STALE_DAYS_THRESHOLD` | `30` | Порог «нет изменений конфига» (дней) |
+| `ALERT_COOLDOWN_HOURS` | `24` | Cooldown повторных degrade-alert |
+| `DEGRADE_CHECK_INTERVAL_SEC` | `3600` | Интервал фоновой проверки (мин. 300) |
 | `TELEGRAM_ACCESS_TOKEN` | — | Bot token |
 | `TELEGRAM_CHATID_NOTIFY` | — | Chat ID для ошибок |
 | `TELEGRAM_CHATID_REPORT` | — | Chat ID для отчётов |

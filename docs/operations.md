@@ -64,13 +64,32 @@ UI → **Пользователи** → Add (admin)
 
 | Что | Где | Как бэкапить |
 |-----|-----|--------------|
-| PostgreSQL | volume `pg-data` | `pg_dump` или snapshot volume |
+| PostgreSQL / SQLite | volume `pg-data` или `/data/inventory/scanner.db` | UI / CLI (см. ниже) |
 | Git конфиги | volume `oxidized-data` | Remote Git (Gitea) + локально |
 | MikroTik bin/rsc | volume `oxidized-data` `/bin`, `/rsc` | Отдельный файловый бэкап volume |
+| Inventory YAML | `./inventory/` или `INVENTORY_PATH` | Включено в backup data |
 | Конфигурация | `./.env`, `./oxidized/`, `./inventory/` | Git или файловый бэкап |
 | SSH-ключи | `./oxidized-ssh/` | Зашифрованный бэкап |
 
-### pg_dump
+### Backup data (БД + inventory)
+
+**UI** (admin): **Настройки → Сервис → Backup data now**
+
+**CLI:**
+
+```bash
+docker compose exec scanner python manage.py backup_data
+```
+
+**API:** `POST /api/admin/backup-data` (permission `users:manage`)
+
+Каталог назначения: `BACKUP_DATA_DIR` (по умолчанию `/data/backups/<timestamp>/`):
+
+- SQLite: копия `scanner.db`
+- PostgreSQL: `pg_dump` → `inventory.sql` (нужен `pg_dump` в контейнере)
+- `inventory.yaml`, `network_inventory.yml` — если существуют
+
+### pg_dump (вручную, profile postgres)
 
 ```bash
 docker compose exec db pg_dump -U backup inventory > backup-$(date +%F).sql
@@ -170,11 +189,14 @@ curl -s http://localhost:8000/api/oxidized/health | jq '{engine, engine_title, m
 
 ### Уведомления не приходят
 
-1. UI → **Настройки → Уведомления** — включить канал + **Тест**
-2. Исходящий доступ к `api.telegram.org` / SMTP
-3. Report шлётся только при изменении Git или ошибке binary
+1. UI → **Настройки → Уведомления** — включить нужный канал (ошибки / отчёты / **деградация**) + **Сохранить**
+2. **Тест** — использует форму без сохранения; token должен быть в БД (сохранить один раз) или в поле
+3. Исходящий доступ к `api.telegram.org` / SMTP из контейнера scanner
+4. **Report** — только при изменении Git или ошибке MikroTik binary
+5. **Degrade** — только если есть устройства в проблемных состояниях; учитывается cooldown 24 ч
+6. Ручная проверка: кнопка **Проверить деградацию** или `POST /api/settings/backup/degrade-check`
 
-См. [notifications.md](notifications.md).
+См. [notifications.md](notifications.md), [compliance.md](compliance.md).
 
 ### CRLF на Windows
 

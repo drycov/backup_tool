@@ -15,7 +15,8 @@ Backup Tools — платформа для **сканирования сети**
 | [Oxidized и бэкапы](oxidized.md) | Git push, SSH-ключи, API |
 | [**Типы движков**](engines.md) | Python vs Ruby Oxidized — сравнение и выбор |
 | [MikroTik бэкапы](mikrotik-backups.md) | Binary `.backup` и export `.rsc` |
-| [Уведомления](notifications.md) | Telegram и Email |
+| [Compliance](compliance.md) | Dashboard и метрики деградации |
+| [Уведомления](notifications.md) | Telegram, Email, degrade alerts |
 | [Web UI](ui.md) | Разделы интерфейса, чеклист первого запуска |
 | [Аутентификация](authentication.md) | JWT, RBAC, LDAP / Active Directory |
 | [API](api.md) | REST-эндпоинты Scanner |

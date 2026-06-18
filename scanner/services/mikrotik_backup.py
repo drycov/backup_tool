@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -315,9 +315,13 @@ class MikrotikBackup:
 
 def run_mikrotik_backups(node: Node) -> bool:
     cfg = MikrotikBackupConfig.from_django()
-    if not cfg.binary_enabled and not cfg.export_enabled:
-        logger.info("mikrotik | backup | %s | skipped (binary and export disabled)", node.name)
+    from services.group_policies import effective_mk_flags
+
+    binary, export = effective_mk_flags(node.group, cfg.binary_enabled, cfg.export_enabled)
+    if not binary and not export:
+        logger.info("mikrotik | backup | %s | skipped (disabled for group)", node.name)
         return True
+    cfg = replace(cfg, binary_enabled=binary, export_enabled=export)
     try:
         MikrotikBackup(cfg).run_for_node(node)
         try:

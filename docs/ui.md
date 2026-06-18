@@ -21,8 +21,11 @@ SPA на AdminLTE 3. Аутентификация через JWT (cookie). Ра�
 ## Dashboard
 
 - Карточки: устройства, online/offline scan, Oxidized nodes, engine title
+- **Compliance бэкапов** — процент OK, счётчики по состояниям, таблица проблемных устройств (`GET /api/compliance/summary`)
 - Быстрые ссылки на Scan и Oxidized
 - Health из `/api/oxidized/health`
+
+См. [compliance.md](compliance.md).
 
 ## Инвентарь
 
@@ -51,6 +54,8 @@ SPA на AdminLTE 3. Аутентификация через JWT (cookie). Ра�
 
 ## Настройки
 
+Вкладки: **Бэкап**, **Git**, **Уведомления**, **Группы**, **LDAP**, **Сервис**.
+
 ### Вкладка «Бэкап» (`oxidized:read/write`)
 
 **Oxidized worker** — interval, threads, timeout, retries, SSH port, default model, group models, resolve DNS.
@@ -59,13 +64,29 @@ SPA на AdminLTE 3. Аутентификация через JWT (cookie). Ра�
 
 **MikroTik binary/export** — binary, export, hide sensitive, encrypt password, purge, каталоги.
 
-Сохранение → `PUT /api/settings/backup`.
+Сохранение → `PUT /api/settings/backup` (только MikroTik-поля).
 
-> `OXIDIZED_ENGINE` и `GIT_REMOTE_URL` только из `.env` (отображаются read-only).
+> `OXIDIZED_ENGINE` только из `.env` (read-only в UI).
 
-### Вкладка «Уведомления»
+### Вкладка «Git» (`oxidized:read/write`)
 
-Telegram + SMTP, error/report toggles, тестовые кнопки.
+Remote URL, ветка, Gitea token/user, commit author, source token, Oxidized public URL.
+
+Сохранение → `PUT /api/settings/git`. SSH-ключи — `oxidized-ssh/`, не редактируются в UI.
+
+### Вкладка «Уведомления» (`oxidized:read/write`)
+
+Telegram + SMTP; три блока: **ошибки**, **отчёты**, **деградация** (stale/offline/overdue).
+
+Параметры деградации: stale (дней), cooldown (ч), интервал проверки (сек).
+
+| Кнопка | Действие |
+|--------|----------|
+| Сохранить уведомления | `PUT /api/settings/backup` |
+| Тест отчёта / ошибки / деградации | `POST test-notify` с `kind` и полями формы |
+| Проверить деградацию | `POST /api/settings/backup/degrade-check` |
+
+Тест использует галочки и chat ID из формы; token/password — из поля или БД.
 
 См. [notifications.md](notifications.md).
 
@@ -86,7 +107,8 @@ SSH credentials и model per group. UI: **Настройки → Группы**.
 
 - Import network inventory
 - Cleanup discovered devices
-- Scan concurrency (read-only из env)
+- **Scan / discovery** — concurrency, max hosts, ping workers → `PUT /api/settings/scan`
+- **Seed credentials** — OVN/US user/password для import (не путать с группами Oxidized)
 
 ## Oxidized Web
 
@@ -100,8 +122,9 @@ SSH credentials и model per group. UI: **Настройки → Группы**.
 3. **Инвентарь → Import** — загрузить подсети
 4. **Scan + Discovery**
 5. **Oxidized → Sync**
-6. **Настройки → Бэкап** — interval, MikroTik options
-7. (опц.) **Уведомления** — Telegram/SMTP + тест
+6. **Настройки → Git** — remote URL, token (если нужен push)
+7. **Настройки → Бэкап** — interval, MikroTik options
+8. (опц.) **Уведомления** — Telegram/SMTP + тест + degrade
 
 ## Связанные документы
 

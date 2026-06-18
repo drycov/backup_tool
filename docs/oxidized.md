@@ -98,6 +98,8 @@ docker compose --profile external up -d
 
 Локальный репозиторий: volume `oxidized-data` → `/var/lib/oxidized`.
 
+Настройки remote URL, token, ветки и commit author — **UI → Настройки → Git** (`PUT /api/settings/git`). При первом запуске импортируются из `.env`. SSH-ключи остаются в `oxidized-ssh/`.
+
 ### HTTP (Gitea token)
 
 ```env

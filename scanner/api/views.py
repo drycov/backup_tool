@@ -28,7 +28,7 @@ from services.audit import (
     list_audit_events,
     log_audit_user,
 )
-from services.compliance import compute_compliance_summary
+from services.compliance import compliance_to_csv, compute_compliance_summary
 from services.scan_history import get_scan_history, get_scan_trends
 from services.inventory import (
     OXIDIZED_SOURCE_URL,
@@ -74,6 +74,7 @@ from services.schemas import (
     Device,
     DeviceCreate,
     GitSettingsUpdate,
+    GroupPolicyUpdate,
     Inventory,
     LdapConfigUpdate,
     LdapTestRequest,
@@ -87,6 +88,17 @@ from services import ldap_settings
 
 _HOP_HEADERS = hop_headers()
 _EMBED_BLOCK_HEADERS = embed_block_headers()
+
+
+def _node_access_denied(user: User, name: str):
+    from services.object_scope import require_device_access
+
+    try:
+        require_device_access(user, name)
+    except PermissionError as exc:
+        return error_response(str(exc), status=403)
+    return None
+
 
 def _job_to_status(job: scan_job.ScanJob | None) -> ScanJobStatus:
     if not job:
@@ -183,17 +195,29 @@ def logout_view(request: HttpRequest) -> JsonResponse:
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
 def auth_me(request: HttpRequest) -> JsonResponse:
     user: User = request.api_user
+    from services.object_scope import scope_public
+
     return json_response(
         {
             "id": user.id,
             "username": user.username,
             "role": user.role,
             "permissions": auth.permissions_for_role(user.role),
+            **scope_public(user),
         }
     )
 
 
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def rbac_matrix_view(request: HttpRequest) -> JsonResponse:
+    from services.rbac import rbac_matrix
+
+    return json_response(rbac_matrix())
+
+
 def _auth_users_list(request: HttpRequest) -> JsonResponse:
+    from services.object_scope import scope_public
+
     users = [
         {
             "id": u.id,
@@ -201,6 +225,7 @@ def _auth_users_list(request: HttpRequest) -> JsonResponse:
             "role": u.role,
             "is_active": u.is_active,
             "auth_source": u.auth_source or "local",
+            **scope_public(u),
         }
         for u in auth.list_users()
     ]
@@ -245,11 +270,15 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
                 role=body.get("role"),
                 is_active=body.get("is_active"),
                 password=body.get("password"),
+                allowed_groups=body.get("allowed_groups"),
+                allowed_sites=body.get("allowed_sites"),
             )
         except ValueError as exc:
             return error_response(
                 str(exc), status=404 if "не найден" in str(exc) else 400
             )
+        from services.object_scope import scope_public
+
         return json_response(
             {
                 "id": updated.id,
@@ -257,6 +286,7 @@ def auth_user_detail(request: HttpRequest, user_id: int) -> JsonResponse:
                 "role": updated.role,
                 "is_active": updated.is_active,
                 "auth_source": updated.auth_source or "local",
+                **scope_public(updated),
             }
         )
     if request.method == "DELETE":
@@ -356,14 +386,20 @@ def oxidized_proxy(request: HttpRequest, path: str = "") -> HttpResponse:
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_nodes(request: HttpRequest) -> JsonResponse:
+    from services.object_scope import filter_node_dicts
+
+    user: User = request.api_user
     nodes, err = get_nodes()
     if err:
         return error_response(err, status=503)
-    return json_response(nodes)
+    return json_response(filter_node_dicts(user, nodes or []))
 
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_show(request: HttpRequest, name: str) -> JsonResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     data, err = get_node_config(name)
     if err:
         return error_response(err, status=503)
@@ -413,6 +449,9 @@ def _browser_prefers_html(request: HttpRequest) -> bool:
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_versions(request: HttpRequest, name: str) -> HttpResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     data, err = get_node_versions(name)
     if err:
         status = 404 if "не найден" in err.lower() else 503
@@ -463,6 +502,9 @@ def oxidized_node_versions(request: HttpRequest, name: str) -> HttpResponse:
 @require_http_methods(["POST"])
 @require_permission(auth.PERMISSION_OXIDIZED_WRITE)
 def oxidized_node_fetch(request: HttpRequest, name: str) -> JsonResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     data, err = fetch_node(name)
     if err:
         return error_response(err, status=503)
@@ -564,11 +606,14 @@ def oxidized_node_version_view(request: HttpRequest, name: str, oid: str) -> Htt
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
         return error_response("Доступно только для python engine", status=501)
     from services.oxidized_engine import get_manager
     from services.oxidized_engine.exceptions import NodeNotFound
-    from services.git_diff_html import render_git_diff_html
+    from services.git_diff_html import render_git_diff_html, render_side_by_side_html
 
     oid = request.GET.get("oid", "")
     oid2 = request.GET.get("oid2") or None
@@ -585,6 +630,19 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
         return json_response(diff)
     if fmt == "text":
         return HttpResponse(patch, content_type="text/plain; charset=utf-8")
+    if fmt == "side_by_side":
+        if not oid2:
+            return error_response("oid2 required for side_by_side", status=400)
+        try:
+            mgr = get_manager()
+            old_text = mgr.get_version(name, oid2)
+            new_text = mgr.get_version(name, oid)
+        except NodeNotFound:
+            return error_response(f"Node '{name}' not found", status=404)
+        if old_text == "version not found" or new_text == "version not found":
+            return error_response("version not found", status=404)
+        html_body = render_side_by_side_html(old_text, new_text, title=f"Diff {name}")
+        return HttpResponse(html_body, content_type="text/html; charset=utf-8")
     html_body = render_git_diff_html(
         patch,
         title=f"Diff {name}",
@@ -626,7 +684,7 @@ def inventory_dispatch(request: HttpRequest) -> JsonResponse:
     if request.method == "GET":
         if not auth.user_has_permission(user, auth.PERMISSION_VIEW_INVENTORY):
             return error_response("Недостаточно прав", status=403)
-        return json_response(mask_inventory_for_role(load_inventory(), user.role))
+        return json_response(mask_inventory_for_role(load_inventory(), user.role, user=user))
     if request.method == "PUT":
         if not auth.user_has_permission(user, auth.PERMISSION_EDIT_INVENTORY):
             return error_response("Недостаточно прав", status=403)
@@ -634,7 +692,7 @@ def inventory_dispatch(request: HttpRequest) -> JsonResponse:
         inventory = Inventory.model_validate(body)
         save_inventory(inventory)
         update_oxidized_credentials(inventory)
-        return json_response(mask_inventory_for_role(inventory, user.role))
+        return json_response(mask_inventory_for_role(inventory, user.role, user=user))
     return error_response("Method not allowed", status=405)
 
 
@@ -646,7 +704,7 @@ def inventory_devices_dispatch(request: HttpRequest) -> JsonResponse:
         body = parse_json_body(request)
         device = DeviceCreate.model_validate(body)
         inventory = add_device(Device(**device.model_dump()))
-        return json_response(mask_inventory_for_role(inventory, user.role))
+        return json_response(mask_inventory_for_role(inventory, user.role, user=user))
     return error_response("Method not allowed", status=405)
 
 
@@ -660,7 +718,7 @@ def delete_device_view(request: HttpRequest, name: str) -> JsonResponse:
     if not any(d.name == name for d in inventory.devices):
         return error_response(f"Device '{name}' not found", status=404)
     inventory = remove_device(name)
-    return json_response(mask_inventory_for_role(inventory, user.role))
+    return json_response(mask_inventory_for_role(inventory, user.role, user=user))
 
 
 @csrf_exempt
@@ -694,7 +752,7 @@ def create_credential_profile_view(request: HttpRequest) -> JsonResponse:
         detail=f"group={profile.group_name}",
         request=request,
     )
-    return json_response(mask_inventory_for_role(inventory, user.role), status=201)
+    return json_response(mask_inventory_for_role(inventory, user.role, user=user), status=201)
 
 
 @csrf_exempt
@@ -715,7 +773,7 @@ def credential_profile_detail_view(request: HttpRequest, name: str) -> JsonRespo
             target=name,
             request=request,
         )
-        return json_response(mask_inventory_for_role(inventory, user.role))
+        return json_response(mask_inventory_for_role(inventory, user.role, user=user))
     if request.method == "DELETE":
         try:
             inventory = delete_credential_profile(name)
@@ -729,7 +787,7 @@ def credential_profile_detail_view(request: HttpRequest, name: str) -> JsonRespo
             target=name,
             request=request,
         )
-        return json_response(mask_inventory_for_role(inventory, user.role))
+        return json_response(mask_inventory_for_role(inventory, user.role, user=user))
     return error_response("Method not allowed", status=405)
 
 
@@ -743,7 +801,7 @@ def import_network_inventory_view(request: HttpRequest) -> JsonResponse:
     except FileNotFoundError as exc:
         return error_response(str(exc), status=404)
     update_oxidized_credentials(inventory)
-    return json_response(mask_inventory_for_role(inventory, user.role))
+    return json_response(mask_inventory_for_role(inventory, user.role, user=user))
 
 
 @csrf_exempt
@@ -781,7 +839,39 @@ def get_latest_scan_view(request: HttpRequest) -> JsonResponse:
 
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
 def compliance_summary_view(request: HttpRequest) -> JsonResponse:
-    return json_response(compute_compliance_summary())
+    critical = request.GET.get("critical") or None
+    if critical == "":
+        critical = None
+    user: User = request.api_user
+    return json_response(
+        compute_compliance_summary(
+            site=request.GET.get("site", "").strip(),
+            role=request.GET.get("role", "").strip(),
+            critical=critical,
+            group=request.GET.get("group", "").strip(),
+            state=request.GET.get("state", "").strip(),
+            user=user,
+        )
+    )
+
+
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def compliance_export_view(request: HttpRequest) -> HttpResponse:
+    critical = request.GET.get("critical") or None
+    user: User = request.api_user
+    summary = compute_compliance_summary(
+        site=request.GET.get("site", "").strip(),
+        role=request.GET.get("role", "").strip(),
+        critical=critical,
+        group=request.GET.get("group", "").strip(),
+        state=request.GET.get("state", "").strip(),
+        user=user,
+    )
+    csv_text = compliance_to_csv(summary)
+    stamp = summary["generated_at"].strftime("%Y%m%d-%H%M%S")
+    response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="compliance-{stamp}.csv"'
+    return response
 
 
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
@@ -885,7 +975,7 @@ def cleanup_discovered_devices_view(request: HttpRequest) -> JsonResponse:
             "status": "ok",
             "deleted": deleted,
             "message": f"Удалено устройств discovery: {deleted}",
-            "inventory": mask_inventory_for_role(inventory, user.role),
+            "inventory": mask_inventory_for_role(inventory, user.role, user=user),
         }
     )
 
@@ -1050,4 +1140,63 @@ def scan_settings_dispatch(request: HttpRequest) -> JsonResponse:
             return error_response(str(exc))
         return json_response(saved)
     return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+def group_policies_dispatch(request: HttpRequest) -> JsonResponse:
+    from services import group_policies
+
+    try:
+        user = get_current_user(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    if request.method == "GET":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_READ):
+            return error_response("Недостаточно прав", status=403)
+        return json_response(
+            {"policies": [group_policies.policy_to_public(p) for p in group_policies.list_policies()]}
+        )
+    if request.method == "PUT":
+        if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_WRITE):
+            return error_response("Недостаточно прав", status=403)
+        try:
+            body = parse_json_body(request)
+            payload = GroupPolicyUpdate.model_validate(body)
+            saved = group_policies.save_policy(payload.model_dump())
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        return json_response(group_policies.policy_to_public(saved))
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+def group_policy_delete(request: HttpRequest, group_name: str) -> JsonResponse:
+    from services import group_policies
+
+    if group_policies.delete_policy(group_name):
+        return json_response({"status": "ok", "deleted": group_name})
+    return error_response("Политика не найдена", status=404)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+def compliance_report_test_view(request: HttpRequest) -> JsonResponse:
+    from services.compliance_report import send_compliance_report
+
+    return json_response(send_compliance_report(force=True))
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def backup_data_view(request: HttpRequest) -> JsonResponse:
+    from services.backup_data import run_backup_data
+
+    return json_response(run_backup_data())
 

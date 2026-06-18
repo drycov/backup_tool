@@ -46,6 +46,10 @@ def _device_from_model(record: DeviceModel) -> Device:
         group=record.group,
         enabled=record.enabled,
         ports=record.ports or [_default_ssh_port()],
+        site=getattr(record, "site", "") or "",
+        role=getattr(record, "role", "") or "",
+        critical=bool(getattr(record, "critical", False)),
+        maintenance=bool(getattr(record, "maintenance", False)),
     )
 
 
@@ -57,6 +61,10 @@ def _model_from_device(device: Device) -> DeviceModel:
         group=device.group,
         enabled=device.enabled,
         ports=device.ports,
+        site=device.site or "",
+        role=device.role or "",
+        critical=device.critical,
+        maintenance=device.maintenance,
     )
 
 
@@ -209,8 +217,13 @@ def load_inventory() -> Inventory:
     )
 
 
-def mask_inventory_for_role(inventory: Inventory, role: str) -> Inventory:
+def mask_inventory_for_role(inventory: Inventory, role: str, user=None) -> Inventory:
     from services.rbac import PERMISSION_VIEW_CREDENTIALS, has_permission
+
+    if user is not None:
+        from services.object_scope import filter_inventory_for_user
+
+        inventory = filter_inventory_for_user(user, inventory)
 
     if has_permission(role, PERMISSION_VIEW_CREDENTIALS):
         return inventory
@@ -249,6 +262,10 @@ def _upsert_device_record(device: Device, *, old_name: str | None = None) -> Non
         record.group = device.group
         record.enabled = device.enabled
         record.ports = device.ports
+        record.site = device.site or ""
+        record.role = device.role or ""
+        record.critical = device.critical
+        record.maintenance = device.maintenance
         record.save()
     else:
         _model_from_device(device).save()

@@ -49,4 +49,8 @@ def initialize() -> None:
 
     start_degradation_monitor()
 
+    from services.compliance_report import start_compliance_report_scheduler
+
+    start_compliance_report_scheduler()
+
     _initialized = True

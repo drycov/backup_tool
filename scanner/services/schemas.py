@@ -18,6 +18,10 @@ class Device(BaseModel):
     group: str = "default"
     enabled: bool = True
     ports: list[int] = Field(default_factory=lambda: [44333])
+    site: str = ""
+    role: str = ""
+    critical: bool = False
+    maintenance: bool = False
 
 
 class DeviceCreate(BaseModel):
@@ -27,6 +31,10 @@ class DeviceCreate(BaseModel):
     group: str = "default"
     enabled: bool = True
     ports: list[int] = Field(default_factory=lambda: [44333])
+    site: str = ""
+    role: str = ""
+    critical: bool = False
+    maintenance: bool = False
 
 
 class CredentialProfile(BaseModel):
@@ -165,6 +173,8 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     password: Optional[str] = None
     role_locked: Optional[bool] = None
+    allowed_groups: Optional[list[str]] = None
+    allowed_sites: Optional[list[str]] = None
 
 
 class LdapConfigPublic(BaseModel):
@@ -254,6 +264,23 @@ class BackupSettingsUpdate(BaseModel):
     alert_cooldown_hours: int = 24
     mk_backup_git_push: bool = True
     degrade_check_interval_sec: int = 3600
+    compliance_report_telegram: bool = False
+    compliance_report_email: bool = False
+    compliance_report_hour_utc: int = 7
+    degrade_webhook_enabled: bool = False
+    degrade_webhook_url: str = ""
+    maintenance_window_enabled: bool = True
+    maintenance_start_hour_utc: int = 22
+    maintenance_end_hour_utc: int = 6
+    maintenance_days: list[int] = Field(default_factory=lambda: list(range(7)))
+
+
+class GroupPolicyUpdate(BaseModel):
+    group_name: str
+    backup_interval_sec: int = 0
+    model: str = ""
+    mk_binary_enabled: Optional[bool] = None
+    mk_export_enabled: Optional[bool] = None
 
 
 class GitSettingsUpdate(BaseModel):

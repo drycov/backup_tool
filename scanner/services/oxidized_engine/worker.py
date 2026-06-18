@@ -27,6 +27,11 @@ class Worker:
         self._jobs_done = 0
         self._nodes_count = 0
 
+    def _node_interval(self, node) -> int:
+        from services.group_policies import effective_interval
+
+        return effective_interval(node.group, self.config.interval)
+
     def reload(self) -> None:
         self.nodes.load()
         self._nodes_count = len(self.nodes)
@@ -38,7 +43,17 @@ class Worker:
         for node in list(self.nodes):
             if node.running:
                 continue
-            if not (node.nexted or node.due(now, self.config.interval)):
+            from services.maintenance_window import (
+                device_maintenance_flag,
+                is_backup_paused_for_device,
+            )
+
+            if is_backup_paused_for_device(
+                device_name=node.name,
+                maintenance=device_maintenance_flag(node.name),
+            ):
+                continue
+            if not (node.nexted or node.due(now, self._node_interval(node))):
                 continue
             node.nexted = False
             node.running = True

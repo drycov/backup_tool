@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from services.backup_settings import get_config
+from services.group_policies import effective_interval
 from services.inventory import load_inventory
 from services.oxidized_client import get_nodes
 from services.oxidized_settings import get_oxidized_settings
@@ -99,14 +102,38 @@ def _classify_node(
     }
 
 
-def compute_compliance_summary() -> dict[str, Any]:
+def compute_compliance_summary(
+    *,
+    site: str = "",
+    role: str = "",
+    critical: str | None = None,
+    group: str = "",
+    state: str = "",
+    user=None,
+) -> dict[str, Any]:
     cfg = get_config()
     stale_days = max(1, cfg.stale_days_threshold)
     ox_settings = get_oxidized_settings()
-    interval = max(60, int(ox_settings.get("interval") or 3600))
+    global_interval = max(60, int(ox_settings.get("interval") or 3600))
 
     inventory = load_inventory()
     enabled = [d for d in inventory.devices if d.enabled]
+    if user is not None:
+        from services.object_scope import filter_devices
+
+        enabled = filter_devices(user, enabled)
+
+    if site:
+        enabled = [d for d in enabled if (d.site or "").lower() == site.lower()]
+    if role:
+        enabled = [d for d in enabled if (d.role or "").lower() == role.lower()]
+    if critical == "true":
+        enabled = [d for d in enabled if d.critical]
+    elif critical == "false":
+        enabled = [d for d in enabled if not d.critical]
+    if group:
+        enabled = [d for d in enabled if (d.group or "").lower() == group.lower()]
+
     reachability = get_latest_scan_reachability()
 
     nodes, oxidized_error = get_nodes()
@@ -114,19 +141,22 @@ def compute_compliance_summary() -> dict[str, Any]:
 
     now = datetime.now(timezone.utc)
     stale_cutoff = now - timedelta(days=stale_days)
-    overdue_cutoff = now - timedelta(seconds=interval * 2)
 
-    counts = {state: 0 for state in _STATE_LABELS}
+    counts = {s: 0 for s in _STATE_LABELS}
     items: list[dict[str, Any]] = []
 
     for device in enabled:
         node = node_map.get(device.name, {})
+        interval = effective_interval(device.group, global_interval)
+        overdue_cutoff = now - timedelta(seconds=interval * 2)
         primary, issues, meta = _classify_node(
             node,
             reachability=reachability.get(device.name),
             stale_cutoff=stale_cutoff,
             overdue_cutoff=overdue_cutoff,
         )
+        if state and primary != state:
+            continue
         counts[primary] = counts.get(primary, 0) + 1
         items.append(
             {
@@ -134,6 +164,9 @@ def compute_compliance_summary() -> dict[str, Any]:
                 "ip": device.ip,
                 "group": device.group,
                 "model": device.model,
+                "site": device.site or "",
+                "role": device.role or "",
+                "critical": device.critical,
                 "state": primary,
                 "state_label": _STATE_LABELS.get(primary, primary),
                 "issues": issues,
@@ -141,25 +174,73 @@ def compute_compliance_summary() -> dict[str, Any]:
                 "last_backup_at": meta["last_backup_at"],
                 "config_mtime": meta["config_mtime"],
                 "reachability": meta["reachability"],
+                "backup_interval_sec": interval,
             }
         )
 
     items.sort(key=lambda x: (x["state"] != STATE_OK, x["name"]))
-    total = len(enabled)
+    total = len(items)
     ok_count = counts.get(STATE_OK, 0)
     compliance_pct = round(100.0 * ok_count / total, 1) if total else 100.0
 
     return {
         "generated_at": now,
         "stale_days_threshold": stale_days,
-        "backup_interval_sec": interval,
+        "backup_interval_sec": global_interval,
         "total_enabled": total,
         "compliance_pct": compliance_pct,
         "counts": counts,
         "state_labels": _STATE_LABELS,
         "nodes": items,
         "oxidized_error": oxidized_error,
+        "filters": {
+            "site": site,
+            "role": role,
+            "critical": critical,
+            "group": group,
+            "state": state,
+        },
     }
+
+
+def compliance_to_csv(summary: dict[str, Any] | None = None) -> str:
+    data = summary or compute_compliance_summary()
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "name",
+            "ip",
+            "group",
+            "site",
+            "role",
+            "critical",
+            "state",
+            "state_label",
+            "last_status",
+            "last_backup_at",
+            "reachability",
+            "backup_interval_sec",
+        ]
+    )
+    for node in data.get("nodes") or []:
+        writer.writerow(
+            [
+                node.get("name", ""),
+                node.get("ip", ""),
+                node.get("group", ""),
+                node.get("site", ""),
+                node.get("role", ""),
+                "yes" if node.get("critical") else "no",
+                node.get("state", ""),
+                node.get("state_label", ""),
+                node.get("last_status", ""),
+                node.get("last_backup_at", "") or "",
+                node.get("reachability", "") or "",
+                node.get("backup_interval_sec", ""),
+            ]
+        )
+    return buf.getvalue()
 
 
 def collect_degradation_issues() -> dict[str, list[dict[str, Any]]]:
