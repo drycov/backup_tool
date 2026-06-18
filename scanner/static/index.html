@@ -198,7 +198,7 @@
                     </div>
                   </div>
                   <div class="card-body py-2 border-bottom">
-                    <div class=".row align-items-end">
+                    <div class="row align-items-end">
                       <div class="form-group col-md-2 col-6 mb-1">
                         <label for="cf-site" class="small text-muted mb-0">Site</label>
                         <input type="text" id="cf-site" class="form-control form-control-sm" placeholder="hex-dc1">
@@ -313,7 +313,7 @@
                 <h3 class="card-title">Подсети для discovery</h3>
               </div>
               <div class="card-body">
-                <div class=".row align-items-end">
+                <div class="row align-items-end">
                   <div class="col-md-5 mb-2">
                     <input type="text" id="network-input" class="form-control" placeholder="10.216.92.0/23">
                   </div>
@@ -534,7 +534,7 @@
                     </div>
                     <p class="text-muted small" id="ox-settings-env-note"></p>
                     <form id="oxidized-settings-form">
-                      <div class=".row">
+                      <div class="row">
                         <div class="form-group col-md-2 col-sm-4">
                           <label for="ox-interval">Интервал, сек</label>
                           <input type="number" id="ox-interval" class="form-control form-control-sm" min="60" step="60">
@@ -560,7 +560,7 @@
                           <select id="ox-default-model" class="form-control form-control-sm"></select>
                         </div>
                       </div>
-                      <div class=".row align-items-center mb-3">
+                      <div class="row align-items-center mb-3">
                         <div class="col-md-4">
                           <div class="form-check">
                             <input type="checkbox" class="form-check-input" id="ox-resolve-dns">
@@ -592,7 +592,7 @@
                     <h5 class="mb-2"><i class="fas fa-hdd text-info me-1"></i> MikroTik backup</h5>
                     <p class="text-muted small mb-3">Binary <code>.backup</code> и export <code>.rsc</code>. Настройки в БД, применяются без перезапуска. Операции пишутся в <strong>лог Oxidized</strong>.</p>
                     <form id="backup-settings-form">
-                      <div class=".row mb-2">
+                      <div class="row mb-2">
                         <div class="col-md-3 col-6">
                           <div class="form-check form-switch">
                             <input type="checkbox" class="form-check-input" id="bk-binary">
@@ -624,7 +624,7 @@
                           </div>
                         </div>
                       </div>
-                      <div class=".row">
+                      <div class="row">
                         <div class="form-group col-md-2 col-sm-6">
                           <label for="bk-purge-keep">Хранить, шт.</label>
                           <input type="number" id="bk-purge-keep" class="form-control form-control-sm" min="1" max="100">
@@ -642,7 +642,7 @@
                           <input type="text" id="bk-rsc-dir" class="form-control form-control-sm">
                         </div>
                       </div>
-                      <div class=".row">
+                      <div class="row">
                         <div class="form-group col-md-4">
                           <label for="bk-encrypt-password">Пароль шифрования binary</label>
                           <input type="password" id="bk-encrypt-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Пусто = без шифрования">
@@ -663,7 +663,7 @@
                     Значения из UI сохраняются в БД; при первом запуске подставляются из <code>.env</code>.
                   </p>
                   <form id="git-settings-form">
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-8">
                         <label for="git-remote-url">Git remote URL</label>
                         <input type="text" id="git-remote-url" class="form-control form-control-sm" placeholder="https://gitea.example.com/org/repo.git">
@@ -673,7 +673,7 @@
                         <input type="text" id="git-branch" class="form-control form-control-sm" placeholder="main">
                       </div>
                     </div>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-4">
                         <label for="git-gitea-token">Gitea token</label>
                         <input type="password" id="git-gitea-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
@@ -687,7 +687,7 @@
                         <input type="password" id="git-source-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
                       </div>
                     </div>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-4">
                         <label for="git-commit-user">Commit user</label>
                         <input type="text" id="git-commit-user" class="form-control form-control-sm">
@@ -792,7 +792,7 @@
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2">Telegram</h6>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-6">
                         <label for="nt-telegram-token">Bot token</label>
                         <input type="password" id="nt-telegram-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
@@ -807,7 +807,7 @@
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2 mt-2">SMTP</h6>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-4">
                         <label for="nt-smtp-server">Сервер</label>
                         <input type="text" id="nt-smtp-server" class="form-control form-control-sm" placeholder="smtp.example.com">
@@ -825,7 +825,7 @@
                         <input type="password" id="nt-smtp-password" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
                       </div>
                     </div>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-4">
                         <label for="nt-smtp-from">From</label>
                         <input type="email" id="nt-smtp-from" class="form-control form-control-sm">
@@ -902,7 +902,7 @@
                     <div class="card-header py-2"><h3 class="card-title h6 mb-0">Добавить группу</h3></div>
                     <div class="card-body py-3">
                       <form id="credential-create-form">
-                        <div class=".row">
+                        <div class="row">
                           <div class="form-group col-md-3 col-sm-6">
                             <label for="new-cred-name">Имя профиля</label>
                             <input type="text" id="new-cred-name" class="form-control form-control-sm" placeholder="hex" required>
@@ -960,7 +960,7 @@
                         </table>
                       </div>
                       <div id="group-policies-empty" class="text-muted small mb-2" style="display:none;">Нет политик — добавьте для группы hex/us</div>
-                      <form id="group-policy-form" class=".row align-items-end" data-permission="oxidized:write">
+                      <form id="group-policy-form" class="row align-items-end" data-permission="oxidized:write">
                         <div class="form-group col-md-2 col-6 mb-1">
                           <label for="gp-group" class="small">Группа</label>
                           <input type="text" id="gp-group" class="form-control form-control-sm" placeholder="hex" required>
@@ -1009,7 +1009,7 @@
                       Настройки в БД, без перезапуска. При первом запуске — импорт из <code>.env</code>.
                     </p>
                     <form id="ldap-settings-form">
-                  <div class=".row align-items-center mb-3">
+                  <div class="row align-items-center mb-3">
                     <div class="form-group col-md-3 mb-md-0">
                       <div class="form-check form-switch">
                         <input type="checkbox" class="form-check-input" id="ldap-enabled">
@@ -1031,7 +1031,7 @@
                     </div>
                   </div>
 
-                  <div class=".row">
+                  <div class="row">
                     <div class="form-group col-md-8">
                       <label for="ldap-server">Сервер</label>
                       <input type="text" id="ldap-server" class="form-control" placeholder="ldap://dc.example.com:389">
@@ -1079,7 +1079,7 @@
                     </div>
                   </div>
 
-                  <div class=".row">
+                  <div class="row">
                     <div class="form-group col-md-6">
                       <label for="ldap-upn-suffix">UPN suffix (AD)</label>
                       <input type="text" id="ldap-upn-suffix" class="form-control" placeholder="@corp.local">
@@ -1091,7 +1091,7 @@
                     </div>
                   </div>
 
-                  <div class=".row">
+                  <div class="row">
                     <div class="form-group col-md-6">
                       <label for="ldap-admin-groups">Группы → admin</label>
                       <input type="text" id="ldap-admin-groups" class="form-control" placeholder="CN=Backup Admins,OU=Groups,DC=corp,DC=local">
@@ -1103,7 +1103,7 @@
                     </div>
                   </div>
 
-                  <div class=".row">
+                  <div class="row">
                     <div class="form-group col-md-4">
                       <label for="ldap-default-role">Роль по умолчанию</label>
                       <select id="ldap-default-role" class="form-control">
@@ -1130,7 +1130,7 @@
                         <i class="fas fa-user-check me-1"></i> Вход пользователя
                       </button>
                     </div>
-                    <div class=".row" id="ldap-test-auth-fields" style="display:none;">
+                    <div class="row" id="ldap-test-auth-fields" style="display:none;">
                       <div class="form-group col-md-4 mb-2">
                         <input type="text" id="ldap-test-username" class="form-control form-control-sm" placeholder="Логин LDAP">
                       </div>
@@ -1166,7 +1166,7 @@
                   </div>
                   <form id="scan-settings-form">
                     <h6 class="text-muted text-uppercase small mb-2">Scan / discovery</h6>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-4 col-sm-6">
                         <label for="scan-concurrency">Concurrency</label>
                         <input type="number" id="scan-concurrency" class="form-control form-control-sm" min="1" max="500">
@@ -1181,7 +1181,7 @@
                       </div>
                     </div>
                     <h6 class="text-muted text-uppercase small mb-2 mt-2">Seed credentials (import)</h6>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-3 col-sm-6">
                         <label for="scan-ovn-user">OVN user</label>
                         <input type="text" id="scan-ovn-user" class="form-control form-control-sm">
@@ -1213,7 +1213,7 @@
                       <input type="checkbox" class="form-check-input" id="bk-maint-enabled" checked>
                       <label class="form-check-label" for="bk-maint-enabled">Пауза scheduled backup</label>
                     </div>
-                    <div class=".row">
+                    <div class="row">
                       <div class="form-group col-md-3 col-6">
                         <label for="bk-maint-start" class="small">Начало UTC</label>
                         <input type="number" id="bk-maint-start" class="form-control form-control-sm" min="0" max="23" value="22">
@@ -1309,7 +1309,7 @@
               <div class="card-header"><h3 class="card-title">Новый пользователь</h3></div>
               <div class="card-body">
                 <form id="user-create-form">
-                  <div class=".row">
+                  <div class="row">
                     <div class="form-group col-md-3">
                       <label for="new-user-username">Логин</label>
                       <input type="text" id="new-user-username" class="form-control" required>

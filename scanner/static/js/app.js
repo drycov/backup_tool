@@ -397,7 +397,7 @@ function showAlert(containerId, msg, type = "danger") {
   el.innerHTML = `
     <div class="alert alert-${alertType} alert-dismissible fade show" role="alert">
       <i class="fas ${icon} mr-1"></i>${msg}
-      <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
   `;
   if (type !== "error") {
@@ -1387,6 +1387,8 @@ async function saveMaintenanceSettings() {
     showAlert("settings-alert", e.message, "error");
   }
 }
+
+function collectBackupSettingsForm() {
   const encVal = qs("#bk-encrypt-password")?.value.trim();
   return {
     ...collectNotifySettingsForm(),
