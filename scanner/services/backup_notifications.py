@@ -200,13 +200,18 @@ def _apply_test_overrides(cfg: BackupConfigData, overrides: dict[str, Any] | Non
     return replace(cfg, **data)
 
 
-def notify_backup_error(device: str, ip: str, status: str, detail: str = "") -> None:
+def notify_backup_error(
+    device: str, ip: str, status: str, detail: str = "", *, group: str = ""
+) -> None:
     from services.notification_templates import backup_error
+    from services.group_policies import effective_notify_flags
 
     cfg = get_config()
-    if not cfg.error_notify_telegram and not cfg.error_notify_email:
+    tg, em = effective_notify_flags(group, cfg.error_notify_telegram, cfg.error_notify_email)
+    if not tg and not em:
         return
     bodies = backup_error(device, ip, status, detail)
+    cfg = replace(cfg, error_notify_telegram=tg, error_notify_email=em)
     for msg in _dispatch(cfg, kind="error", subject="Backup Tools: ошибка бэкапа", bodies=bodies):
         level = logging.WARNING if msg.startswith("Ошибка:") else logging.INFO
         logger.log(level, "backup | notify | %s", msg)

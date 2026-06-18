@@ -255,6 +255,12 @@ function applyPermissions() {
   syncSettingsActiveTab();
 }
 
+function updateLocationHash(hash) {
+  const next = hash.startsWith("#") ? hash : `#${hash}`;
+  if (location.hash === next) return;
+  history.replaceState(null, "", next);
+}
+
 function normalizeSettingsTabId(raw) {
   if (!raw) return "";
   let s = String(raw).replace(/^#/, "").trim();
@@ -307,10 +313,7 @@ function activateSettingsTab(tabId, opts = {}) {
   }
   if (updateHash) {
     const short = id.replace("settings-tab-", "");
-    const next = `#settings/${short}`;
-    if (location.hash !== next) {
-      history.replaceState(null, "", next);
-    }
+    updateLocationHash(`settings/${short}`);
   }
   if (scroll) {
     qs(".settings-content-card")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -350,10 +353,7 @@ function initSettingsTabs() {
       if (!id) return;
       try { localStorage.setItem(SETTINGS_TAB_STORAGE_KEY, id); } catch {}
       const short = id.replace("settings-tab-", "");
-      const next = `#settings/${short}`;
-      if (location.hash !== next) {
-        history.replaceState(null, "", next);
-      }
+      updateLocationHash(`settings/${short}`);
       updateSettingsDirtyUi();
     });
   });
@@ -419,21 +419,24 @@ function markSettingsSaved() {
 }
 
 function navigateToSettingsTab(tabId, opts = {}) {
+  const id = normalizeSettingsTabId(tabId);
+  if (id) {
+    const short = id.replace("settings-tab-", "");
+    updateLocationHash(`settings/${short}`);
+  }
   navigateToPage("settings");
   window.setTimeout(() => {
-    activateSettingsTab(tabId, { scroll: true, ...opts });
+    activateSettingsTab(tabId, { scroll: true, updateHash: false, ...opts });
   }, 150);
 }
 
 function handleRouteHash() {
   const h = location.hash.replace(/^#/, "");
-  if (!h || h === "settings" || h.startsWith("settings/")) {
+  if (!h) return;
+
+  if (h === "settings" || h.startsWith("settings/")) {
     if (!currentUser) return;
-    const tab = h.startsWith("settings/") ? h.slice("settings/".length) : "";
     navigateToPage("settings");
-    window.setTimeout(() => {
-      activateSettingsTab(tab || resolveInitialSettingsTab(), { updateHash: !tab });
-    }, 150);
     return;
   }
   const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "audit", "users"];
@@ -744,8 +747,10 @@ function initNavigation() {
       if (page === "audit") loadAudit();
       if (page === "settings") {
         loadSettings().then(() => {
-          activateSettingsTab(resolveInitialSettingsTab(), { updateHash: false });
+          activateSettingsTab(resolveInitialSettingsTab(), { updateHash: true });
         });
+      } else {
+        updateLocationHash(page);
       }
     });
   });
@@ -3502,12 +3507,14 @@ function renderBackupFileList(name, type, files) {
   if (!files.length) {
     return '<p class="text-muted small mb-0">Нет файлов</p>';
   }
+  const canRestore = isPythonEngine() && can("oxidized:write");
   return `<ul class="list-unstyled mb-0">${files.map(f => `
-    <li class="mb-1">
+    <li class="mb-1 d-flex flex-wrap align-items-center gap-2">
       <a href="${backupDownloadUrl(name, type, f.name)}" class="btn btn-link btn-sm p-0" download>
         <i class="fas fa-download me-1"></i>${escapeHtml(f.name)}
       </a>
-      <span class="text-muted small ms-2">${formatBytes(f.size)} · ${formatDate(f.mtime ? new Date(f.mtime * 1000).toISOString() : null)}</span>
+      <span class="text-muted small">${formatBytes(f.size)} · ${formatDate(f.mtime ? new Date(f.mtime * 1000).toISOString() : null)}</span>
+      ${canRestore ? `<button type="button" class="btn btn-outline-warning btn-sm btn-restore-backup" data-name="${escapeHtml(name)}" data-type="${type}" data-file="${escapeHtml(f.name)}"><i class="fas fa-undo me-1"></i>Restore</button>` : ""}
     </li>
   `).join("")}</ul>`;
 }
@@ -3553,6 +3560,9 @@ async function loadNodeBackupFiles(name) {
     const rscFiles = data.backups?.export || [];
     qs("#oxidized-backups-bin").innerHTML = renderBackupFileList(name, "bin", binFiles);
     qs("#oxidized-backups-rsc").innerHTML = renderBackupFileList(name, "rsc", rscFiles);
+    qsa("#oxidized-backups-modal .btn-restore-backup").forEach(btn => {
+      btn.addEventListener("click", () => restoreMikrotikBackup(btn.dataset.name, btn.dataset.type, btn.dataset.file));
+    });
     if (loading) loading.style.display = "none";
     if (content) content.style.display = "";
     if (emptyHint) {
@@ -3562,6 +3572,22 @@ async function loadNodeBackupFiles(name) {
   } catch (e) {
     if (loading) loading.style.display = "none";
     hideModal("oxidized-backups-modal");
+    showAlert("oxidized-alert", e.message, "error");
+  }
+}
+
+async function restoreMikrotikBackup(name, type, file) {
+  if (!confirm(`Восстановить ${file} на устройство ${name}? Текущая конфигурация может быть перезаписана.`)) {
+    return;
+  }
+  try {
+    showAlert("oxidized-alert", `Restore ${name}…`, "info");
+    const res = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/backups/restore`, {
+      method: "POST",
+      body: JSON.stringify({ type, file }),
+    });
+    showAlert("oxidized-alert", `Restore выполнен: ${res.action || "ok"}`, "success");
+  } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
   }
 }
@@ -3888,6 +3914,9 @@ async function init() {
     showApp();
     await bootstrapApp();
     handleRouteHash();
+    if (!location.hash.replace(/^#/, "")) {
+      updateLocationHash("dashboard");
+    }
     if (currentUser?.must_change_password) {
       showPasswordChangeModal();
     }

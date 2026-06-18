@@ -287,6 +287,10 @@ class GroupPolicyUpdate(BaseModel):
     model: str = ""
     mk_binary_enabled: Optional[bool] = None
     mk_export_enabled: Optional[bool] = None
+    notify_telegram: Optional[bool] = None
+    notify_email: Optional[bool] = None
+    maintenance_override: Optional[bool] = None
+    compliance_sla_hours: Optional[int] = None
 
 
 class GitSettingsUpdate(BaseModel):
@@ -358,3 +362,14 @@ class ApiKeyCreate(BaseModel):
     permissions: list[str] = Field(default_factory=list)
     allowed_groups: list[str] = Field(default_factory=list)
     allowed_sites: list[str] = Field(default_factory=list)
+
+
+class MikrotikRestoreRequest(BaseModel):
+    type: str = Field(pattern=r"^(bin|rsc)$")
+    file: str = Field(min_length=1, max_length=256)
+
+
+class MikrotikBackupCompareRequest(BaseModel):
+    type: str = Field(pattern=r"^(bin|rsc)$")
+    file_a: str
+    file_b: str

@@ -26,6 +26,7 @@ ACTION_AUTH_LOGIN_FAILED = "auth.login_failed"
 ACTION_USER_SCOPE_UPDATE = "user.scope_update"
 ACTION_COMPLIANCE_EXPORT = "compliance.export"
 ACTION_COMPLIANCE_REPORT_SEND = "compliance.report_send"
+ACTION_MIKROTIK_RESTORE = "mikrotik.restore"
 
 
 def _client_ip(request: HttpRequest | None) -> str:

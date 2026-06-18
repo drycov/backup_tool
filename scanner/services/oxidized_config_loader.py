@@ -95,12 +95,16 @@ def default_ssh_port_from_yaml(yaml_cfg: dict[str, Any] | None = None) -> int | 
 
 
 def list_available_models() -> list[str]:
+    from services.oxidized_engine.model.registry import list_native_models
+
+    native = list_native_models()
     try:
         from services.oxidized_engine.collector.ruby_bridge import list_models
 
-        models = list_models()
-        if models:
-            return models
+        ruby = list_models()
+        if ruby:
+            merged = list(dict.fromkeys(ruby + native))
+            return merged
     except Exception:
         pass
-    return ["routeros"]
+    return native

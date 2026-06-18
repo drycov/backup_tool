@@ -53,9 +53,18 @@ def is_backup_paused_for_device(
     *,
     device_name: str,
     maintenance: bool = False,
+    group_name: str = "",
     now: datetime | None = None,
 ) -> bool:
-    """Scheduled backup skip for devices tagged maintenance during configured window."""
+    """Scheduled backup skip: group override, device maintenance + global window."""
+    from services.group_policies import effective_maintenance_override
+
+    override = effective_maintenance_override(group_name)
+    if override is True:
+        logger.debug("maintenance | skip (group override) | %s", device_name)
+        return True
+    if override is False:
+        return False
     if not maintenance:
         return False
     from services.backup_settings import get_config

@@ -25,6 +25,7 @@ from services.audit import (
     ACTION_CREDENTIAL_CREATE,
     ACTION_CREDENTIAL_DELETE,
     ACTION_CREDENTIAL_UPDATE,
+    ACTION_MIKROTIK_RESTORE,
     ACTION_OXIDIZED_BACKUP_ALL,
     ACTION_OXIDIZED_FETCH,
     ACTION_SCAN_DISCOVER,
@@ -98,6 +99,8 @@ from services.schemas import (
     ScanLogEntry,
     ScanSettingsUpdate,
     ScanStartResponse,
+    MikrotikRestoreRequest,
+    MikrotikBackupCompareRequest,
 )
 
 _HOP_HEADERS = hop_headers()
@@ -666,6 +669,61 @@ def oxidized_node_backup_download(request: HttpRequest, name: str) -> HttpRespon
     if filename.endswith(".rsc"):
         content_type = "text/plain; charset=utf-8"
     return FileResponse(path.open("rb"), as_attachment=True, filename=path.name, content_type=content_type)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+def oxidized_node_backups_restore(request: HttpRequest, name: str) -> JsonResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
+    from services.mikrotik_backup import MikrotikBackupError
+    from services.mikrotik_restore import restore_mikrotik_backup
+
+    try:
+        body = parse_json_body(request)
+        payload = MikrotikRestoreRequest.model_validate(body)
+        result = restore_mikrotik_backup(name, payload.type, payload.file)
+    except ValidationError as exc:
+        return error_response(str(exc))
+    except MikrotikBackupError as exc:
+        return error_response(str(exc), status=400)
+    except Exception as exc:
+        from services.oxidized_engine.exceptions import NodeNotFound
+
+        if isinstance(exc, NodeNotFound):
+            return error_response(str(exc), status=404)
+        raise
+    log_audit_user(
+        request.api_user,
+        ACTION_MIKROTIK_RESTORE,
+        target=name,
+        detail=f"{payload.type}:{payload.file}",
+        request=request,
+    )
+    return json_response(result)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
+def oxidized_node_backups_compare(request: HttpRequest, name: str) -> JsonResponse:
+    denied = _node_access_denied(request.api_user, name)
+    if denied:
+        return denied
+    from services.mikrotik_backup import MikrotikBackupError
+    from services.mikrotik_restore import compare_backup_files
+
+    try:
+        body = parse_json_body(request)
+        payload = MikrotikBackupCompareRequest.model_validate(body)
+        result = compare_backup_files(name, payload.file_a, payload.file_b, payload.type)
+    except ValidationError as exc:
+        return error_response(str(exc))
+    except MikrotikBackupError as exc:
+        return error_response(str(exc), status=400)
+    return json_response(result)
 
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)

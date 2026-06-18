@@ -64,6 +64,7 @@ class Worker:
             if is_backup_paused_for_device(
                 device_name=node.name,
                 maintenance=device_maintenance_flag(node.name),
+                group_name=node.group,
             ):
                 continue
             if not (node.nexted or node.due(now, self._node_interval(node))):

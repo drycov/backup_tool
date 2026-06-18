@@ -56,6 +56,10 @@ class GroupPolicy(models.Model):
     model = models.CharField(max_length=64, blank=True, default="")
     mk_binary_enabled = models.BooleanField(null=True, blank=True)
     mk_export_enabled = models.BooleanField(null=True, blank=True)
+    notify_telegram = models.BooleanField(null=True, blank=True)
+    notify_email = models.BooleanField(null=True, blank=True)
+    maintenance_override = models.BooleanField(null=True, blank=True)
+    compliance_sla_hours = models.PositiveIntegerField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

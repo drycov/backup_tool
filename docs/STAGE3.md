@@ -13,49 +13,14 @@
 | OpenAPI | реализовано | `GET /api/openapi.json`, `/api/docs` |
 | Compliance по site (дашборд) | реализовано | `GET /api/compliance/by-site` |
 
-## Фаза 3.1 — Бэкапы и устройства (недели 3–6)
+## Фаза 3.1 — Бэкапы и устройства (недели 3–6) — частично ✅
 
-### Python engine — модели IOS / JunOS / EOS
-
-**Сейчас:** native `routeros` + Ruby gem bridge (`collector/ruby_bridge.py`).
-
-**План:**
-1. **3.1a** — стабилизировать ruby-bridge: метрики success/fail per model, fallback policy в UI.
-2. **3.1b** — native `ios` (Cisco): SSH + `show running-config`, enable secret из credential profile.
-3. **3.1c** — native `junos` / `eos` по приоритету парка (или bridge-only до готовности native).
-
-Файлы: `services/oxidized_engine/model/{ios,junos,eos}.py`, `registry.py`, тесты с mock SSH.
-
-### Group policies — notify, maintenance, SLA
-
-**Сейчас:** interval, model, mk binary/export.
-
-**Расширение модели `GroupPolicy`:**
-- `notify_telegram`, `notify_email` (nullable → inherit global)
-- `maintenance_override` (bool nullable)
-- `compliance_sla_hours` (RPO target, nullable)
-
-Интеграция: `degradation_monitor`, `backup_notifications`, `compliance.py` (SLA breach state).
-
-### MikroTik — restore и сравнение bin
-
-**Сейчас:** bin/rsc + Git push + download API.
-
-**План:**
-1. `POST /api/oxidized/nodes/{name}/backups/restore` — upload `.backup`/`.rsc` → RouterOS (operator+).
-2. UI: wizard restore с preview команд.
-3. Bin diff: metadata (size, mtime, version) — binary diff нецелесообразен; показать side-by-side `.rsc` export двух bin-снимков если есть.
-
-Файлы: `services/mikrotik_restore.py`, `app.js` backup modal.
-
-### Oxidized external — стабильный embed
-
-**Сейчас:** iframe + proxy; diff API 501 на external engine.
-
-**План:**
-1. Единый diff panel: проксировать `/api/oxidized/nodes/.../diff` через Ruby Oxidized HTTP API.
-2. COOP/CSP headers для iframe на HTTPS.
-3. Fallback: открытие diff в новой вкладке proxy.
+| Задача | Статус |
+|--------|--------|
+| Native models ios/junos/eos | ✅ `model/{ios,junos,eos}.py` + registry |
+| Group policies notify/SLA/maintenance | ✅ migration `0012`, `group_policies.py` |
+| MikroTik restore + compare API | ✅ `mikrotik_restore.py`, UI Restore |
+| Oxidized external unified diff | ⏳ фаза 3.1b |
 
 ---
 

@@ -64,6 +64,16 @@ urlpatterns = [
         name="oxidized-node-backups-run",
     ),
     path(
+        "api/oxidized/nodes/<str:name>/backups/restore",
+        views.oxidized_node_backups_restore,
+        name="oxidized-node-backups-restore",
+    ),
+    path(
+        "api/oxidized/nodes/<str:name>/backups/compare",
+        views.oxidized_node_backups_compare,
+        name="oxidized-node-backups-compare",
+    ),
+    path(
         "api/oxidized/nodes/<str:name>/backups/download",
         views.oxidized_node_backup_download,
         name="oxidized-node-backup-download",

@@ -335,13 +335,13 @@ def run_mikrotik_backups(node: Node) -> bool:
         logger.warning("mikrotik | backup failed | %s: %s", node.name, exc)
         from services.backup_notifications import notify_backup_error
 
-        notify_backup_error(node.name, node.ip, "mikrotik_backup", str(exc))
+        notify_backup_error(node.name, node.ip, "mikrotik_backup", str(exc), group=node.group)
         return False
     except Exception as exc:
         logger.exception("mikrotik | backup failed | %s", node.name)
         from services.backup_notifications import notify_backup_error
 
-        notify_backup_error(node.name, node.ip, "mikrotik_backup", str(exc))
+        notify_backup_error(node.name, node.ip, "mikrotik_backup", str(exc), group=node.group)
         return False
 
 

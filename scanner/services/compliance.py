@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from services.backup_settings import get_config
-from services.group_policies import effective_interval
+from services.group_policies import effective_compliance_sla_hours, effective_interval
 from services.inventory import load_inventory
 from services.oxidized_client import get_nodes
 from services.oxidized_settings import get_oxidized_settings
@@ -149,6 +149,11 @@ def compute_compliance_summary(
         node = node_map.get(device.name, {})
         interval = effective_interval(device.group, global_interval)
         overdue_cutoff = now - timedelta(seconds=interval * 2)
+        sla_hours = effective_compliance_sla_hours(device.group)
+        if sla_hours:
+            sla_cutoff = now - timedelta(hours=sla_hours)
+            if sla_cutoff < overdue_cutoff:
+                overdue_cutoff = sla_cutoff
         primary, issues, meta = _classify_node(
             node,
             reachability=reachability.get(device.name),
