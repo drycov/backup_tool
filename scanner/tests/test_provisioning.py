@@ -116,3 +116,58 @@ def test_provision_analysis_api_handles_missing_config(authed, client):
     body = res.json()
     assert "clusters" in body
     assert body["clusters"][0]["skipped_reason"]
+    assert body.get("log")
+
+
+@pytest.mark.django_db
+def test_provision_analysis_async_run(authed, client):
+    from unittest.mock import patch
+
+    from services.provision_analysis_runner import get_provision_analysis_run
+
+    DeviceModel.objects.create(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
+    DeviceModel.objects.create(name="r2", ip="10.0.0.2", model="routeros", group="hex", site="dc1")
+
+    with patch(
+        "services.provision_template_builder.get_node_config",
+        side_effect=lambda n: (f"/system identity set name={n}\n", None),
+    ):
+        start = client.post(
+            "/api/provisioning/analysis/run",
+            data='{"group": "hex", "threshold": 0.85, "min_devices": 2}',
+            content_type="application/json",
+        )
+        assert start.status_code == 200
+        run_id = start.json()["run_id"]
+
+        for _ in range(50):
+            run = get_provision_analysis_run(run_id)
+            assert run is not None
+            if run["status"] in ("completed", "failed"):
+                break
+            import time
+
+            time.sleep(0.05)
+
+        detail = client.get(f"/api/provisioning/analysis/runs/{run_id}")
+        assert detail.status_code == 200
+        body = detail.json()
+        assert body["status"] == "completed", body.get("error")
+        assert body["result"]["clusters"]
+        assert len(body["log"]) >= 2
+
+
+@pytest.mark.django_db
+def test_provision_filters_api(authed, client):
+    DeviceModel.objects.create(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
+    DeviceModel.objects.create(name="r2", ip="10.0.0.2", model="ios", group="us", site="dc2", enabled=False)
+
+    res = client.get("/api/provisioning/filters")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["device_count"] == 1
+    assert [g["id"] for g in body["groups"]] == ["hex"]
+    assert [s["id"] for s in body["sites"]] == ["dc1"]
+    assert [m["id"] for m in body["models"]] == ["routeros"]
+    assert body["template_models"][0]["id"] == "*"
+    assert [d["name"] for d in body["devices"]] == ["r1"]

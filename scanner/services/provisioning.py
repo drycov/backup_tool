@@ -13,8 +13,9 @@ from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateSyntaxError
 
 from services.database import is_database_available, require_database
 from services.inventory import load_inventory
-from services.object_scope import device_in_scope
+from services.object_scope import device_in_scope, filter_devices
 from services.schemas import Device
+from services.vendor_catalog import normalize_model
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,67 @@ def _run_row_public(row: ProvisionRun) -> dict[str, Any]:
     }
 
 
+def list_provision_filter_options(*, user=None) -> dict[str, Any]:
+    """Distinct group/site/model и устройства из БД (с учётом object scope)."""
+    from collections import Counter
+
+    from core.models import Site
+    from services.vendor_catalog import model_label, normalize_model
+
+    require_database("Provisioning требует базу данных")
+    devices = [d for d in load_inventory().devices if d.enabled]
+    if user is not None:
+        devices = filter_devices(user, devices)
+
+    group_counts = Counter(d.group for d in devices if d.group)
+    site_counts = Counter((d.site or "").strip() for d in devices if (d.site or "").strip())
+    model_counts: Counter[str] = Counter()
+    for device in devices:
+        model_counts[normalize_model(device.model)] += 1
+
+    site_names = {row.slug: (row.name or row.slug) for row in Site.objects.all().only("slug", "name")}
+
+    groups = [
+        {"id": name, "label": f"{name} ({count})", "count": count}
+        for name, count in sorted(group_counts.items(), key=lambda x: x[0].lower())
+    ]
+    sites = [
+        {
+            "id": slug,
+            "label": f"{site_names.get(slug, slug)} ({count})",
+            "count": count,
+        }
+        for slug, count in sorted(site_counts.items(), key=lambda x: x[0].lower())
+    ]
+    models = [
+        {
+            "id": model_id,
+            "label": f"{model_label(model_id)} ({count})",
+            "count": count,
+        }
+        for model_id, count in sorted(model_counts.items(), key=lambda x: x[0])
+    ]
+    template_models = [{"id": "*", "label": "любая модель (*)"}] + models
+
+    return {
+        "device_count": len(devices),
+        "groups": groups,
+        "sites": sites,
+        "models": models,
+        "template_models": template_models,
+        "devices": [
+            {
+                "name": d.name,
+                "ip": d.ip,
+                "model": normalize_model(d.model),
+                "group": d.group,
+                "site": d.site or "",
+            }
+            for d in sorted(devices, key=lambda x: x.name.lower())
+        ],
+    }
+
+
 def list_templates(*, active_only: bool = False) -> list[dict[str, Any]]:
     if not is_database_available():
         return []
@@ -104,11 +166,14 @@ def create_template(
     validate_template_syntax(body)
     if ProvisionTemplate.objects.filter(slug=slug).exists():
         raise ProvisioningError(f"Шаблон '{slug}' уже существует")
+    model_val = (model or "routeros").strip().lower()
+    if not model_val:
+        raise ProvisioningError("Укажите model или *")
     row = ProvisionTemplate.objects.create(
         slug=slug,
         name=name.strip() or slug,
         description=(description or "").strip(),
-        model=(model or "routeros").strip().lower(),
+        model=model_val,
         body=body,
     )
     logger.info("provision | template created | slug=%s model=%s", slug, row.model)
@@ -210,7 +275,8 @@ def preview_provision(
     if not template.is_active:
         raise ProvisioningError("Шаблон отключён")
     device = _resolve_device(device_name, user)
-    if template.model != "*" and device.model != template.model:
+    tpl_model = template.model.strip().lower() if template.model else "routeros"
+    if tpl_model != "*" and normalize_model(device.model) != normalize_model(template.model):
         raise ProvisioningError(
             f"Модель устройства ({device.model}) не совпадает с шаблоном ({template.model})"
         )

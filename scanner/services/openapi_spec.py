@@ -311,6 +311,12 @@ def _paths() -> dict:
         "/api/provisioning/analysis": {
             "get": {"tags": ["admin"], "summary": "Analyze device config clusters and complex devices"},
         },
+        "/api/provisioning/analysis/run": {
+            "post": {"tags": ["admin"], "summary": "Start async provision cluster analysis"},
+        },
+        "/api/provisioning/analysis/runs/{run_id}": {
+            "get": {"tags": ["admin"], "summary": "Provision cluster analysis run status and log"},
+        },
         "/api/provisioning/templates/{id}": {
             "get": {"tags": ["admin"], "summary": "Get provision template"},
             "put": {"tags": ["admin"], "summary": "Update provision template"},

@@ -50,7 +50,7 @@ def test_list_bulk_targets_filters_group_site():
 
 
 @pytest.mark.django_db
-def test_preview_requires_scope_filter():
+def test_preview_all_devices_when_no_scope_filter():
     tpl = ProvisionTemplate.objects.create(
         slug="ros-id",
         name="ROS",
@@ -58,8 +58,11 @@ def test_preview_requires_scope_filter():
         body="/system identity set name={{ device.name }}\n",
     )
     DeviceModel.objects.create(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
-    with pytest.raises(ProvisioningError, match="group, site"):
-        preview_bulk_provision(template_id=tpl.id)
+    DeviceModel.objects.create(name="r2", ip="10.0.0.2", model="routeros", group="us", site="dc2")
+
+    preview = preview_bulk_provision(template_id=tpl.id)
+    assert preview["device_count"] == 2
+    assert {d["name"] for d in preview["devices"]} == {"r1", "r2"}
 
 
 @pytest.mark.django_db

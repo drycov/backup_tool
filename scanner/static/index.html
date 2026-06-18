@@ -1899,14 +1899,23 @@
                     </table>
                   </div>
                 </div>
-                <div class="card card-outline card-warning mt-3" data-permission="provision:run">
+                <div class="card card-outline card-warning mt-3" data-permission-any="provision:read,provision:run">
                   <div class="card-header"><h3 class="card-title mb-0">Генерация из бэкапов</h3></div>
                   <div class="card-body">
                     <p class="small text-muted mb-2">Анализ конфигов Oxidized по группам и сайтам. Устройства с сильным отклонением от baseline помечаются как сложные.</p>
                     <div class="row g-2 mb-2">
-                      <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="prov-gen-group" placeholder="group (все)"></div>
-                      <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="prov-gen-site" placeholder="site (все)"></div>
-                      <div class="col-md-4"><input type="text" class="form-control form-control-sm" id="prov-gen-model" placeholder="model (все)"></div>
+                      <div class="col-md-4">
+                        <label class="form-label small" for="prov-gen-group">group</label>
+                        <select id="prov-gen-group" class="form-control form-control-sm"><option value="">все</option></select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small" for="prov-gen-site">site</label>
+                        <select id="prov-gen-site" class="form-control form-control-sm"><option value="">все</option></select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small" for="prov-gen-model">model</label>
+                        <select id="prov-gen-model" class="form-control form-control-sm"><option value="">все</option></select>
+                      </div>
                     </div>
                     <div class="row g-2 mb-2">
                       <div class="col-md-4"><input type="number" class="form-control form-control-sm" id="prov-gen-threshold" value="0.85" min="0.5" max="1" step="0.01" title="Порог схожести"></div>
@@ -1920,7 +1929,7 @@
                     </div>
                     <div class="d-flex gap-2 mb-2">
                       <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-prov-analyze">Анализ</button>
-                      <button type="button" class="btn btn-warning btn-sm" id="btn-prov-generate">Сгенерировать шаблоны</button>
+                      <button type="button" class="btn btn-warning btn-sm" id="btn-prov-generate" data-permission="provision:run">Сгенерировать шаблоны</button>
                     </div>
                     <div id="prov-analysis-summary" class="small text-muted mb-2">—</div>
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
@@ -1954,13 +1963,16 @@
                 <div class="card card-outline card-secondary mt-3" data-permission="provision:run">
                   <div class="card-header"><h3 class="card-title">Новый шаблон</h3></div>
                   <div class="card-body">
-                    <form id="provision-template-form">
+                    <div id="provision-template-panel">
                       <div class="mb-2"><input type="text" class="form-control form-control-sm" id="pt-slug" placeholder="slug" required pattern="[a-z][-a-z0-9_]{1,62}" title="Латиница, 2–63 символа"></div>
                       <div class="mb-2"><input type="text" class="form-control form-control-sm" id="pt-name" placeholder="Название" required></div>
-                      <div class="mb-2"><input type="text" class="form-control form-control-sm" id="pt-model" placeholder="model" value="routeros"></div>
+                      <div class="mb-2">
+                        <label class="form-label small" for="pt-model">model</label>
+                        <select id="pt-model" class="form-control form-control-sm"><option value="routeros">routeros</option></select>
+                      </div>
                       <div class="mb-2"><textarea class="form-control form-control-sm font-monospace" id="pt-body" rows="8" placeholder="/system identity set name={{ device.name }}" required></textarea></div>
-                      <button type="submit" class="btn btn-primary btn-sm">Создать</button>
-                    </form>
+                      <button type="button" class="btn btn-primary btn-sm" id="btn-prov-template-create">Создать</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1992,19 +2004,23 @@
                 <div class="card card-outline card-warning mt-3" data-permission="provision:run">
                   <div class="card-header"><h3 class="card-title mb-0">Bulk provision</h3></div>
                   <div class="card-body">
-                    <p class="small text-muted mb-2">Применение шаблона на все устройства group/site через очередь задач.</p>
+                    <p class="small text-muted mb-2">Применение шаблона на устройства (все или по фильтру group/site/model) через очередь задач.</p>
                     <div class="row g-2 mb-2">
-                      <div class="col-md-4">
+                      <div class="col-md-3">
                         <label class="form-label small">Шаблон</label>
                         <select id="prov-bulk-template-select" class="form-control form-control-sm"></select>
                       </div>
-                      <div class="col-md-4">
-                        <label class="form-label small">group</label>
-                        <input type="text" class="form-control form-control-sm" id="prov-bulk-group" placeholder="hex">
+                      <div class="col-md-3">
+                        <label class="form-label small" for="prov-bulk-group">group</label>
+                        <select id="prov-bulk-group" class="form-control form-control-sm"><option value="">все</option></select>
                       </div>
-                      <div class="col-md-4">
-                        <label class="form-label small">site</label>
-                        <input type="text" class="form-control form-control-sm" id="prov-bulk-site" placeholder="dc1">
+                      <div class="col-md-3">
+                        <label class="form-label small" for="prov-bulk-site">site</label>
+                        <select id="prov-bulk-site" class="form-control form-control-sm"><option value="">все</option></select>
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small" for="prov-bulk-model">model</label>
+                        <select id="prov-bulk-model" class="form-control form-control-sm"><option value="">все</option></select>
                       </div>
                     </div>
                     <div class="d-flex flex-wrap gap-3 mb-2">

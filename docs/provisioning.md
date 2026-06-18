@@ -29,6 +29,7 @@
 | Метод | URL | Права |
 |-------|-----|-------|
 | GET/POST | `/api/provisioning/templates` | `provision:read` / POST: `provision:run` |
+| GET | `/api/provisioning/filters` | `provision:read` — group/site/model/устройства из БД |
 | GET | `/api/provisioning/analysis` | `provision:read` — анализ кластеров без сохранения |
 | POST | `/api/provisioning/templates/generate` | `provision:run` — создать/обновить шаблоны из бэкапов |
 | GET | `/api/provisioning/bulk?action=preview` | `provision:read` — список устройств для bulk |
@@ -98,6 +99,8 @@ curl -s -b cookies.txt http://scanner:8000/api/provisioning/bulk/5
 ## Web UI
 
 **Провижионинг** в боковом меню: шаблоны, **Генерация из бэкапов**, **Bulk provision**, preview, история запусков и bulk-задач.
+
+Фильтры group / site / model и список устройств подгружаются из БД (`GET /api/provisioning/filters`) с учётом object scope. Значение «все» в фильтрах — весь доступный инвентарь. Шаблон с `model=*` применяется к любой модели; apply для неизвестных моделей — построчно по SSH.
 
 ## RBAC
 

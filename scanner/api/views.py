@@ -1,11 +1,14 @@
 
 import httpx
+import logging
 from datetime import datetime, timezone
 from django.conf import settings
 from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from pydantic import ValidationError
+
+logger = logging.getLogger(__name__)
 
 from api.helpers import (
     ApiError,
@@ -2235,8 +2238,20 @@ def provision_runs_view(request: HttpRequest) -> JsonResponse:
 @csrf_exempt
 @require_http_methods(["GET"])
 @require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_filters_view(request: HttpRequest) -> JsonResponse:
+    from services.provisioning import list_provision_filter_options
+
+    try:
+        return json_response(list_provision_filter_options(user=request.api_user))
+    except ValueError as exc:
+        return error_response(str(exc), status=503)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_PROVISION_READ)
 def provision_analysis_view(request: HttpRequest) -> JsonResponse:
-    from services.provision_template_builder import analyze_clusters
+    from services.provision_template_builder import analyze_clusters, clusters_to_api_payload
 
     group = request.GET.get("group", "").strip()
     site = request.GET.get("site", "").strip()
@@ -2250,41 +2265,76 @@ def provision_analysis_view(request: HttpRequest) -> JsonResponse:
     except ValueError:
         return error_response("min_devices должен быть целым", status=400)
 
-    clusters = analyze_clusters(
-        group=group,
-        site=site,
-        model=model,
+    filters = {
+        "group": group,
+        "site": site,
+        "model": model,
+        "threshold": threshold,
+        "min_devices": min_devices,
+    }
+    log_lines: list[dict[str, str]] = []
+
+    def log_cb(level: str, text: str) -> None:
+        log_lines.append({"level": level, "text": text})
+
+    try:
+        clusters = analyze_clusters(
+            group=group,
+            site=site,
+            model=model,
+            user=request.api_user,
+            complexity_threshold=threshold,
+            min_devices=min_devices,
+            log_cb=log_cb,
+        )
+    except ValueError as exc:
+        return error_response(str(exc), status=503)
+    except Exception as exc:
+        logger.exception("provision | analysis failed")
+        return error_response(f"Ошибка анализа: {exc}", status=500)
+
+    payload = clusters_to_api_payload(clusters, filters=filters)
+    payload["log"] = log_lines
+    return json_response(payload)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_analysis_run_view(request: HttpRequest) -> JsonResponse:
+    from services.provision_analysis_runner import start_provision_analysis
+
+    body = parse_json_body(request) or {}
+    try:
+        threshold = float(body.get("threshold", body.get("complexity_threshold", 0.85)))
+    except (TypeError, ValueError):
+        return error_response("threshold должен быть числом", status=400)
+    try:
+        min_devices = int(body.get("min_devices", 2))
+    except (TypeError, ValueError):
+        return error_response("min_devices должен быть целым", status=400)
+
+    run_id = start_provision_analysis(
+        group=str(body.get("group") or "").strip(),
+        site=str(body.get("site") or "").strip(),
+        model=str(body.get("model") or "").strip(),
         user=request.api_user,
         complexity_threshold=threshold,
         min_devices=min_devices,
     )
-    complex_devices = []
-    for cluster in clusters:
-        for item in cluster.complex_devices:
-            complex_devices.append(
-                {
-                    "name": item["name"],
-                    "group": cluster.group,
-                    "site": cluster.site,
-                    "model": cluster.model,
-                    "similarity": item.get("similarity"),
-                    "reason": item.get("reason", ""),
-                }
-            )
-    return json_response(
-        {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "filters": {
-                "group": group,
-                "site": site,
-                "model": model,
-                "threshold": threshold,
-                "min_devices": min_devices,
-            },
-            "clusters": [c.to_dict() for c in clusters],
-            "complex_devices": complex_devices,
-        }
-    )
+    return json_response({"status": "running", "run_id": run_id})
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_PROVISION_READ)
+def provision_analysis_run_detail_view(request: HttpRequest, run_id: str) -> JsonResponse:
+    from services.provision_analysis_runner import get_provision_analysis_run
+
+    run = get_provision_analysis_run(run_id.strip())
+    if not run:
+        return error_response("Запуск анализа не найден", status=404)
+    return json_response(run)
 
 @csrf_exempt
 @require_http_methods(["POST"])

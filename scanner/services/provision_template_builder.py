@@ -8,12 +8,15 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from collections.abc import Callable
 from typing import Any
 
 from services.inventory import load_inventory
 from services.object_scope import filter_devices
 from services.oxidized_client import get_node_config
 from services.schemas import Device
+from services.sites import site_matches_filter
+from services.vendor_catalog import normalize_model
 
 logger = logging.getLogger(__name__)
 
@@ -236,41 +239,108 @@ def _slug_for_cluster(group: str, site: str, model: str) -> str:
     return "-".join(parts)[:63]
 
 
+def _resolve_analysis_devices(
+    *,
+    group: str = "",
+    site: str = "",
+    model: str = "",
+    user=None,
+) -> list[Device]:
+    inventory = load_inventory()
+    devices = [d for d in inventory.devices if d.enabled]
+    if user is not None:
+        devices = filter_devices(user, devices)
+    if group:
+        devices = [d for d in devices if d.group == group]
+    if site:
+        devices = [d for d in devices if site_matches_filter(d.site or "", site)]
+    if model:
+        want = normalize_model(model)
+        devices = [d for d in devices if normalize_model(d.model) == want]
+    return devices
+
+
+def clusters_to_api_payload(
+    clusters: list[ClusterAnalysis],
+    *,
+    filters: dict[str, Any],
+) -> dict[str, Any]:
+    complex_devices: list[dict[str, Any]] = []
+    for cluster in clusters:
+        for item in cluster.complex_devices:
+            complex_devices.append(
+                {
+                    "name": item["name"],
+                    "group": cluster.group,
+                    "site": cluster.site,
+                    "model": cluster.model,
+                    "similarity": item.get("similarity"),
+                    "reason": item.get("reason", ""),
+                }
+            )
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "filters": filters,
+        "clusters": [c.to_dict() for c in clusters],
+        "complex_devices": complex_devices,
+    }
+
+
 def analyze_clusters(
     *,
     group: str = "",
     site: str = "",
     model: str = "",
     user=None,
+    devices: list[Device] | None = None,
     complexity_threshold: float = DEFAULT_COMPLEXITY_THRESHOLD,
     min_devices: int = MIN_DEVICES_PER_CLUSTER,
+    log_cb: Callable[[str, str], None] | None = None,
 ) -> list[ClusterAnalysis]:
-    inventory = load_inventory()
-    devices = [d for d in inventory.devices if d.enabled]
-    if user is not None:
-        devices = filter_devices(user, devices)
+    def _log(level: str, text: str) -> None:
+        if log_cb:
+            log_cb(level, text)
 
-    if group:
-        devices = [d for d in devices if d.group == group]
-    if site:
-        devices = [d for d in devices if (d.site or "") == site]
-    if model:
-        devices = [d for d in devices if (d.model or "").lower() == model.lower()]
+    if devices is None:
+        _log("info", "Загрузка инвентаря устройств…")
+        devices = _resolve_analysis_devices(group=group, site=site, model=model, user=user)
+    else:
+        _log("info", f"Устройств в выборке: {len(devices)}")
 
     buckets: dict[tuple[str, str, str], list[Device]] = defaultdict(list)
     for device in devices:
         buckets[_cluster_key(device)].append(device)
 
+    _log(
+        "info",
+        f"Фильтры: group={group or '*'} site={site or '*'} model={model or '*'} | "
+        f"устройств {len(devices)}, кластеров {len(buckets)}",
+    )
+
     results: list[ClusterAnalysis] = []
     for (grp, st, mdl), cluster_devices in sorted(buckets.items()):
+        label = f"{grp} / {st or '—'} / {mdl}"
+        _log("info", f"▸ Кластер {label}: {len(cluster_devices)} устройств")
         analysis = ClusterAnalysis(group=grp, site=st, model=mdl)
-        analysis.devices = [_load_device_config(d) for d in cluster_devices]
+        samples: list[DeviceConfigSample] = []
+        for device in cluster_devices:
+            _log("info", f"  загрузка конфига {device.name}…")
+            sample = _load_device_config(device)
+            if sample.error:
+                _log("warn", f"  ✗ {device.name}: {sample.error}")
+            elif not sample.raw:
+                _log("warn", f"  ✗ {device.name}: пустой конфиг")
+            else:
+                _log("success", f"  ✓ {device.name}: конфиг загружен")
+            samples.append(sample)
+        analysis.devices = samples
 
         valid_count = sum(1 for s in analysis.devices if s.raw and not s.error)
         if valid_count < min_devices:
             analysis.skipped_reason = (
                 f"недостаточно конфигов ({valid_count} < {min_devices})"
             )
+            _log("warn", f"  пропущен: {analysis.skipped_reason}")
             results.append(analysis)
             continue
 
@@ -278,6 +348,7 @@ def analyze_clusters(
             baseline, avg_sim = _pick_baseline(analysis.devices)
         except ValueError as exc:
             analysis.skipped_reason = str(exc)
+            _log("warn", f"  пропущен: {exc}")
             results.append(analysis)
             continue
 
@@ -289,6 +360,13 @@ def analyze_clusters(
             threshold=complexity_threshold,
         )
         analysis.template_body = raw_config_to_jinja_template(baseline.raw, baseline.device)
+        _log(
+            "info",
+            f"  baseline: {baseline.device.name} ({avg_sim:.0%}), "
+            f"простых {len(analysis.simple_devices)}, сложных {len(analysis.complex_devices)}",
+        )
+        if analysis.template_body:
+            _log("success", "  шаблон сформирован")
         results.append(analysis)
 
     return results

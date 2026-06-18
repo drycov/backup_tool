@@ -13,6 +13,8 @@ from services.inventory import load_inventory
 from services.object_scope import device_in_scope, filter_devices
 from services.provisioning import ProvisioningError, get_template, run_provision
 from services.schemas import Device
+from services.sites import site_matches_filter
+from services.vendor_catalog import normalize_model
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +47,17 @@ def list_bulk_targets(
         if group:
             devices = [d for d in devices if d.group == group]
         if site:
-            devices = [d for d in devices if (d.site or "") == site]
+            devices = [d for d in devices if site_matches_filter(d.site or "", site)]
         if model:
-            devices = [d for d in devices if (d.model or "").lower() == model.lower()]
+            want = normalize_model(model)
+            devices = [d for d in devices if normalize_model(d.model) == want]
 
     if user is not None:
         devices = filter_devices(user, devices)
 
-    if template.model != "*":
-        devices = [d for d in devices if d.model == template.model]
+    tpl_model = normalize_model(template.model) if template.model != "*" else "*"
+    if tpl_model != "*":
+        devices = [d for d in devices if normalize_model(d.model) == tpl_model]
 
     if exclude_complex:
         skip = _complex_device_names(template)
@@ -77,8 +81,6 @@ def preview_bulk_provision(
     template = get_template(template_id, slug=template_slug)
     if not template.is_active:
         raise ProvisioningError("Шаблон отключён")
-    if not group and not site and not device_names:
-        raise ProvisioningError("Укажите group, site или device_names")
 
     devices = list_bulk_targets(
         template=template,

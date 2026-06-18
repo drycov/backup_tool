@@ -456,7 +456,7 @@ function handleRouteHash() {
     navigateToPage("settings");
     return;
   }
-  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "security", "audit", "users"];
+  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "security", "provision", "audit", "users"];
   if (pages.includes(h)) {
     navigateToPage(h);
   }
@@ -467,7 +467,7 @@ function currentAppPage() {
   if (!h || h === "settings" || h.startsWith("settings/")) {
     return h.startsWith("settings") ? "settings" : "dashboard";
   }
-  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "security", "audit", "users"];
+  const pages = ["dashboard", "inventory", "scan", "oxidized", "oxidized-ui", "security", "provision", "audit", "users"];
   return pages.includes(h) ? h : "dashboard";
 }
 
@@ -1772,15 +1772,63 @@ function updateSecurityFindingsPager(total, offset, limit) {
 }
 
 let provisionTemplatesCache = [];
+let provisionFiltersCache = { groups: [], sites: [], models: [], devices: [] };
+
+function fillProvisionFilterSelect(selId, items, { allLabel = "все" } = {}) {
+  const sel = qs(selId);
+  if (!sel) return;
+  const current = sel.value;
+  const normalized = (items || []).map(it => {
+    if (typeof it === "string") return { id: it, label: it };
+    return { id: it.id, label: it.label || it.id };
+  });
+  const opts = normalized
+    .map(it => `<option value="${escapeHtml(it.id)}">${escapeHtml(it.label)}</option>`)
+    .join("");
+  sel.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>${opts}`;
+  if (current && normalized.some(it => it.id === current)) sel.value = current;
+}
+
+function fillProvisionFilterSelects(filters) {
+  if (filters) provisionFiltersCache = filters;
+  const f = provisionFiltersCache;
+  fillProvisionFilterSelect("#prov-gen-group", f.groups);
+  fillProvisionFilterSelect("#prov-gen-site", f.sites);
+  fillProvisionFilterSelect("#prov-gen-model", f.models);
+  fillProvisionFilterSelect("#prov-bulk-group", f.groups);
+  fillProvisionFilterSelect("#prov-bulk-site", f.sites);
+  fillProvisionFilterSelect("#prov-bulk-model", f.models);
+  const ptModel = qs("#pt-model");
+  if (ptModel?.tagName === "SELECT") {
+    const models = f.template_models?.length ? f.template_models : f.models;
+    fillProvisionFilterSelect("#pt-model", models?.length ? models : [{ id: "routeros", label: "routeros" }], { allLabel: "—" });
+    if (!ptModel.value || ptModel.value === "все") {
+      const defaultModel = models?.find(m => (m.id || m) === "routeros")?.id || models?.[0]?.id || "routeros";
+      ptModel.value = defaultModel;
+    }
+  }
+}
+
+function provisionDevicesForTemplate(templateId) {
+  const devices = provisionFiltersCache.devices?.length
+    ? provisionFiltersCache.devices
+    : (inventory?.devices || []).filter(d => d.enabled);
+  if (!templateId) return devices;
+  const tpl = provisionTemplatesCache.find(t => t.id === templateId);
+  if (!tpl || tpl.model === "*") return devices;
+  return devices.filter(d => (d.model || "routeros") === tpl.model);
+}
 
 async function loadProvisionPage() {
   try {
-    const [tplRes, runsRes, bulkRes] = await Promise.all([
+    const [tplRes, runsRes, bulkRes, filtersRes] = await Promise.all([
       api("/api/provisioning/templates"),
       api("/api/provisioning/runs?limit=30"),
       api("/api/provisioning/bulk?limit=20"),
+      api("/api/provisioning/filters"),
     ]);
     provisionTemplatesCache = tplRes.items || [];
+    fillProvisionFilterSelects(filtersRes);
     renderProvisionTemplates(provisionTemplatesCache);
     renderProvisionRuns(runsRes.items || []);
     renderProvisionBulkRuns(bulkRes.items || []);
@@ -1980,6 +2028,7 @@ function appendProvisionAnalysisLog(entries, { replace = false } = {}) {
 }
 
 function clearProvisionAnalysisLog(message) {
+  provAnalysisLogSeen = 0;
   const host = qs("#prov-analysis-log");
   if (!host) return;
   host.innerHTML = `<div class="analysis-log-line log-muted">${escapeHtml(message || "Лог очищен.")}</div>`;
@@ -2018,7 +2067,7 @@ function renderProvisionClustersTable(clusters) {
   }).join("");
 }
 
-function renderProvisionAnalysisResult(res, source = "analyze") {
+function renderProvisionAnalysisResult(res, source = "analyze", { preserveLog = false } = {}) {
   const clusters = res.clusters || [];
   const ready = clusters.filter(c => c.template_body && !c.skipped_reason);
   const skipped = clusters.filter(c => c.skipped_reason);
@@ -2029,20 +2078,64 @@ function renderProvisionAnalysisResult(res, source = "analyze") {
   }
   renderProvisionClustersTable(clusters);
   renderProvisionComplexDevices(res.complex_devices || []);
-  appendProvisionAnalysisLog(buildProvisionAnalysisLogEntries(res, source), { replace: true });
+  if (!preserveLog) {
+    const entries = res.log?.length
+      ? res.log
+      : buildProvisionAnalysisLogEntries(res, source);
+    appendProvisionAnalysisLog(entries, { replace: true });
+  }
+}
+
+let provAnalysisLogSeen = 0;
+
+function resetProvisionAnalysisLogProgress(message) {
+  provAnalysisLogSeen = 0;
+  appendProvisionAnalysisLog([{ level: "info", text: message }], { replace: true });
+  provAnalysisLogSeen = 1;
+}
+
+function ingestProvisionAnalysisPollLog(log) {
+  if (!Array.isArray(log) || log.length <= provAnalysisLogSeen) return;
+  const chunk = log.slice(provAnalysisLogSeen);
+  provAnalysisLogSeen = log.length;
+  appendProvisionAnalysisLog(chunk, { replace: false });
+}
+
+async function pollProvisionAnalysisRun(runId) {
+  for (;;) {
+    const st = await api(`/api/provisioning/analysis/runs/${encodeURIComponent(runId)}`);
+    ingestProvisionAnalysisPollLog(st.log);
+    if (st.status === "completed" && st.result) {
+      const result = { ...st.result, filters: st.result.filters || st.filters };
+      renderProvisionAnalysisResult(result, "analyze", { preserveLog: true });
+      return result;
+    }
+    if (st.status === "failed") {
+      throw new Error(st.error || "Анализ завершился с ошибкой");
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 600));
+  }
 }
 
 async function provisionAnalyze() {
   const p = provisionGenParams();
-  const q = new URLSearchParams();
-  if (p.group) q.set("group", p.group);
-  if (p.site) q.set("site", p.site);
-  if (p.model) q.set("model", p.model);
-  q.set("threshold", String(p.threshold));
-  q.set("min_devices", String(p.min_devices));
+  resetProvisionAnalysisLogProgress("Запуск анализа…");
   const btn = qs("#btn-prov-analyze");
   if (btn) btn.disabled = true;
   try {
+    const start = await api("/api/provisioning/analysis/run", {
+      method: "POST",
+      body: JSON.stringify(p),
+    });
+    if (start.run_id) {
+      return await pollProvisionAnalysisRun(start.run_id);
+    }
+    const q = new URLSearchParams();
+    if (p.group) q.set("group", p.group);
+    if (p.site) q.set("site", p.site);
+    if (p.model) q.set("model", p.model);
+    q.set("threshold", String(p.threshold));
+    q.set("min_devices", String(p.min_devices));
     const res = await api(`/api/provisioning/analysis?${q}`);
     res.filters = p;
     renderProvisionAnalysisResult(res, "analyze");
@@ -2095,12 +2188,25 @@ function fillProvisionSelects() {
     .join("");
   if (tplSel) tplSel.innerHTML = tplOptions;
   if (bulkTplSel) bulkTplSel.innerHTML = tplOptions;
-  if (devSel && inventory?.devices) {
-    devSel.innerHTML = inventory.devices
-      .filter(d => d.enabled)
-      .map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.ip)})</option>`)
-      .join("");
+  const templateId = parseInt(tplSel?.value || "0", 10);
+  const devices = provisionDevicesForTemplate(templateId);
+  if (devSel) {
+    devSel.innerHTML = devices.length
+      ? devices.map(d => `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.ip)})</option>`).join("")
+      : '<option value="">— нет устройств —</option>';
   }
+}
+
+function applyProvisionBulkTemplateScope() {
+  const tplId = parseInt(qs("#prov-bulk-template-select")?.value || "0", 10);
+  const tpl = provisionTemplatesCache.find(t => t.id === tplId);
+  if (!tpl) return;
+  const groupSel = qs("#prov-bulk-group");
+  const siteSel = qs("#prov-bulk-site");
+  const modelSel = qs("#prov-bulk-model");
+  if (tpl.scope_group && groupSel) groupSel.value = tpl.scope_group;
+  if (tpl.scope_site && siteSel) siteSel.value = tpl.scope_site;
+  if (tpl.model && tpl.model !== "*" && modelSel) modelSel.value = tpl.model;
 }
 
 function provisionBulkParams() {
@@ -2108,6 +2214,7 @@ function provisionBulkParams() {
     template_id: parseInt(qs("#prov-bulk-template-select")?.value || "0", 10),
     group: qs("#prov-bulk-group")?.value?.trim() || "",
     site: qs("#prov-bulk-site")?.value?.trim() || "",
+    model: qs("#prov-bulk-model")?.value?.trim() || "",
     dry_run: qs("#prov-bulk-dry-run")?.checked !== false,
     exclude_complex: qs("#prov-bulk-exclude-complex")?.checked === true,
   };
@@ -2153,7 +2260,6 @@ function renderProvisionBulkRuns(rows) {
 async function provisionBulkPreview() {
   const p = provisionBulkParams();
   if (!p.template_id) throw new Error("Выберите шаблон");
-  if (!p.group && !p.site) throw new Error("Укажите group или site");
   const q = new URLSearchParams({
     action: "preview",
     template_id: String(p.template_id),
@@ -2161,10 +2267,12 @@ async function provisionBulkPreview() {
   });
   if (p.group) q.set("group", p.group);
   if (p.site) q.set("site", p.site);
+  if (p.model) q.set("model", p.model);
   const res = await api(`/api/provisioning/bulk?${q}`);
+  const scope = [p.group, p.site, p.model].filter(Boolean).join(" / ") || "все устройства";
   const summaryEl = qs("#prov-bulk-preview-summary");
   if (summaryEl) {
-    summaryEl.textContent = `Устройств: ${res.device_count}${res.skipped_complex?.length ? `, исключено сложных: ${res.skipped_complex.length}` : ""}`;
+    summaryEl.textContent = `${scope}: ${res.device_count} устройств${res.skipped_complex?.length ? `, исключено сложных: ${res.skipped_complex.length}` : ""}`;
   }
   renderProvisionBulkTargets(res.devices || []);
   return res;
@@ -2173,14 +2281,15 @@ async function provisionBulkPreview() {
 async function provisionBulkRun() {
   const p = provisionBulkParams();
   if (!p.template_id) throw new Error("Выберите шаблон");
-  if (!p.group && !p.site) throw new Error("Укажите group или site");
-  if (!p.dry_run && !confirm(`Применить шаблон на группу ${p.group || "*"} / site ${p.site || "*"}?`)) return;
+  const scope = [p.group, p.site, p.model].filter(Boolean).join(" / ") || "все устройства";
+  if (!p.dry_run && !confirm(`Применить шаблон на ${scope}?`)) return;
   const res = await api("/api/provisioning/bulk/run", {
     method: "POST",
     body: JSON.stringify({
       template_id: p.template_id,
       group: p.group,
       site: p.site,
+      model: p.model,
       dry_run: p.dry_run,
       exclude_complex: p.exclude_complex,
       async: true,
@@ -5507,7 +5616,7 @@ function bindEvents() {
       await provisionAnalyze();
     } catch (e) {
       showAlert("provision-alert", e.message, "error");
-      appendProvisionAnalysisLog([{ level: "error", text: `Ошибка анализа: ${e.message}` }], { replace: false });
+      appendProvisionAnalysisLog([{ level: "error", text: `Ошибка анализа: ${e.message}` }], { replace: true });
     }
   });
   qs("#btn-prov-analysis-log-clear")?.addEventListener("click", () => {
@@ -5521,16 +5630,22 @@ function bindEvents() {
       showAlert("provision-alert", e.message, "error");
     }
   });
-  qs("#provision-template-form")?.addEventListener("submit", async e => {
-    e.preventDefault();
+  qs("#btn-prov-template-create")?.addEventListener("click", async () => {
+    const slug = qs("#pt-slug")?.value?.trim();
+    const name = qs("#pt-name")?.value?.trim();
+    const body = qs("#pt-body")?.value;
+    if (!slug || !name || !body?.trim()) {
+      showAlert("provision-alert", "Заполните slug, название и тело шаблона", "error");
+      return;
+    }
     try {
       await api("/api/provisioning/templates", {
         method: "POST",
         body: JSON.stringify({
-          slug: qs("#pt-slug").value.trim(),
-          name: qs("#pt-name").value.trim(),
-          model: qs("#pt-model").value.trim() || "routeros",
-          body: qs("#pt-body").value,
+          slug,
+          name,
+          model: qs("#pt-model")?.value?.trim() || "routeros",
+          body,
         }),
       });
       showAlert("provision-alert", "Шаблон создан", "success");
@@ -5539,6 +5654,8 @@ function bindEvents() {
       showAlert("provision-alert", err.message, "error");
     }
   });
+  qs("#prov-bulk-template-select")?.addEventListener("change", () => applyProvisionBulkTemplateScope());
+  qs("#prov-template-select")?.addEventListener("change", () => fillProvisionSelects());
   qs("#btn-prov-preview")?.addEventListener("click", async () => {
     try {
       await provisionPreview();
