@@ -2200,7 +2200,10 @@ async function refreshOxidizedLogBadge() {
   }
 }
 
-function openOxidizedLogsModal() {
+let oxidizedLogsSearchQuery = "";
+
+function openOxidizedLogsModal(prefill = "") {
+  oxidizedLogsSearchQuery = prefill || "";
   oxidizedLogsStickToBottom = true;
   updateOxidizedLogsSearchBanner();
   $("#oxidized-logs-modal").modal("show");
@@ -2233,7 +2236,8 @@ async function copyOxidizedLogs() {
 
 async function loadOxidizedLogs() {
   const params = new URLSearchParams({ lines: "500" });
-  if (globalSearchQuery.trim()) params.set("q", globalSearchQuery.trim());
+  const q = oxidizedLogsSearchQuery.trim() || globalSearchQuery.trim();
+  if (q) params.set("q", q);
   try {
     const data = await api(`/api/oxidized/logs?${params}`);
     renderOxidizedLogs(data);
@@ -2344,13 +2348,25 @@ async function showNodeBackups(name) {
   const loading = qs("#oxidized-backups-loading");
   const content = qs("#oxidized-backups-content");
   const emptyHint = qs("#oxidized-backups-empty-hint");
+  const runBtn = qs("#btn-run-mikrotik-backup");
   qs("#oxidized-backups-node").textContent = name;
+  if (runBtn) {
+    runBtn.dataset.name = name;
+    runBtn.style.display = isPythonEngine() && can("oxidized:write") ? "" : "none";
+  }
   if (loading) loading.style.display = "";
   if (content) content.style.display = "none";
   if (emptyHint) emptyHint.style.display = "none";
   qs("#oxidized-backups-bin").innerHTML = "";
   qs("#oxidized-backups-rsc").innerHTML = "";
   $("#oxidized-backups-modal").modal("show");
+  await loadNodeBackupFiles(name);
+}
+
+async function loadNodeBackupFiles(name) {
+  const loading = qs("#oxidized-backups-loading");
+  const content = qs("#oxidized-backups-content");
+  const emptyHint = qs("#oxidized-backups-empty-hint");
   try {
     const data = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/backups`);
     const binFiles = data.backups?.binary || [];
@@ -2359,13 +2375,29 @@ async function showNodeBackups(name) {
     qs("#oxidized-backups-rsc").innerHTML = renderBackupFileList(name, "rsc", rscFiles);
     if (loading) loading.style.display = "none";
     if (content) content.style.display = "";
-    if (emptyHint && isPythonEngine() && !binFiles.length && !rscFiles.length) {
-      emptyHint.style.display = "";
+    if (emptyHint) {
+      emptyHint.style.display =
+        isPythonEngine() && !binFiles.length && !rscFiles.length ? "" : "none";
     }
   } catch (e) {
     if (loading) loading.style.display = "none";
     $("#oxidized-backups-modal").modal("hide");
     showAlert("oxidized-alert", e.message, "error");
+  }
+}
+
+async function runMikrotikBackupForNode(name) {
+  if (!can("oxidized:write") || !name) return;
+  const runBtn = qs("#btn-run-mikrotik-backup");
+  if (runBtn) runBtn.disabled = true;
+  try {
+    await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/backups/run`, { method: "POST" });
+    showAlert("oxidized-alert", `MikroTik backup для ${name} выполнен`, "success");
+    await loadNodeBackupFiles(name);
+  } catch (e) {
+    showAlert("oxidized-alert", e.message, "error");
+  } finally {
+    if (runBtn) runBtn.disabled = false;
   }
 }
 
@@ -2506,7 +2538,11 @@ function bindEvents() {
     e.preventDefault();
     $("#oxidized-backups-modal").modal("hide");
     navigateToPage("oxidized");
-    window.setTimeout(openOxidizedLogsModal, 300);
+    window.setTimeout(() => openOxidizedLogsModal("mikrotik"), 300);
+  });
+  qs("#btn-run-mikrotik-backup")?.addEventListener("click", () => {
+    const name = qs("#btn-run-mikrotik-backup")?.dataset.name;
+    if (name) runMikrotikBackupForNode(name);
   });
   $("#oxidized-logs-modal").on("shown.bs.modal", startOxidizedLogsPolling);
   $("#oxidized-logs-modal").on("hidden.bs.modal", stopOxidizedLogsPolling);

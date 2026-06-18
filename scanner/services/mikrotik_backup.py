@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
     from services.oxidized_engine.node import Node
 
 logger = get_engine_logger("mikrotik")
+
+_POLL_INTERVAL_SEC = 2
 
 
 @dataclass
@@ -78,6 +81,14 @@ class MikrotikBackupError(Exception):
 class MikrotikBackup:
     def __init__(self, config: MikrotikBackupConfig | None = None) -> None:
         self.config = config or MikrotikBackupConfig.from_django()
+        self._ensure_dirs()
+
+    def _ensure_dirs(self) -> None:
+        for folder in (self.config.bin_dir, self.config.rsc_dir):
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                logger.warning("mikrotik | cannot create dir %s: %s", folder, exc)
 
     def run_for_node(self, node: Node) -> dict[str, str | bool]:
         if node.model_name != "routeros":
@@ -159,6 +170,53 @@ class MikrotikBackup:
             output = err
         return output
 
+    def _remote_file_listed(self, client: paramiko.SSHClient, filename: str) -> bool:
+        listing = self._exec(client, "/file print")
+        return filename in listing
+
+    def _resolve_sftp_path(
+        self,
+        sftp: paramiko.SFTPClient,
+        filename: str,
+        *,
+        client: paramiko.SSHClient | None = None,
+        wait_timeout: int | None = None,
+    ) -> str:
+        timeout = wait_timeout or min(self.config.timeout, 120)
+        deadline = time.monotonic() + timeout
+        last_error = ""
+        while time.monotonic() < deadline:
+            if client and self._remote_file_listed(client, filename):
+                pass
+            for candidate in (filename, f"./{filename}"):
+                try:
+                    sftp.stat(candidate)
+                    return candidate
+                except OSError as exc:
+                    last_error = str(exc)
+            time.sleep(_POLL_INTERVAL_SEC)
+        raise MikrotikBackupError(
+            f"remote file not found: {filename} (waited {timeout}s, last: {last_error})"
+        )
+
+    def _sftp_get(
+        self,
+        client: paramiko.SSHClient,
+        remote: str,
+        local: Path,
+        *,
+        wait_timeout: int | None = None,
+    ) -> None:
+        local.parent.mkdir(parents=True, exist_ok=True)
+        with client.open_sftp() as sftp:
+            remote_path = self._resolve_sftp_path(
+                sftp,
+                remote,
+                client=client,
+                wait_timeout=wait_timeout,
+            )
+            sftp.get(remote_path, str(local))
+
     def _ros7(self, client: paramiko.SSHClient) -> bool:
         resource = self._exec(client, "/system resource print")
         match = re.search(r"version:\s*(\d+)", resource)
@@ -172,11 +230,6 @@ class MikrotikBackup:
                     return int(ver_match.group(1)) >= 7
         return False
 
-    def _sftp_get(self, client: paramiko.SSHClient, remote: str, local: Path) -> None:
-        local.parent.mkdir(parents=True, exist_ok=True)
-        with client.open_sftp() as sftp:
-            sftp.get(remote, str(local))
-
     def _backup_binary(self, client: paramiko.SSHClient, node: Node) -> bool:
         prefix = device_file_prefix(node.name)
         remote_base = f"{prefix}.backup"
@@ -186,8 +239,10 @@ class MikrotikBackup:
 
         logger.info("mikrotik | binary backup | %s | start", node.name)
         cmd = backup_save_command(prefix, encrypt_password=self.config.encrypt_password)
-        self._exec(client, cmd)
-        self._sftp_get(client, remote_base, local_stamp)
+        save_out = self._exec(client, cmd)
+        if re.search(r"(failure:|status: failed|could not create|not enough (disk )?space)", save_out, re.I):
+            raise MikrotikBackupError(f"backup save rejected: {save_out[:300].strip()}")
+        self._sftp_get(client, remote_base, local_stamp, wait_timeout=180)
         shutil.copy2(local_stamp, local_last)
         self._exec(client, f'/file remove "{remote_base}"')
 
@@ -224,7 +279,7 @@ class MikrotikBackup:
             hide,
         )
         self._exec(client, cmd)
-        self._sftp_get(client, remote_file, local_file)
+        self._sftp_get(client, remote_file, local_file, wait_timeout=90)
         self._exec(client, f'/file remove "{remote_file}"')
         self._clean_export_header(local_file)
 
@@ -278,3 +333,23 @@ def run_mikrotik_backups(node: Node) -> bool:
 
         notify_backup_error(node.name, node.ip, "mikrotik_backup", str(exc))
         return False
+
+
+def run_mikrotik_backup_by_name(name: str) -> dict[str, str | bool]:
+    from django.conf import settings
+
+    if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":
+        raise MikrotikBackupError("MikroTik backup доступен только при OXIDIZED_ENGINE=python")
+
+    from services.oxidized_engine import get_manager
+
+    manager = get_manager()
+    manager.worker.reload()
+    node = manager.nodes.find(name)
+    if node.model_name != "routeros":
+        raise MikrotikBackupError(f"Узел '{name}' не routeros (model={node.model_name})")
+
+    ok = run_mikrotik_backups(node)
+    if not ok:
+        raise MikrotikBackupError("MikroTik backup завершился с ошибкой — см. лог Oxidized")
+    return MikrotikBackup().list_files(name)

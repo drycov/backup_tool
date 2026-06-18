@@ -1183,11 +1183,15 @@
             <div id="oxidized-backups-rsc" class="px-3 pb-3"></div>
           </div>
           <div id="oxidized-backups-empty-hint" class="alert alert-light border mx-3 mb-3 small" style="display:none;">
-            Файлов нет. Проверьте <a href="#" id="oxidized-backups-goto-settings">Настройки → Бэкап</a>
-            (Binary backup / Export .rsc) или <a href="#" id="oxidized-backups-goto-logs">лог Oxidized</a>.
+            Файлов нет. Нажмите <strong>Создать файлы сейчас</strong> или <strong>Fetch</strong> у узла.
+            Проверьте <a href="#" id="oxidized-backups-goto-settings">Настройки → Бэкап</a>
+            (Binary / Export) и <a href="#" id="oxidized-backups-goto-logs">лог Oxidized</a> (grep mikrotik).
           </div>
         </div>
         <div class="modal-footer bg-light py-2">
+          <button type="button" class="btn btn-primary btn-sm" id="btn-run-mikrotik-backup" data-permission="oxidized:write" style="display:none;">
+            <i class="fas fa-play mr-1"></i> Создать файлы сейчас
+          </button>
           <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Закрыть</button>
         </div>
       </div>

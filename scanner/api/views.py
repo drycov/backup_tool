@@ -463,13 +463,40 @@ def oxidized_backup_all(request: HttpRequest) -> JsonResponse:
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
 def oxidized_node_backups(request: HttpRequest, name: str) -> JsonResponse:
-    from services.mikrotik_backup import MikrotikBackup, MikrotikBackupError
+    from services.mikrotik_backup import MikrotikBackup, MikrotikBackupError, device_file_prefix
 
     try:
         files = MikrotikBackup().list_files(name)
     except MikrotikBackupError as exc:
         return error_response(str(exc), status=400)
-    return json_response({"name": name, "backups": files})
+    return json_response(
+        {
+            "name": name,
+            "backups": files,
+            "prefix": device_file_prefix(name),
+        }
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_OXIDIZED_WRITE)
+def oxidized_node_backups_run(request: HttpRequest, name: str) -> JsonResponse:
+    from services.audit import ACTION_OXIDIZED_FETCH, log_audit_user
+    from services.mikrotik_backup import MikrotikBackupError, run_mikrotik_backup_by_name
+
+    try:
+        files = run_mikrotik_backup_by_name(name)
+    except MikrotikBackupError as exc:
+        return error_response(str(exc), status=400)
+    log_audit_user(
+        request.api_user,
+        ACTION_OXIDIZED_FETCH,
+        target=name,
+        detail="mikrotik_backup",
+        request=request,
+    )
+    return json_response({"status": "ok", "name": name, "backups": files})
 
 
 @require_permission(auth.PERMISSION_OXIDIZED_READ)
