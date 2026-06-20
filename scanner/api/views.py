@@ -2095,6 +2095,71 @@ def zabbix_get_summary(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
+@require_http_methods(["GET"])
+def zabbix_get_tags(request: HttpRequest) -> JsonResponse:
+    from services import zabbix as zabbix_service
+    from services.zabbix_client import ZabbixClientError, ZabbixNotConfigured
+
+    try:
+        user = zabbix_user_from_request(request)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+
+    device_id = request.GET.get("id", "").strip() or request.GET.get("name", "").strip()
+    if not device_id:
+        return error_response("id обязателен", status=400)
+    try:
+        return json_response(zabbix_service.device_tags(device_id, user=user))
+    except LookupError as exc:
+        return error_response(str(exc), status=404)
+    except ValueError as exc:
+        return error_response(str(exc), status=503)
+    except ZabbixNotConfigured as exc:
+        return error_response(str(exc), status=503)
+    except ZabbixClientError as exc:
+        return error_response(str(exc), status=502)
+    except RuntimeError as exc:
+        return error_response(str(exc), status=502)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def zabbix_tags_lookup_view(request: HttpRequest) -> JsonResponse:
+    from services.zabbix_client import (
+        ZabbixClientError,
+        ZabbixNotConfigured,
+        get_host_tags,
+    )
+
+    name = request.GET.get("name", "").strip() or request.GET.get("id", "").strip()
+    if not name:
+        return error_response("name обязателен", status=400)
+    try:
+        return json_response(get_host_tags(name))
+    except LookupError as exc:
+        return error_response(str(exc), status=404)
+    except ZabbixNotConfigured as exc:
+        return error_response(str(exc), status=503)
+    except (ZabbixClientError, ValueError) as exc:
+        return error_response(str(exc), status=502)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_SETTINGS_READ)
+def zabbix_api_test_view(request: HttpRequest) -> JsonResponse:
+    from services.zabbix_client import ZabbixClientError, ZabbixNotConfigured, test_zabbix_api
+
+    try:
+        return json_response(test_zabbix_api())
+    except ZabbixNotConfigured as exc:
+        return error_response(str(exc), status=503)
+    except ZabbixClientError as exc:
+        return error_response(str(exc), status=502)
+
+
+@csrf_exempt
 @require_permission(auth.PERMISSION_PROVISION_READ)
 def provision_templates_dispatch(request: HttpRequest) -> JsonResponse:
     from services.provisioning import ProvisioningError, create_template, list_templates
@@ -2339,6 +2404,49 @@ def provision_analysis_run_detail_view(request: HttpRequest, run_id: str) -> Jso
 @csrf_exempt
 @require_http_methods(["POST"])
 @require_permission(auth.PERMISSION_PROVISION_RUN)
+def provision_generate_run_view(request: HttpRequest) -> JsonResponse:
+    from services.provision_generate_runner import start_provision_generate
+
+    body = parse_json_body(request) or {}
+    try:
+        threshold = float(body.get("complexity_threshold", body.get("threshold", 0.85)))
+    except (TypeError, ValueError):
+        return error_response("complexity_threshold должен быть числом", status=400)
+    try:
+        min_devices = int(body.get("min_devices", 2))
+    except (TypeError, ValueError):
+        return error_response("min_devices должен быть целым", status=400)
+
+    try:
+        run_id = start_provision_generate(
+            group=str(body.get("group") or "").strip(),
+            site=str(body.get("site") or "").strip(),
+            model=str(body.get("model") or "").strip(),
+            user=request.api_user,
+            complexity_threshold=threshold,
+            min_devices=min_devices,
+            upsert=bool(body.get("upsert", True)),
+        )
+    except RuntimeError as exc:
+        return error_response(str(exc), status=503)
+    return json_response({"status": "running", "run_id": run_id})
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_PROVISION_RUN)
+def provision_generate_run_detail_view(request: HttpRequest, run_id: str) -> JsonResponse:
+    from services.provision_generate_runner import get_provision_generate_run
+
+    run = get_provision_generate_run(run_id.strip())
+    if not run:
+        return error_response("Запуск генерации не найден", status=404)
+    return json_response(run)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_PROVISION_RUN)
 def provision_generate_view(request: HttpRequest) -> JsonResponse:
     from services.provision_template_builder import generate_templates_from_configs
 
@@ -2352,6 +2460,11 @@ def provision_generate_view(request: HttpRequest) -> JsonResponse:
     except (TypeError, ValueError):
         return error_response("min_devices должен быть целым", status=400)
 
+    log_lines: list[dict[str, str]] = []
+
+    def log_cb(level: str, text: str) -> None:
+        log_lines.append({"level": level, "text": text})
+
     result = generate_templates_from_configs(
         group=(body.get("group") or "").strip(),
         site=(body.get("site") or "").strip(),
@@ -2360,7 +2473,9 @@ def provision_generate_view(request: HttpRequest) -> JsonResponse:
         complexity_threshold=threshold,
         min_devices=min_devices,
         upsert=bool(body.get("upsert", True)),
+        log_cb=log_cb,
     )
+    result["log"] = log_lines
     log_audit_user(
         request.api_user,
         ACTION_PROVISION_GENERATE,

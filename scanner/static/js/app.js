@@ -1772,7 +1772,68 @@ function updateSecurityFindingsPager(total, offset, limit) {
 }
 
 let provisionTemplatesCache = [];
+let editingProvisionTemplateId = null;
 let provisionFiltersCache = { groups: [], sites: [], models: [], devices: [] };
+
+function resetProvisionTemplateForm() {
+  editingProvisionTemplateId = null;
+  const slugEl = qs("#pt-slug");
+  const nameEl = qs("#pt-name");
+  const bodyEl = qs("#pt-body");
+  if (slugEl) {
+    slugEl.value = "";
+    slugEl.readOnly = false;
+    slugEl.classList.remove("bg-light");
+  }
+  if (nameEl) nameEl.value = "";
+  if (bodyEl) bodyEl.value = "";
+  qs("#btn-prov-template-create")?.classList.remove("d-none");
+  qs("#btn-prov-template-save")?.classList.add("d-none");
+  qs("#btn-prov-template-cancel")?.classList.add("d-none");
+  const title = qs("#prov-template-panel-title");
+  if (title) title.textContent = "Новый шаблон";
+}
+
+function openProvisionTemplateEditor(t) {
+  if (!t) return;
+  editingProvisionTemplateId = t.id;
+  const slugEl = qs("#pt-slug");
+  if (slugEl) {
+    slugEl.value = t.slug;
+    slugEl.readOnly = true;
+    slugEl.classList.add("bg-light");
+  }
+  qs("#pt-name").value = t.name;
+  if (qs("#pt-model")) qs("#pt-model").value = t.model;
+  qs("#pt-body").value = t.body;
+  qs("#btn-prov-template-create")?.classList.add("d-none");
+  qs("#btn-prov-template-save")?.classList.remove("d-none");
+  qs("#btn-prov-template-cancel")?.classList.remove("d-none");
+  const title = qs("#prov-template-panel-title");
+  if (title) title.textContent = `Редактирование: ${t.slug}`;
+  qs("#provision-template-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function saveProvisionTemplate() {
+  if (!editingProvisionTemplateId) return;
+  const name = qs("#pt-name")?.value?.trim();
+  const body = qs("#pt-body")?.value;
+  if (!name || !body?.trim()) {
+    showAlert("provision-alert", "Заполните название и тело шаблона", "error");
+    return;
+  }
+  await api(`/api/provisioning/templates/${editingProvisionTemplateId}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      name,
+      model: qs("#pt-model")?.value?.trim() || "routeros",
+      body,
+    }),
+  });
+  showAlert("provision-alert", "Шаблон сохранён", "success");
+  resetProvisionTemplateForm();
+  loadProvisionPage();
+}
 
 function fillProvisionFilterSelect(selId, items, { allLabel = "все" } = {}) {
   const sel = qs(selId);
@@ -1869,11 +1930,7 @@ function renderProvisionTemplates(rows) {
   tbody.querySelectorAll(".btn-prov-edit").forEach(btn => {
     btn.addEventListener("click", () => {
       const t = provisionTemplatesCache.find(x => String(x.id) === btn.dataset.id);
-      if (!t) return;
-      qs("#pt-slug").value = t.slug;
-      qs("#pt-name").value = t.name;
-      qs("#pt-model").value = t.model;
-      qs("#pt-body").value = t.body;
+      openProvisionTemplateEditor(t);
     });
   });
   tbody.querySelectorAll(".btn-prov-del").forEach(btn => {
@@ -2013,8 +2070,8 @@ function buildProvisionAnalysisLogEntries(res, source = "analyze") {
   return lines;
 }
 
-function appendProvisionAnalysisLog(entries, { replace = false } = {}) {
-  const host = qs("#prov-analysis-log");
+function appendAnalysisLogViewer(hostSel, entries, { replace = false } = {}) {
+  const host = typeof hostSel === "string" ? qs(hostSel) : hostSel;
   if (!host || !entries?.length) return;
   const html = entries.map(e =>
     `<div class="analysis-log-line log-${e.level || "info"}">${escapeHtml(e.text)}</div>`
@@ -2027,9 +2084,24 @@ function appendProvisionAnalysisLog(entries, { replace = false } = {}) {
   host.scrollTop = host.scrollHeight;
 }
 
+function appendProvisionAnalysisLog(entries, opts) {
+  appendAnalysisLogViewer("#prov-analysis-log", entries, opts);
+}
+
+function appendBulkProvisionLog(entries, opts) {
+  appendAnalysisLogViewer("#prov-bulk-log", entries, opts);
+}
+
 function clearProvisionAnalysisLog(message) {
   provAnalysisLogSeen = 0;
   const host = qs("#prov-analysis-log");
+  if (!host) return;
+  host.innerHTML = `<div class="analysis-log-line log-muted">${escapeHtml(message || "Лог очищен.")}</div>`;
+}
+
+function clearBulkProvisionLog(message) {
+  provBulkLogSeen = 0;
+  const host = qs("#prov-bulk-log");
   if (!host) return;
   host.innerHTML = `<div class="analysis-log-line log-muted">${escapeHtml(message || "Лог очищен.")}</div>`;
 }
@@ -2087,6 +2159,7 @@ function renderProvisionAnalysisResult(res, source = "analyze", { preserveLog = 
 }
 
 let provAnalysisLogSeen = 0;
+let provBulkLogSeen = 0;
 
 function resetProvisionAnalysisLogProgress(message) {
   provAnalysisLogSeen = 0;
@@ -2145,37 +2218,60 @@ async function provisionAnalyze() {
   }
 }
 
+async function pollProvisionGenerateRun(runId) {
+  for (;;) {
+    const st = await api(`/api/provisioning/templates/generate/runs/${encodeURIComponent(runId)}`);
+    ingestProvisionAnalysisPollLog(st.log);
+    if (st.status === "completed" && st.result) {
+      const result = { ...st.result, filters: st.filters };
+      result.complex_devices = (result.clusters || []).flatMap(c =>
+        (c.complex_devices || []).map(d => ({
+          ...d,
+          group: c.group,
+          site: c.site,
+        }))
+      );
+      renderProvisionAnalysisResult(result, "generate", { preserveLog: true });
+      return result;
+    }
+    if (st.status === "failed") {
+      throw new Error(st.error || "Генерация завершилась с ошибкой");
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 600));
+  }
+}
+
 async function provisionGenerateFromConfigs() {
   const p = provisionGenParams();
   const upsert = qs("#prov-gen-upsert")?.checked !== false;
-  const res = await api("/api/provisioning/templates/generate", {
-    method: "POST",
-    body: JSON.stringify({
-      group: p.group,
-      site: p.site,
-      model: p.model,
-      complexity_threshold: p.threshold,
-      min_devices: p.min_devices,
-      upsert,
-    }),
-  });
-  const created = (res.created || []).length;
-  const updated = (res.updated || []).length;
-  showAlert(
-    "provision-alert",
-    `Создано: ${created}, обновлено: ${updated}, пропущено: ${(res.skipped || []).length}`,
-    "success"
-  );
-  res.filters = p;
-  res.complex_devices = (res.clusters || []).flatMap(c =>
-    (c.complex_devices || []).map(d => ({
-      ...d,
-      group: c.group,
-      site: c.site,
-    }))
-  );
-  renderProvisionAnalysisResult(res, "generate");
-  loadProvisionPage();
+  resetProvisionAnalysisLogProgress("Запуск генерации шаблонов…");
+  const btn = qs("#btn-prov-generate");
+  if (btn) btn.disabled = true;
+  try {
+    const start = await api("/api/provisioning/templates/generate/run", {
+      method: "POST",
+      body: JSON.stringify({
+        group: p.group,
+        site: p.site,
+        model: p.model,
+        complexity_threshold: p.threshold,
+        min_devices: p.min_devices,
+        upsert,
+      }),
+    });
+    const res = await pollProvisionGenerateRun(start.run_id);
+    const created = (res.created || []).length;
+    const updated = (res.updated || []).length;
+    showAlert(
+      "provision-alert",
+      `Создано: ${created}, обновлено: ${updated}, пропущено: ${(res.skipped || []).length}`,
+      "success"
+    );
+    loadProvisionPage();
+    return res;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function fillProvisionSelects() {
@@ -2278,32 +2374,83 @@ async function provisionBulkPreview() {
   return res;
 }
 
+function resetBulkProvisionLogProgress(message) {
+  provBulkLogSeen = 0;
+  appendBulkProvisionLog([{ level: "info", text: message }], { replace: true });
+  provBulkLogSeen = 1;
+}
+
+function ingestBulkProvisionPollLog(log) {
+  if (!Array.isArray(log) || log.length <= provBulkLogSeen) return;
+  const chunk = log.slice(provBulkLogSeen);
+  provBulkLogSeen = log.length;
+  appendBulkProvisionLog(chunk, { replace: false });
+}
+
+function updateBulkProgressSummary(st) {
+  const el = qs("#prov-bulk-preview-summary");
+  if (!el || !st) return;
+  const scope = [st.scope_group, st.scope_site, st.scope_model].filter(Boolean).join(" / ") || "все";
+  el.textContent = `Bulk #${st.id} (${scope}): ${st.devices_completed || 0}/${st.devices_total || 0} — ${st.status}`;
+}
+
+async function pollProvisionBulkRun(bulkId) {
+  for (;;) {
+    const st = await api(`/api/provisioning/bulk/${bulkId}`);
+    ingestBulkProvisionPollLog(st.log);
+    updateBulkProgressSummary(st);
+    if (st.status === "completed") return st;
+    if (st.status === "failed") {
+      if (st.error) {
+        appendBulkProvisionLog([{ level: "error", text: st.error }], { replace: false });
+      }
+      throw new Error(st.error || "Bulk завершился с ошибкой");
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 800));
+  }
+}
+
 async function provisionBulkRun() {
   const p = provisionBulkParams();
   if (!p.template_id) throw new Error("Выберите шаблон");
   const scope = [p.group, p.site, p.model].filter(Boolean).join(" / ") || "все устройства";
   if (!p.dry_run && !confirm(`Применить шаблон на ${scope}?`)) return;
-  const res = await api("/api/provisioning/bulk/run", {
-    method: "POST",
-    body: JSON.stringify({
-      template_id: p.template_id,
-      group: p.group,
-      site: p.site,
-      model: p.model,
-      dry_run: p.dry_run,
-      exclude_complex: p.exclude_complex,
-      async: true,
-    }),
-  });
-  showAlert(
-    "provision-alert",
-    res.task_id
-      ? `Bulk поставлен в очередь (#${res.id}, ${res.devices_total} устройств)`
-      : `Bulk завершён: ${res.devices_completed}/${res.devices_total}`,
-    "success"
-  );
-  loadProvisionPage();
-  return res;
+  resetBulkProvisionLogProgress("Запуск bulk…");
+  const btn = qs("#btn-prov-bulk-run");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await api("/api/provisioning/bulk/run", {
+      method: "POST",
+      body: JSON.stringify({
+        template_id: p.template_id,
+        group: p.group,
+        site: p.site,
+        model: p.model,
+        dry_run: p.dry_run,
+        exclude_complex: p.exclude_complex,
+        async: true,
+      }),
+    });
+    if (res.id) {
+      const final = await pollProvisionBulkRun(res.id);
+      showAlert(
+        "provision-alert",
+        `Bulk #${final.id}: ${final.devices_completed}/${final.devices_total}`
+          + (final.devices_failed ? `, ошибок ${final.devices_failed}` : ""),
+        final.devices_failed ? "warning" : "success"
+      );
+    } else {
+      showAlert(
+        "provision-alert",
+        `Bulk завершён: ${res.devices_completed}/${res.devices_total}`,
+        "success"
+      );
+    }
+    loadProvisionPage();
+    return res;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function provisionPreview() {
@@ -3253,6 +3400,15 @@ function fillIntegrationSettingsForm(cfg) {
       ? `Последний sync: ${formatDate(cfg.inventory_sync_last_run_at)}`
       : "Последний sync: —";
   }
+  if (qs("#int-zabbix-api-enabled")) qs("#int-zabbix-api-enabled").checked = !!cfg.zabbix_api_enabled;
+  if (qs("#int-zabbix-api-url")) qs("#int-zabbix-api-url").value = cfg.zabbix_api_url || "";
+  const zabbixTok = qs("#int-zabbix-api-token");
+  if (zabbixTok) {
+    zabbixTok.value = "";
+    zabbixTok.placeholder = cfg.zabbix_api_token_set
+      ? "Установлен — оставьте пустым, чтобы не менять"
+      : "API token";
+  }
 }
 
 function collectIntegrationSettingsForm() {
@@ -3261,6 +3417,7 @@ function collectIntegrationSettingsForm() {
   const auditVal = qs("#int-audit-secret")?.value.trim();
   const netboxVal = qs("#int-netbox-token")?.value.trim();
   const libreVal = qs("#int-librenms-token")?.value.trim();
+  const zabbixVal = qs("#int-zabbix-api-token")?.value.trim();
   return {
     snow_enabled: qs("#int-snow-enabled")?.checked === true,
     snow_instance_url: qs("#int-snow-url")?.value.trim() || "",
@@ -3289,6 +3446,9 @@ function collectIntegrationSettingsForm() {
     inventory_sync_enabled: qs("#int-sync-enabled")?.checked === true,
     inventory_sync_source: qs("#int-sync-source")?.value || "netbox",
     inventory_sync_interval_hours: parseInt(qs("#int-sync-interval")?.value, 10) || 24,
+    zabbix_api_enabled: qs("#int-zabbix-api-enabled")?.checked === true,
+    zabbix_api_url: qs("#int-zabbix-api-url")?.value.trim() || "",
+    zabbix_api_token: zabbixVal || (integrationSettingsCache?.zabbix_api_token_set ? SETTINGS_PASSWORD_MASK : ""),
   };
 }
 
@@ -5609,6 +5769,32 @@ function bindEvents() {
     loadRbacMatrix().then(() => loadCustomRoles());
   });
   qs("#btn-topology-netbox")?.addEventListener("click", () => loadNetboxTopology());
+  qs("#btn-zabbix-api-test")?.addEventListener("click", async () => {
+    const out = qs("#int-zabbix-tags-result");
+    try {
+      const res = await api("/api/integrations/zabbix/test", { method: "POST" });
+      if (out) out.textContent = JSON.stringify(res, null, 2);
+      showAlert("settings-alert", `Zabbix API OK (v${res.version})`, "success");
+    } catch (e) {
+      if (out) out.textContent = e.message;
+      showAlert("settings-alert", e.message, "error");
+    }
+  });
+  qs("#btn-zabbix-tags-lookup")?.addEventListener("click", async () => {
+    const name = qs("#int-zabbix-tags-lookup")?.value?.trim();
+    const out = qs("#int-zabbix-tags-result");
+    if (!name) {
+      showAlert("settings-alert", "Укажите имя хоста", "error");
+      return;
+    }
+    try {
+      const res = await api(`/api/integrations/zabbix/tags?name=${encodeURIComponent(name)}`);
+      if (out) out.textContent = JSON.stringify(res, null, 2);
+    } catch (e) {
+      if (out) out.textContent = e.message;
+      showAlert("settings-alert", e.message, "error");
+    }
+  });
 
   qs("#btn-provision-refresh")?.addEventListener("click", () => loadProvisionPage());
   qs("#btn-prov-analyze")?.addEventListener("click", async () => {
@@ -5622,6 +5808,17 @@ function bindEvents() {
   qs("#btn-prov-analysis-log-clear")?.addEventListener("click", () => {
     clearProvisionAnalysisLog("Лог очищен. Запустите анализ снова.");
   });
+  qs("#btn-prov-bulk-log-clear")?.addEventListener("click", () => {
+    clearBulkProvisionLog("Лог очищен.");
+  });
+  qs("#btn-prov-template-save")?.addEventListener("click", async () => {
+    try {
+      await saveProvisionTemplate();
+    } catch (e) {
+      showAlert("provision-alert", e.message, "error");
+    }
+  });
+  qs("#btn-prov-template-cancel")?.addEventListener("click", () => resetProvisionTemplateForm());
   qs("#btn-prov-generate")?.addEventListener("click", async () => {
     if (!confirm("Сгенерировать шаблоны из конфигов Oxidized?")) return;
     try {

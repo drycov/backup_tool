@@ -391,6 +391,9 @@ class IntegrationSettingsUpdate(BaseModel):
     inventory_sync_enabled: bool = False
     inventory_sync_source: str = "netbox"
     inventory_sync_interval_hours: int = 24
+    zabbix_api_enabled: bool = False
+    zabbix_api_url: str = ""
+    zabbix_api_token: Optional[str] = None
 
 
 class SystemSettingsUpdate(BaseModel):

@@ -250,6 +250,12 @@ def build_render_context(device: Device, extra_vars: dict[str, Any] | None = Non
     }
     if extra_vars:
         ctx.update(extra_vars)
+    from services.zabbix_client import get_host_tags_map
+
+    zabbix_tags = get_host_tags_map(device.name)
+    if zabbix_tags:
+        ctx["zabbix_tags"] = zabbix_tags
+        ctx["zabbix"] = zabbix_tags
     return ctx
 
 

@@ -117,6 +117,14 @@ def preview_bulk_provision(
     }
 
 
+def _append_bulk_log(bulk: ProvisionBulkRun, level: str, text: str, *, save: bool = True) -> None:
+    entries = list(bulk.log) if isinstance(bulk.log, list) else []
+    entries.append({"level": level, "text": text})
+    bulk.log = entries[-500:]
+    if save:
+        bulk.save(update_fields=["log"])
+
+
 def _bulk_row_public(row: ProvisionBulkRun) -> dict[str, Any]:
     return {
         "id": row.id,
@@ -135,6 +143,7 @@ def _bulk_row_public(row: ProvisionBulkRun) -> dict[str, Any]:
         "devices_completed": row.devices_completed,
         "devices_failed": row.devices_failed,
         "results": row.results if isinstance(row.results, list) else [],
+        "log": row.log if isinstance(row.log, list) else [],
         "error": row.error,
         "started_at": row.started_at,
         "finished_at": row.finished_at,
@@ -251,7 +260,15 @@ def run_bulk_provision_task(payload: dict[str, Any]) -> dict[str, Any]:
     now = dj_tz.now()
     bulk.status = ProvisionBulkRun.STATUS_RUNNING
     bulk.started_at = now
-    bulk.save(update_fields=["status", "started_at"])
+    bulk.log = []
+    _append_bulk_log(
+        bulk,
+        "info",
+        f"Bulk #{bulk.id} запущен: шаблон {template.slug}, устройств {bulk.devices_total}"
+        + (" (dry-run)" if bulk.dry_run else ""),
+        save=False,
+    )
+    bulk.save(update_fields=["status", "started_at", "log"])
 
     devices = list_bulk_targets(
         template=template,
@@ -269,7 +286,8 @@ def run_bulk_provision_task(payload: dict[str, Any]) -> dict[str, Any]:
     completed = 0
     failed = 0
 
-    for device in devices:
+    for idx, device in enumerate(devices, start=1):
+        _append_bulk_log(bulk, "info", f"[{idx}/{len(devices)}] {device.name}…")
         try:
             run_row = run_provision(
                 template_id=template.id,
@@ -289,16 +307,24 @@ def run_bulk_provision_task(payload: dict[str, Any]) -> dict[str, Any]:
                     "error": "",
                 }
             )
+            _append_bulk_log(
+                bulk,
+                "success",
+                f"✓ {device.name}: {run_row['status']}",
+                save=False,
+            )
         except ProvisioningError as exc:
             failed += 1
+            msg = str(exc)[:500]
             results.append(
                 {
                     "device_name": device.name,
                     "status": "failed",
                     "run_id": None,
-                    "error": str(exc)[:500],
+                    "error": msg,
                 }
             )
+            _append_bulk_log(bulk, "error", f"✗ {device.name}: {msg}", save=False)
             logger.warning(
                 "provision | bulk | failed | bulk=%s device=%s | %s",
                 bulk.id,
@@ -309,11 +335,17 @@ def run_bulk_provision_task(payload: dict[str, Any]) -> dict[str, Any]:
         bulk.devices_completed = completed
         bulk.devices_failed = failed
         bulk.results = results[-200:]
-        bulk.save(update_fields=["devices_completed", "devices_failed", "results"])
+        bulk.save(update_fields=["devices_completed", "devices_failed", "results", "log"])
 
+    _append_bulk_log(
+        bulk,
+        "info" if failed == 0 else "warn",
+        f"Итог: успешно {completed}, ошибок {failed}, всего {len(devices)}",
+        save=False,
+    )
     bulk.status = ProvisionBulkRun.STATUS_COMPLETED
     bulk.finished_at = dj_tz.now()
-    bulk.save(update_fields=["status", "finished_at"])
+    bulk.save(update_fields=["status", "finished_at", "log"])
 
     logger.info(
         "provision | bulk | done | id=%s completed=%s failed=%s total=%s",

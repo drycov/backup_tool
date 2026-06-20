@@ -96,6 +96,9 @@ def test_bulk_run_via_task_queue_dry_run():
     assert bulk.devices_total == 2
     assert bulk.devices_completed == 2
     assert bulk.devices_failed == 0
+    assert isinstance(bulk.log, list)
+    assert len(bulk.log) >= 3
+    assert any("r1" in line.get("text", "") for line in bulk.log)
     assert ProvisionRun.objects.filter(bulk_run=bulk).count() == 2
 
 
@@ -144,4 +147,43 @@ def test_bulk_provision_api(authed, client):
 
     detail = client.get(f"/api/provisioning/bulk/{body['id']}")
     assert detail.status_code == 200
-    assert detail.json()["status"] == ProvisionBulkRun.STATUS_COMPLETED
+    detail_body = detail.json()
+    assert detail_body["status"] == ProvisionBulkRun.STATUS_COMPLETED
+    assert detail_body.get("log")
+
+
+@pytest.mark.django_db
+def test_provision_generate_async_run(authed, client):
+    from unittest.mock import patch
+
+    from services.provision_generate_runner import get_provision_generate_run
+    from services.task_queue import process_next_task
+
+    DeviceModel.objects.create(name="r1", ip="10.0.0.1", model="routeros", group="hex", site="dc1")
+    DeviceModel.objects.create(name="r2", ip="10.0.0.2", model="routeros", group="hex", site="dc1")
+
+    with patch(
+        "services.provision_template_builder.get_node_config",
+        side_effect=lambda n: (f"/system identity set name={n}\n", None),
+    ):
+        start = client.post(
+            "/api/provisioning/templates/generate/run",
+            data='{"group": "hex", "threshold": 0.85, "min_devices": 2, "upsert": true}',
+            content_type="application/json",
+        )
+        assert start.status_code == 200
+        run_id = start.json()["run_id"]
+
+        for _ in range(50):
+            process_next_task()
+            run = get_provision_generate_run(run_id)
+            assert run is not None
+            if run["status"] in ("completed", "failed"):
+                break
+
+        detail = client.get(f"/api/provisioning/templates/generate/runs/{run_id}")
+        assert detail.status_code == 200
+        body = detail.json()
+        assert body["status"] == "completed", body.get("error")
+        assert body["result"]["created"] or body["result"]["updated"]
+        assert len(body["log"]) >= 2

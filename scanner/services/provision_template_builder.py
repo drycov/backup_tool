@@ -378,20 +378,29 @@ def generate_templates_from_configs(
     site: str = "",
     model: str = "",
     user=None,
+    devices=None,
     complexity_threshold: float = DEFAULT_COMPLEXITY_THRESHOLD,
     min_devices: int = MIN_DEVICES_PER_CLUSTER,
     upsert: bool = True,
+    log_cb: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
     from core.models import ProvisionTemplate
     from services.provisioning import create_template
 
+    def _log(level: str, text: str) -> None:
+        if log_cb:
+            log_cb(level, text)
+
+    _log("info", "Генерация шаблонов из конфигов Oxidized…")
     clusters = analyze_clusters(
         group=group,
         site=site,
         model=model,
         user=user,
+        devices=devices,
         complexity_threshold=complexity_threshold,
         min_devices=min_devices,
+        log_cb=log_cb,
     )
 
     created: list[dict[str, Any]] = []
@@ -399,8 +408,11 @@ def generate_templates_from_configs(
     skipped: list[dict[str, Any]] = []
 
     for cluster in clusters:
+        label = f"{cluster.group} / {cluster.site or '—'} / {cluster.model}"
         if cluster.skipped_reason or not cluster.template_body:
             skipped.append(cluster.to_dict())
+            reason = cluster.skipped_reason or "нет шаблона"
+            _log("warn", f"▸ {label} — пропущен: {reason}")
             continue
 
         slug = _slug_for_cluster(cluster.group, cluster.site, cluster.model)
@@ -445,8 +457,10 @@ def generate_templates_from_configs(
                     "complex_devices": cluster.complex_devices,
                 }
             )
+            _log("success", f"▸ {label} — обновлён шаблон {slug}")
         elif existing:
             skipped.append({**cluster.to_dict(), "skipped_reason": f"шаблон {slug} уже существует"})
+            _log("warn", f"▸ {label} — шаблон {slug} уже существует (upsert=off)")
         else:
             row = create_template(
                 slug=slug,
@@ -470,6 +484,7 @@ def generate_templates_from_configs(
                     "complex_devices": cluster.complex_devices,
                 }
             )
+            _log("success", f"▸ {label} — создан шаблон {slug}")
 
     logger.info(
         "provision | generate | created=%d updated=%d skipped=%d",

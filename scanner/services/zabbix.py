@@ -132,3 +132,35 @@ def platform_summary(*, user=None) -> dict[str, Any]:
         "oxidized_error": summary.get("oxidized_error") or "",
         "generated_at": generated_at,
     }
+
+
+def device_tags(device_id: str, *, user=None) -> dict[str, Any]:
+    """Теги Zabbix-хоста по имени устройства из inventory."""
+    device_id = (device_id or "").strip()
+    if not device_id:
+        raise ValueError("id обязателен")
+
+    from services.inventory import load_inventory
+    from services.object_scope import device_in_scope
+
+    inventory = load_inventory()
+    device = next((d for d in inventory.devices if d.name == device_id), None)
+    if not device:
+        raise LookupError(f"Устройство '{device_id}' не найдено")
+    if user is not None and not device_in_scope(user, device):
+        raise LookupError(f"Устройство '{device_id}' вне scope")
+
+    from services.zabbix_client import ZabbixClientError, ZabbixNotConfigured, get_host_tags
+
+    try:
+        tags_payload = get_host_tags(device.name)
+    except ZabbixNotConfigured as exc:
+        raise ValueError(str(exc)) from exc
+    except ZabbixClientError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+    return {
+        "id": device.name,
+        "name": device.name,
+        **tags_payload,
+    }

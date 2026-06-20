@@ -30,8 +30,12 @@
 |-------|-----|-------|
 | GET/POST | `/api/provisioning/templates` | `provision:read` / POST: `provision:run` |
 | GET | `/api/provisioning/filters` | `provision:read` — group/site/model/устройства из БД |
-| GET | `/api/provisioning/analysis` | `provision:read` — анализ кластеров без сохранения |
-| POST | `/api/provisioning/templates/generate` | `provision:run` — создать/обновить шаблоны из бэкапов |
+| GET | `/api/provisioning/analysis` | `provision:read` — анализ кластеров без сохранения (синхронно) |
+| POST | `/api/provisioning/analysis/run` | `provision:read` — запуск анализа в фоне |
+| GET | `/api/provisioning/analysis/runs/{run_id}` | `provision:read` — статус и лог анализа |
+| POST | `/api/provisioning/templates/generate` | `provision:run` — создать/обновить шаблоны (синхронно) |
+| POST | `/api/provisioning/templates/generate/run` | `provision:run` — генерация в фоне |
+| GET | `/api/provisioning/templates/generate/runs/{run_id}` | `provision:run` — статус и лог генерации |
 | GET | `/api/provisioning/bulk?action=preview` | `provision:read` — список устройств для bulk |
 | POST | `/api/provisioning/bulk/run` | `provision:run` — запуск bulk (async по умолчанию) |
 | GET | `/api/provisioning/bulk` | `provision:read` — история bulk-задач |
@@ -64,17 +68,33 @@ curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/run \
 ### Анализ конфигов (без сохранения)
 
 ```bash
+# Синхронный анализ
 curl -s -b cookies.txt "http://scanner:8000/api/provisioning/analysis?group=hex&threshold=0.85&min_devices=2"
+
+# Асинхронный анализ с логом (рекомендуется для UI)
+curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/analysis/run \
+  -H "Content-Type: application/json" \
+  -d '{"group":"hex","threshold":0.85,"min_devices":2}'
+
+curl -s -b cookies.txt http://scanner:8000/api/provisioning/analysis/runs/RUN_ID
 ```
 
-Ответ: `clusters` (по group/site/model), `complex_devices` — устройства с отклонением от baseline.
+Ответ: `clusters` (по group/site/model), `complex_devices` — устройства с отклонением от baseline. В async-режиме поле `log` — пошаговый лог.
 
 ### Генерация шаблонов
 
 ```bash
+# Синхронно
 curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/templates/generate \
   -H "Content-Type: application/json" \
   -d '{"group":"hex","site":"dc1","complexity_threshold":0.85,"min_devices":2,"upsert":true}'
+
+# Асинхронно (UI)
+curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/templates/generate/run \
+  -H "Content-Type: application/json" \
+  -d '{"group":"hex","threshold":0.85,"min_devices":2,"upsert":true}'
+
+curl -s -b cookies.txt http://scanner:8000/api/provisioning/templates/generate/runs/RUN_ID
 ```
 
 Создаёт шаблоны с префиксом slug `gen-...`, поля `source=generated`, `meta` с baseline и списком сложных устройств.
@@ -90,7 +110,7 @@ curl -s -b cookies.txt -X POST http://scanner:8000/api/provisioning/bulk/run \
   -H "Content-Type: application/json" \
   -d '{"template_id":1,"group":"hex","site":"dc1","dry_run":true,"exclude_complex":true,"async":true}'
 
-# Статус задачи
+# Статус задачи (поле log — пошаговый лог bulk)
 curl -s -b cookies.txt http://scanner:8000/api/provisioning/bulk/5
 ```
 
@@ -98,7 +118,7 @@ curl -s -b cookies.txt http://scanner:8000/api/provisioning/bulk/5
 
 ## Web UI
 
-**Провижионинг** в боковом меню: шаблоны, **Генерация из бэкапов**, **Bulk provision**, preview, история запусков и bulk-задач.
+**Провижионинг** в боковом меню: шаблоны (создание и **редактирование** через edit → Сохранить), **Генерация из бэкапов** (лог анализа/генерации), **Bulk provision** (live-лог прогресса), preview, история запусков и bulk-задач.
 
 Фильтры group / site / model и список устройств подгружаются из БД (`GET /api/provisioning/filters`) с учётом object scope. Значение «все» в фильтрах — весь доступный инвентарь. Шаблон с `model=*` применяется к любой модели; apply для неизвестных моделей — построчно по SSH.
 

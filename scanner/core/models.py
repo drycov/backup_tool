@@ -280,6 +280,10 @@ class IntegrationConfig(models.Model):
     inventory_sync_interval_hours = models.PositiveIntegerField(default=24)
     inventory_sync_last_run_at = models.DateTimeField(null=True, blank=True)
 
+    zabbix_api_enabled = models.BooleanField(default=False)
+    zabbix_api_url = models.CharField(max_length=512, blank=True, default="")
+    zabbix_api_token = models.CharField(max_length=256, blank=True, default="")
+
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -353,6 +357,7 @@ class BackgroundTask(models.Model):
     TASK_CONFIG_AUDIT = "config.audit"
     TASK_INVENTORY_SYNC = "inventory.sync"
     TASK_PROVISION_BULK = "provision.bulk"
+    TASK_PROVISION_GENERATE = "provision.generate"
 
     task_type = models.CharField(max_length=64, db_index=True)
     status = models.CharField(max_length=16, default=STATUS_PENDING, db_index=True)
@@ -578,6 +583,7 @@ class ProvisionBulkRun(models.Model):
     devices_completed = models.PositiveIntegerField(default=0)
     devices_failed = models.PositiveIntegerField(default=0)
     results = LegacyJSONField(default=list, blank=True)
+    log = LegacyJSONField(default=list, blank=True)
     error = models.TextField(blank=True, default="")
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)

@@ -308,6 +308,12 @@ def _paths() -> dict:
         "/api/provisioning/templates/generate": {
             "post": {"tags": ["admin"], "summary": "Generate provision templates from device configs"},
         },
+        "/api/provisioning/templates/generate/run": {
+            "post": {"tags": ["admin"], "summary": "Start async provision template generation"},
+        },
+        "/api/provisioning/templates/generate/runs/{run_id}": {
+            "get": {"tags": ["admin"], "summary": "Provision template generation run status and log"},
+        },
         "/api/provisioning/analysis": {
             "get": {"tags": ["admin"], "summary": "Analyze device config clusters and complex devices"},
         },

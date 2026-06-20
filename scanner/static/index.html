@@ -1570,6 +1570,39 @@
                         </section>
                         <section class="settings-section">
                           <div class="settings-section-header">
+                            <h5 class="settings-section-title mb-1">Zabbix API (исходящий)</h5>
+                            <p class="settings-section-desc mb-0">Получение тегов хоста по имени объекта для провижионинга и API <code>/device/gettags</code>.</p>
+                          </div>
+                          <div class="settings-section-body">
+                            <div class="form-check mb-2">
+                              <input type="checkbox" class="form-check-input" id="int-zabbix-api-enabled">
+                              <label class="form-check-label" for="int-zabbix-api-enabled">Включить Zabbix JSON-RPC</label>
+                            </div>
+                            <div class="row g-3">
+                              <div class="col-lg-6">
+                                <label class="form-label" for="int-zabbix-api-url">Zabbix URL</label>
+                                <input type="url" id="int-zabbix-api-url" class="form-control form-control-sm" placeholder="https://zabbix.example.com">
+                              </div>
+                              <div class="col-lg-6">
+                                <label class="form-label" for="int-zabbix-api-token">API token</label>
+                                <input type="password" id="int-zabbix-api-token" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                              </div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-3 align-items-end">
+                              <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-zabbix-api-test">Проверить API</button>
+                              <div class="d-flex gap-2 align-items-end">
+                                <div>
+                                  <label class="form-label small mb-0" for="int-zabbix-tags-lookup">Теги хоста</label>
+                                  <input type="text" id="int-zabbix-tags-lookup" class="form-control form-control-sm" placeholder="имя хоста">
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-zabbix-tags-lookup">Получить</button>
+                              </div>
+                            </div>
+                            <pre class="small bg-light border rounded p-2 mt-2 mb-0" id="int-zabbix-tags-result" style="max-height:120px;overflow:auto;">—</pre>
+                          </div>
+                        </section>
+                        <section class="settings-section">
+                          <div class="settings-section-header">
                             <h5 class="settings-section-title mb-1">События тикетов</h5>
                           </div>
                           <div class="settings-section-body">
@@ -1961,7 +1994,9 @@
                   </div>
                 </div>
                 <div class="card card-outline card-secondary mt-3" data-permission="provision:run">
-                  <div class="card-header"><h3 class="card-title">Новый шаблон</h3></div>
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0" id="prov-template-panel-title">Новый шаблон</h3>
+                  </div>
                   <div class="card-body">
                     <div id="provision-template-panel">
                       <div class="mb-2"><input type="text" class="form-control form-control-sm" id="pt-slug" placeholder="slug" required pattern="[a-z][-a-z0-9_]{1,62}" title="Латиница, 2–63 символа"></div>
@@ -1971,7 +2006,11 @@
                         <select id="pt-model" class="form-control form-control-sm"><option value="routeros">routeros</option></select>
                       </div>
                       <div class="mb-2"><textarea class="form-control form-control-sm font-monospace" id="pt-body" rows="8" placeholder="/system identity set name={{ device.name }}" required></textarea></div>
-                      <button type="button" class="btn btn-primary btn-sm" id="btn-prov-template-create">Создать</button>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-primary btn-sm" id="btn-prov-template-create">Создать</button>
+                        <button type="button" class="btn btn-success btn-sm d-none" id="btn-prov-template-save">Сохранить</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm d-none" id="btn-prov-template-cancel">Отмена</button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2037,6 +2076,13 @@
                     <div class="d-flex gap-2 mb-2">
                       <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-prov-bulk-preview">Проверить список</button>
                       <button type="button" class="btn btn-warning btn-sm" id="btn-prov-bulk-run">Запустить bulk</button>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+                      <span class="small fw-semibold text-muted">Лог bulk</span>
+                      <button type="button" class="btn btn-link btn-sm p-0" id="btn-prov-bulk-log-clear">Очистить</button>
+                    </div>
+                    <div id="prov-bulk-log" class="analysis-log-viewer mb-2">
+                      <div class="analysis-log-line log-muted">Запустите bulk для просмотра прогресса.</div>
                     </div>
                     <div class="table-responsive" style="max-height:160px;overflow:auto;">
                       <table class="table table-sm mb-0" id="provision-bulk-targets-table">

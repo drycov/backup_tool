@@ -259,6 +259,11 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
 
         return run_bulk_provision_task(task.payload or {})
 
+    if task.task_type == BackgroundTask.TASK_PROVISION_GENERATE:
+        from services.provision_generate_runner import run_provision_generate_task
+
+        return run_provision_generate_task(task.payload or {})
+
     raise ValueError(f"Unknown task type: {task.task_type}")
 
 

@@ -197,3 +197,33 @@ def test_zabbix_static_auth_key(client, settings, monkeypatch):
     response = client.get("/device/getalldevices", HTTP_AUTHKEY="zabbix-test-secret")
     assert response.status_code == 200
     assert response.json()[0]["name"] == "gw1"
+
+
+@pytest.mark.django_db
+def test_zabbix_gettags_endpoint(client, api_key, monkeypatch):
+    monkeypatch.setattr(
+        "services.inventory.load_inventory",
+        lambda: Inventory(devices=[_device_row("router-01")]),
+    )
+    monkeypatch.setattr(
+        "services.zabbix_client.get_host_tags",
+        lambda name, **kw: {
+            "name": name,
+            "hostid": "42",
+            "visible_name": name,
+            "host": name,
+            "tags": [{"tag": "site", "value": "dc1"}],
+            "tags_map": {"site": "dc1"},
+        },
+    )
+    monkeypatch.setattr(
+        "services.zabbix_client._get_api_config",
+        lambda: ("https://z/api_jsonrpc.php", "tok"),
+    )
+    response = client.get(
+        "/device/gettags?id=router-01",
+        HTTP_AUTHKEY=api_key,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tags_map"]["site"] == "dc1"

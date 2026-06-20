@@ -145,6 +145,12 @@ urlpatterns = [
     path("api/provisioning/templates", views.provision_templates_dispatch, name="provision-templates"),
     path("api/provisioning/filters", views.provision_filters_view, name="provision-filters"),
     path("api/provisioning/templates/generate", views.provision_generate_view, name="provision-generate"),
+    path("api/provisioning/templates/generate/run", views.provision_generate_run_view, name="provision-generate-run"),
+    path(
+        "api/provisioning/templates/generate/runs/<str:run_id>",
+        views.provision_generate_run_detail_view,
+        name="provision-generate-run-detail",
+    ),
     path("api/provisioning/analysis", views.provision_analysis_view, name="provision-analysis"),
     path("api/provisioning/analysis/run", views.provision_analysis_run_view, name="provision-analysis-run"),
     path(
@@ -162,4 +168,7 @@ urlpatterns = [
     path("device/getalldevices", views.zabbix_get_all_devices, name="zabbix-getalldevices"),
     path("device/getlaststatus", views.zabbix_get_last_status, name="zabbix-getlaststatus"),
     path("device/getsummary", views.zabbix_get_summary, name="zabbix-getsummary"),
+    path("device/gettags", views.zabbix_get_tags, name="zabbix-gettags"),
+    path("api/integrations/zabbix/tags", views.zabbix_tags_lookup_view, name="zabbix-tags-lookup"),
+    path("api/integrations/zabbix/test", views.zabbix_api_test_view, name="zabbix-api-test"),
 ]

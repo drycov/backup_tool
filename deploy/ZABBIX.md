@@ -78,6 +78,38 @@ Discovery `GET /device/getalldevices` → макросы `{#ID}`, `{#NAME}`, `{#
 | `/device/getsummary` | authkey | Сводка compliance + Oxidized + ready |
 | `/device/getalldevices` | authkey | LLD-массив устройств |
 | `/device/getlaststatus?id=` | authkey | Статус одного устройства |
+| `/device/gettags?id=` | authkey | Теги Zabbix-хоста по имени устройства |
+
+### gettags (пример)
+
+```json
+{
+  "id": "ROUTER-01",
+  "name": "ROUTER-01",
+  "hostid": "10084",
+  "visible_name": "ROUTER-01",
+  "host": "router-01.local",
+  "tags": [{"tag": "site", "value": "hex-dc1"}],
+  "tags_map": {"site": "hex-dc1", "env": "prod"}
+}
+```
+
+## Zabbix API (исходящий)
+
+**Настройки → Интеграции → Zabbix API** — JSON-RPC для чтения тегов.
+
+| `.env` | Описание |
+|--------|----------|
+| `ZABBIX_API_URL` | `https://zabbix.example.com` |
+| `ZABBIX_API_TOKEN` | API token (Zabbix 6.4+) |
+| `ZABBIX_API_ENABLED` | `true` |
+
+| URL | Описание |
+|-----|----------|
+| `GET /api/integrations/zabbix/tags?name=` | Теги по имени (JWT) |
+| `POST /api/integrations/zabbix/test` | Проверка API |
+
+В шаблонах провижионинга: `{{ zabbix_tags.site }}`, `{{ zabbix.site }}`.
 
 ### getsummary (пример)
 
@@ -118,6 +150,7 @@ curl -s http://scanner:8000/health
 curl -s -H "authkey: SECRET" http://scanner:8000/device/getsummary
 curl -s -H "authkey: SECRET" http://scanner:8000/device/getalldevices | head
 curl -s -H "authkey: SECRET" "http://scanner:8000/device/getlaststatus?id=ROUTER-01"
+curl -s -H "authkey: SECRET" "http://scanner:8000/device/gettags?id=ROUTER-01"
 ```
 
 ## Связанные документы

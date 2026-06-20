@@ -44,6 +44,9 @@ class IntegrationConfigData:
     inventory_sync_enabled: bool = False
     inventory_sync_source: str = "netbox"
     inventory_sync_interval_hours: int = 24
+    zabbix_api_enabled: bool = False
+    zabbix_api_url: str = ""
+    zabbix_api_token: str = ""
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -88,6 +91,9 @@ def _defaults_from_env() -> dict[str, Any]:
         "inventory_sync_interval_hours": max(
             1, int(os.environ.get("INVENTORY_SYNC_INTERVAL_HOURS", "24"))
         ),
+        "zabbix_api_enabled": _env_bool("ZABBIX_API_ENABLED"),
+        "zabbix_api_url": os.environ.get("ZABBIX_API_URL", "").strip(),
+        "zabbix_api_token": os.environ.get("ZABBIX_API_TOKEN", ""),
     }
 
 
@@ -120,6 +126,9 @@ def _row_to_data(row: IntegrationConfig) -> IntegrationConfigData:
         inventory_sync_enabled=bool(getattr(row, "inventory_sync_enabled", False)),
         inventory_sync_source=getattr(row, "inventory_sync_source", None) or "netbox",
         inventory_sync_interval_hours=getattr(row, "inventory_sync_interval_hours", None) or 24,
+        zabbix_api_enabled=bool(getattr(row, "zabbix_api_enabled", False)),
+        zabbix_api_url=getattr(row, "zabbix_api_url", None) or "",
+        zabbix_api_token=getattr(row, "zabbix_api_token", None) or "",
     )
 
 
@@ -182,6 +191,9 @@ def get_config_public() -> dict[str, Any]:
         "inventory_sync_source": cfg.inventory_sync_source,
         "inventory_sync_interval_hours": cfg.inventory_sync_interval_hours,
         "inventory_sync_last_run_at": _inventory_sync_last_run_iso(),
+        "zabbix_api_enabled": cfg.zabbix_api_enabled,
+        "zabbix_api_url": cfg.zabbix_api_url,
+        "zabbix_api_token_set": bool(cfg.zabbix_api_token),
         "storage": "database" if is_database_available() else "env",
     }
 
@@ -234,6 +246,12 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
         librenms_token = getattr(row, "librenms_token", "") or ""
     else:
         librenms_token = str(librenms_token)
+
+    zabbix_api_token = payload.get("zabbix_api_token")
+    if zabbix_api_token in (None, "", PASSWORD_MASK):
+        zabbix_api_token = getattr(row, "zabbix_api_token", "") or ""
+    else:
+        zabbix_api_token = str(zabbix_api_token)
 
     row.snow_enabled = bool(payload.get("snow_enabled", row.snow_enabled))
     row.snow_instance_url = str(
@@ -304,6 +322,16 @@ def save_config(payload: dict[str, Any]) -> dict[str, Any]:
     if sync_hours < 1 or sync_hours > 168:
         raise ValueError("inventory_sync_interval_hours должен быть от 1 до 168")
     row.inventory_sync_interval_hours = sync_hours
+    row.zabbix_api_enabled = bool(
+        payload.get("zabbix_api_enabled", getattr(row, "zabbix_api_enabled", False))
+    )
+    row.zabbix_api_url = str(
+        payload.get("zabbix_api_url", getattr(row, "zabbix_api_url", ""))
+    ).strip().rstrip("/")
+    row.zabbix_api_token = zabbix_api_token
     row.save()
+    from services.zabbix_client import invalidate_tags_cache
+
+    invalidate_tags_cache()
     logger.info("integration | настройки сохранены через UI")
     return get_config_public()
