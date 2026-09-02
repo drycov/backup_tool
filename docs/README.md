@@ -14,6 +14,7 @@ Backup Tools — платформа для **сканирования сети**
 | [Сканирование](scanning.md) | Ping sweep, discovery, проверка портов и SSH |
 | [Oxidized и бэкапы](oxidized.md) | Git push, SSH-ключи, API |
 | [**Типы движков**](engines.md) | Python vs Ruby Oxidized — сравнение и выбор |
+| [**Хранение бэкапов**](storage.md) | Где и в каком виде хранятся конфиги, `bin/`/`rsc/`, БД |
 | [MikroTik бэкапы](mikrotik-backups.md) | Binary `.backup` и export `.rsc` |
 | [Compliance](compliance.md) | Dashboard и метрики деградации |
 | [Уведомления](notifications.md) | Telegram, Email, degrade alerts |

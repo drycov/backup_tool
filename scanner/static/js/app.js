@@ -119,6 +119,19 @@ function searchTokens(query) {
   return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
 
+function tableLoadingRow(colSpan, text = "Загрузка данных…") {
+  return `<tr class="table-loading"><td colspan="${colSpan}" class="text-center text-muted table-loading-td loading-spinner-row"><i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>${escapeHtml(text)}<span class="loading-dots"></span></td></tr>`;
+}
+
+/* Блокировка кнопки + спиннер */
+function setBtnLoading(btn, on) {
+  if (!btn) return;
+  btn.classList.toggle("btn-loading", !!on);
+  btn.disabled = !!on;
+  if (on) btn.setAttribute("aria-busy", "true");
+  else btn.removeAttribute("aria-busy");
+}
+
 function matchesSearch(values, query) {
   const tokens = searchTokens(query);
   if (!tokens.length) return true;
@@ -722,6 +735,8 @@ function formatDate(d, short = false) {
 function showAlert(containerId, msg, type = "danger") {
   const el = qs(`#${containerId}`);
   if (!el) return;
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
   const alertType = type === "error" ? "danger" : type === "info" ? "info" : type;
   const icons = {
     danger: "fa-exclamation-circle",
@@ -1293,7 +1308,7 @@ function renderUsersTable(users) {
       </td>
       <td class="text-nowrap">
         ${u.role !== "admin" ? `<button type="button" class="btn btn-primary btn-sm btn-save-user-scope" data-id="${u.id}" title="Сохранить scope"><i class="fas fa-save"></i></button>` : ""}
-        ${u.id !== currentUser.id ? `<button class="btn btn-danger btn-sm btn-delete-user" data-id="${u.id}"><i class="fas fa-trash"></i></button>` : "—"}
+        ${u.id !== currentUser.id ? `    <button class="btn btn-danger btn-sm btn-delete-user" data-id="${u.id}" title="Удалить пользователя" aria-label="Удалить пользователя"><i class="fas fa-trash"></i></button>` : "—"}
       </td>
     </tr>
   `;
@@ -2829,6 +2844,10 @@ function renderDevicesTable() {
   }
 
   const colSpan = can("inventory:devices") ? 9 : 8;
+  if (!inventory) {
+    tbody.innerHTML = tableLoadingRow(colSpan);
+    return;
+  }
   if (!devices.length) {
     tbody.innerHTML = `<tr><td colspan="${colSpan}" class="text-center text-muted">Нет устройств</td></tr>`;
     return;
@@ -2850,8 +2869,8 @@ function renderDevicesTable() {
       <td>${escapeHtml((d.ports || []).join(", "))}</td>
       <td>${d.enabled ? badgeSpan("on", "success") : badgeSpan("off", "secondary")}</td>
       <td>
-        ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-edit"></i></button>` : ""}
-        ${can("inventory:devices") ? `<button class="btn btn-danger btn-sm btn-delete-device" data-name="${escapeHtml(d.name)}"><i class="fas fa-trash"></i></button>` : ""}
+        ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${escapeHtml(d.name)}" title="Изменить" aria-label="Изменить"><i class="fas fa-edit"></i></button>` : ""}
+        ${can("inventory:devices") ? `<button class="btn btn-danger btn-sm btn-delete-device" data-name="${escapeHtml(d.name)}" title="Удалить" aria-label="Удалить"><i class="fas fa-trash"></i></button>` : ""}
       </td>
     </tr>
   `).join("");
@@ -4412,7 +4431,9 @@ async function saveDevice() {
 }
 
 function setScanButtonsDisabled(disabled) {
-  ["btn-scan", "btn-scan-discover", "btn-quick-scan", "btn-quick-discover"].forEach(id => {
+  /* Основные кнопки получают спиннер, быстрые — только блокировку */
+  ["btn-scan", "btn-scan-discover"].forEach(id => setBtnLoading(qs(`#${id}`), disabled));
+  ["btn-quick-scan", "btn-quick-discover"].forEach(id => {
     const b = qs(`#${id}`);
     if (b) b.disabled = disabled;
   });

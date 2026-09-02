@@ -5,9 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <meta name="color-scheme" content="light dark">
   <title>Backup Tools</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <script>
+    /* Применить тему до первой отрисовки, чтобы избежать мигания (FOUC) */
+    (function () {
+      try {
+        var stored = localStorage.getItem("theme");
+        var theme = stored === "light" || stored === "dark" ? stored
+          : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-bs-theme", theme);
+      } catch (e) { /* localStorage недоступен — останется тема по умолчанию */ }
+    })();
+  </script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-400.css" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-600.css" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.18/latin-700.css" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.11.0/styles/overlayscrollbars.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -36,22 +51,26 @@
           </p>
           <form id="login-form">
             <div class="input-group mb-3">
+              <label class="visually-hidden" for="login-username">Логин</label>
               <input type="text" id="login-username" class="form-control" placeholder="Логин" autocomplete="username" required>
-              <span class="input-group-text"><i class="fas fa-user"></i></span>
+              <span class="input-group-text"><i class="fas fa-user" aria-hidden="true"></i></span>
             </div>
             <div class="input-group mb-3">
+              <label class="visually-hidden" for="login-password">Пароль</label>
               <input type="password" id="login-password" class="form-control" placeholder="Пароль" autocomplete="current-password" required>
-              <span class="input-group-text"><i class="fas fa-lock"></i></span>
+              <span class="input-group-text"><i class="fas fa-lock" aria-hidden="true"></i></span>
             </div>
             <div id="login-alert"></div>
             <div id="login-totp-block" style="display:none;">
               <p class="text-muted small mb-2">Введите код из приложения-аутентификатора</p>
               <div class="input-group mb-3">
-                <input type="text" id="login-totp-code" class="form-control" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code">
-                <span class="input-group-text"><i class="fas fa-shield-alt"></i></span>
+                <label class="visually-hidden" for="login-totp-code">Код из аутентификатора</label>
+                <input type="text" id="login-totp-code" class="form-control" placeholder="6-digit code" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+                <span class="input-group-text"><i class="fas fa-shield-alt" aria-hidden="true"></i></span>
               </div>
               <div class="input-group mb-3">
-                <input type="text" id="login-recovery-code" class="form-control" placeholder="Recovery code (optional)">
+                <label class="visually-hidden" for="login-recovery-code">Резервный код</label>
+                <input type="text" id="login-recovery-code" class="form-control" placeholder="Recovery code (optional)" autocomplete="off">
               </div>
               <input type="hidden" id="login-totp-challenge" value="">
             </div>
@@ -94,13 +113,13 @@
       </form>
       <ul class="navbar-nav ms-auto align-items-center">
         <li class="nav-item dropdown me-2">
-          <button class="btn btn-link nav-link py-1 px-2" data-bs-toggle="dropdown" aria-expanded="false" title="Тема">
-            <i class="bi bi-circle-half"></i>
+          <button class="btn btn-link nav-link py-1 px-2" data-bs-toggle="dropdown" aria-expanded="false" title="Тема" aria-label="Переключить тему" aria-haspopup="menu">
+            <i class="bi bi-circle-half" aria-hidden="true"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li><button type="button" class="dropdown-item" data-bs-theme-value="light"><i class="bi bi-sun me-2"></i> Светлая</button></li>
-            <li><button type="button" class="dropdown-item" data-bs-theme-value="dark"><i class="bi bi-moon-stars me-2"></i> Тёмная</button></li>
-            <li><button type="button" class="dropdown-item" data-bs-theme-value="auto"><i class="bi bi-circle-half me-2"></i> Авто</button></li>
+            <li><button type="button" class="dropdown-item" data-bs-theme-value="light" role="menuitem"><i class="bi bi-sun me-2" aria-hidden="true"></i> Светлая</button></li>
+            <li><button type="button" class="dropdown-item" data-bs-theme-value="dark" role="menuitem"><i class="bi bi-moon-stars me-2" aria-hidden="true"></i> Тёмная</button></li>
+            <li><button type="button" class="dropdown-item" data-bs-theme-value="auto" role="menuitem"><i class="bi bi-circle-half me-2" aria-hidden="true"></i> Авто</button></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
@@ -2737,14 +2756,14 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.11.0/browser/overlayscrollbars.browser.es6.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/js/adminlte.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.11.0/browser/overlayscrollbars.browser.es6.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/js/adminlte.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
   <script defer src="/static/js/ui-shell.js"></script>
   <script defer src="/static/js/config-editor.js"></script>
-  <script defer src="/static/js/app.js?v=20260618-3"></script>
+  <script defer src="/static/js/app.js?v=20260618-4"></script>
 </body>
 </html>
