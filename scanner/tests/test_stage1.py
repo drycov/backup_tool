@@ -118,6 +118,51 @@ def test_ldap_test_bind_mock(authed: Client):
 
 
 @pytest.mark.django_db
+def test_radius_settings_round_trip(authed: Client):
+    get_res = authed.get("/api/settings/radius")
+    assert get_res.status_code == 200
+    before = get_res.json()
+    payload = {
+        **before,
+        "enabled": True,
+        "server": "radius.example.com",
+        "port": 1812,
+        "secret": "testing-123",
+        "role_attribute": "Filter-Id",
+        "admin_values": "Backup-Admin",
+        "operator_values": "NOC",
+        "default_role": "operator",
+    }
+    put_res = authed.put(
+        "/api/settings/radius",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+    assert put_res.status_code == 200, put_res.content
+    saved = put_res.json()
+    assert saved["server"] == "radius.example.com"
+    assert saved["enabled"] is True
+    assert saved["secret_set"] is True
+    assert saved["default_role"] == "operator"
+
+
+@pytest.mark.django_db
+def test_radius_test_connection_mock(authed: Client):
+    with patch(
+        "services.radius_settings.test_connection",
+        return_value={"ok": True, "message": "RADIUS OK", "role": "operator"},
+    ):
+        res = authed.post(
+            "/api/settings/radius/test",
+            data=json.dumps({"username": "noc", "password": "pass"}),
+            content_type="application/json",
+        )
+    assert res.status_code == 200
+    assert res.json().get("ok") is True
+    assert res.json().get("role") == "operator"
+
+
+@pytest.mark.django_db
 def test_group_policies_crud(authed: Client):
     payload = {
         "group_name": "hex",

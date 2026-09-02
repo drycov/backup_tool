@@ -95,8 +95,26 @@
 | `LDAP_FALLBACK_LOCAL` | `true` | Разрешить локальный вход, если LDAP недоступен |
 | `LDAP_CONNECT_TIMEOUT` | `10` | Таймаут подключения (сек) |
 
-## Учётные данные устройств
+## RADIUS SSO
 
+Начальные значения подтягиваются из `.env` при первом запуске; далее редактируются в UI (**Настройки → RADIUS**). См. [authentication.md](authentication.md).
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `RADIUS_ENABLED` | `false` | Включить RADIUS-аутентификацию |
+| `RADIUS_SERVER` | — | IP или FQDN RADIUS-сервера |
+| `RADIUS_PORT` | `1812` | UDP auth-порт |
+| `RADIUS_SECRET` | — | Shared secret (обязателен) |
+| `RADIUS_TIMEOUT` | `5` | Таймаут запроса (сек) |
+| `RADIUS_RETRIES` | `3` | Число повторов |
+| `RADIUS_NAS_IDENTIFIER` | — | NAS-Identifier в запросе |
+| `RADIUS_ROLE_ATTRIBUTE` | `Filter-Id` | Атрибут ответа для маппинга роли |
+| `RADIUS_ADMIN_VALUES` | — | Значения атрибута → роль `admin` (через запятую) |
+| `RADIUS_OPERATOR_VALUES` | — | Значения атрибута → роль `operator` |
+| `RADIUS_DEFAULT_ROLE` | `viewer` | Роль, если значение не совпало |
+| `RADIUS_FALLBACK_LOCAL` | `true` | Разрешить локальный вход, если RADIUS недоступен |
+
+## Учётные данные устройств
 | Переменная | По умолчанию | Описание |
 |------------|--------------|----------|
 | `OVN_USER` | `satcoadm` | SSH-логин для группы `hex` |

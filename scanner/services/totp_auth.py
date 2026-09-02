@@ -80,8 +80,8 @@ def verify_recovery(user: User, code: str) -> bool:
 
 
 def begin_totp_setup(user: User) -> dict:
-    if user.auth_source == "ldap":
-        raise ValueError("2FA недоступна для LDAP-пользователей")
+    if user.auth_source in ("ldap", "radius"):
+        raise ValueError("2FA недоступна для LDAP/RADIUS-пользователей")
     secret = generate_secret()
     codes = _generate_recovery_codes()
     return {
@@ -92,8 +92,8 @@ def begin_totp_setup(user: User) -> dict:
 
 
 def enable_totp(user: User, secret: str, code: str, recovery_codes: list[str]) -> None:
-    if user.auth_source == "ldap":
-        raise ValueError("2FA недоступна для LDAP-пользователей")
+    if user.auth_source in ("ldap", "radius"):
+        raise ValueError("2FA недоступна для LDAP/RADIUS-пользователей")
     if not verify_code(secret, code):
         raise ValueError("Неверный код подтверждения")
     user.totp_secret = secret
@@ -104,8 +104,8 @@ def enable_totp(user: User, secret: str, code: str, recovery_codes: list[str]) -
 
 
 def disable_totp(user: User, *, password: str, code: str = "") -> None:
-    if user.auth_source == "ldap":
-        raise ValueError("2FA недоступна для LDAP-пользователей")
+    if user.auth_source in ("ldap", "radius"):
+        raise ValueError("2FA недоступна для LDAP/RADIUS-пользователей")
     if not verify_password(password, user.password_hash):
         raise ValueError("Неверный пароль")
     if user.totp_enabled and code and not verify_code(user.totp_secret, code):

@@ -679,6 +679,12 @@
                           <span>LDAP</span>
                         </a>
                       </li>
+                      <li class="nav-item" id="settings-radius-tab-li" data-permission="users:manage">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-radius" role="tab">
+                          <i class="fas fa-signal" aria-hidden="true"></i>
+                          <span>RADIUS</span>
+                        </a>
+                      </li>
                       <li class="nav-item" id="settings-tab-integrations-li" data-permission="settings:read">
                         <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-integrations" role="tab">
                           <i class="fas fa-plug" aria-hidden="true"></i>
@@ -1450,6 +1456,120 @@
                             <div class="settings-form-actions">
                               <button type="submit" class="btn btn-primary btn-sm">
                                 <i class="fas fa-save me-1"></i> Сохранить LDAP
+                              </button>
+                            </div>
+                          </form>
+                        </section>
+                      </div>
+                    </div>
+
+                    <!-- Tab: RADIUS SSO -->
+                    <div class="tab-pane fade" id="settings-tab-radius" role="tabpanel" data-permission="users:manage">
+                      <div id="settings-radius-card">
+                        <section class="settings-section">
+                          <div class="settings-section-header">
+                            <div>
+                              <h5 class="settings-section-title mb-1">
+                                <i class="fas fa-signal text-secondary me-1"></i> RADIUS SSO
+                              </h5>
+                              <p class="settings-section-desc mb-0">
+                                Аутентификация через RADIUS (RFC 2865): Access-Request / Access-Accept. Настройки в БД, без перезапуска.
+                              </p>
+                            </div>
+                          </div>
+                          <form id="radius-settings-form" class="settings-section-body">
+                            <div class="row g-3 align-items-end mb-2">
+                              <div class="col-md-4">
+                                <div class="form-check form-switch">
+                                  <input type="checkbox" class="form-check-input" id="radius-enabled">
+                                  <label class="form-check-label" for="radius-enabled">Включить RADIUS</label>
+                                </div>
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="radius-port">Порт</label>
+                                <input type="number" id="radius-port" class="form-control form-control-sm" min="1" max="65535" value="1812">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="radius-timeout">Таймаут, сек</label>
+                                <input type="number" id="radius-timeout" class="form-control form-control-sm" min="1" max="60" value="5">
+                              </div>
+                            </div>
+
+                            <div class="row g-3">
+                              <div class="col-lg-8">
+                                <label class="form-label" for="radius-server">Сервер</label>
+                                <input type="text" id="radius-server" class="form-control form-control-sm" placeholder="radius.example.com">
+                                <div class="form-text">IP или FQDN RADIUS-сервера (UDP auth-порт)</div>
+                              </div>
+                              <div class="col-lg-4">
+                                <label class="form-label" for="radius-secret">Shared Secret</label>
+                                <input type="password" id="radius-secret" class="form-control form-control-sm" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять">
+                              </div>
+                            </div>
+
+                            <div class="row g-3 mt-1">
+                              <div class="col-md-4">
+                                <label class="form-label" for="radius-retries">Повторы</label>
+                                <input type="number" id="radius-retries" class="form-control form-control-sm" min="0" max="10" value="3">
+                              </div>
+                              <div class="col-md-8">
+                                <label class="form-label" for="radius-nas-identifier">NAS-Identifier</label>
+                                <input type="text" id="radius-nas-identifier" class="form-control form-control-sm" placeholder="backup-tools (опционально)">
+                              </div>
+                            </div>
+
+                            <h6 class="settings-subheading mt-3">Маппинг ролей по атрибуту Access-Accept</h6>
+                            <p class="text-muted small">Роль определяется значением атрибута ответа (по умолчанию <code>Filter-Id</code>). Совпадение с <code>admin_values</code> → admin, с <code>operator_values</code> → operator.</p>
+                            <div class="row g-3">
+                              <div class="col-md-4">
+                                <label class="form-label" for="radius-role-attribute">Атрибут</label>
+                                <input type="text" id="radius-role-attribute" class="form-control form-control-sm" value="Filter-Id">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="radius-admin-values">Значения → admin</label>
+                                <input type="text" id="radius-admin-values" class="form-control form-control-sm" placeholder="Admin, Backup-Admin (через запятую)">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="radius-operator-values">Значения → operator</label>
+                                <input type="text" id="radius-operator-values" class="form-control form-control-sm" placeholder="Operator, NOC (через запятую)">
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label" for="radius-default-role">Роль по умолчанию</label>
+                                <select id="radius-default-role" class="form-select form-select-sm">
+                                  <option value="viewer">viewer</option>
+                                  <option value="operator">operator</option>
+                                  <option value="admin">admin</option>
+                                </select>
+                              </div>
+                              <div class="col-md-8 d-flex align-items-end">
+                                <div class="form-check mb-2">
+                                  <input type="checkbox" class="form-check-input" id="radius-fallback-local" checked>
+                                  <label class="form-check-label" for="radius-fallback-local">Разрешить локальный вход при ошибке RADIUS</label>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div class="settings-test-panel mt-3">
+                              <h6 class="settings-subheading mb-2">Проверка входа пользователя</h6>
+                              <div class="row g-2">
+                                <div class="col-md-4">
+                                  <input type="text" id="radius-test-username" class="form-control form-control-sm" placeholder="Логин RADIUS" autocomplete="username">
+                                </div>
+                                <div class="col-md-4">
+                                  <input type="password" id="radius-test-password" class="form-control form-control-sm" placeholder="Пароль" autocomplete="current-password">
+                                </div>
+                                <div class="col-md-4">
+                                  <button type="button" class="btn btn-outline-primary btn-sm" id="btn-radius-test">
+                                    <i class="fas fa-user-check me-1"></i> Проверить
+                                  </button>
+                                </div>
+                              </div>
+                              <div id="radius-test-result" class="small mt-2"></div>
+                            </div>
+
+                            <div class="settings-form-actions">
+                              <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-save me-1"></i> Сохранить RADIUS
                               </button>
                             </div>
                           </form>
@@ -2764,6 +2884,6 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
   <script defer src="/static/js/ui-shell.js"></script>
   <script defer src="/static/js/config-editor.js"></script>
-  <script defer src="/static/js/app.js?v=20260618-4"></script>
+  <script defer src="/static/js/app.js?v=20260618-5"></script>
 </body>
 </html>

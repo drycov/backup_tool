@@ -300,6 +300,7 @@ function normalizeSettingsTabId(raw) {
     notifications: "settings-tab-notify",
     groups: "settings-tab-groups",
     ldap: "settings-tab-ldap",
+    radius: "settings-tab-radius",
     integrations: "settings-tab-integrations",
     system: "settings-tab-system",
     service: "settings-tab-service",
@@ -2913,6 +2914,7 @@ async function loadSettings() {
   renderSettingsCredentials();
   if (can("users:manage")) {
     await loadLdapSettings();
+    await loadRadiusSettings();
   }
   if (can("settings:read")) {
     await loadIntegrationSettings();
@@ -4133,15 +4135,104 @@ function updateLoginAuthHint(authOrCfg) {
   const hintText = qs("#login-auth-hint-text");
   if (!ldapHint) return;
 
-  const enabled = authOrCfg?.ldap_enabled ?? authOrCfg?.enabled;
-  if (!enabled) {
+  const ldap = authOrCfg?.ldap_enabled ?? authOrCfg?.enabled;
+  const radius = authOrCfg?.radius_enabled;
+  if (!ldap && !radius) {
     ldapHint.style.display = "none";
     return;
   }
   ldapHint.style.display = "block";
   if (hintText) {
-    const type = authOrCfg.directory_type;
-    hintText.textContent = type === "ad" ? "Active Directory" : "LDAP";
+    const parts = [];
+    if (ldap) parts.push(authOrCfg.directory_type === "ad" ? "Active Directory" : "LDAP");
+    if (radius) parts.push("RADIUS");
+    hintText.textContent = parts.join(" / ");
+  }
+}
+
+function fillRadiusForm(cfg) {
+  qs("#radius-enabled").checked = !!cfg.enabled;
+  qs("#radius-server").value = cfg.server || "";
+  qs("#radius-port").value = cfg.port || 1812;
+  qs("#radius-secret").value = cfg.secret_set ? "********" : "";
+  qs("#radius-timeout").value = cfg.timeout || 5;
+  qs("#radius-retries").value = cfg.retries ?? 3;
+  qs("#radius-nas-identifier").value = cfg.nas_identifier || "";
+  qs("#radius-role-attribute").value = cfg.role_attribute || "Filter-Id";
+  qs("#radius-admin-values").value = cfg.admin_values || "";
+  qs("#radius-operator-values").value = cfg.operator_values || "";
+  qs("#radius-default-role").value = cfg.default_role || "viewer";
+  qs("#radius-fallback-local").checked = cfg.fallback_local !== false;
+  qs("#radius-test-result").innerHTML = "";
+}
+
+function collectRadiusForm() {
+  const secret = qs("#radius-secret").value;
+  return {
+    enabled: qs("#radius-enabled").checked,
+    server: qs("#radius-server").value.trim(),
+    port: parseInt(qs("#radius-port").value, 10) || 1812,
+    secret: secret === "********" ? "********" : secret,
+    timeout: parseInt(qs("#radius-timeout").value, 10) || 5,
+    retries: parseInt(qs("#radius-retries").value, 10) || 3,
+    nas_identifier: qs("#radius-nas-identifier").value.trim(),
+    role_attribute: qs("#radius-role-attribute").value.trim(),
+    admin_values: qs("#radius-admin-values").value.trim(),
+    operator_values: qs("#radius-operator-values").value.trim(),
+    default_role: qs("#radius-default-role").value,
+    fallback_local: qs("#radius-fallback-local").checked,
+  };
+}
+
+function showRadiusTestResult(result) {
+  const el = qs("#radius-test-result");
+  if (!el) return;
+  const cls = result.ok ? "text-success" : "text-danger";
+  const icon = result.ok ? "check-circle" : "times-circle";
+  el.innerHTML = `<span class="${cls}"><i class="fas fa-${icon} me-1"></i>${escapeHtml(result.message)}</span>`;
+}
+
+async function loadRadiusSettings() {
+  try {
+    const cfg = await api("/api/settings/radius");
+    fillRadiusForm(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `RADIUS: ${e.message}`, "error");
+  }
+}
+
+async function saveRadiusSettings(e) {
+  e.preventDefault();
+  try {
+    const saved = await api("/api/settings/radius", {
+      method: "PUT",
+      body: JSON.stringify(collectRadiusForm()),
+    });
+    fillRadiusForm(saved);
+    showAlert("settings-alert", "Настройки RADIUS сохранены", "success");
+    markSettingsSaved();
+  } catch (err) {
+    showAlert("settings-alert", err.message, "error");
+  }
+}
+
+async function testRadius() {
+  const payload = {
+    username: qs("#radius-test-username")?.value.trim(),
+    password: qs("#radius-test-password")?.value,
+  };
+  try {
+    await api("/api/settings/radius", {
+      method: "PUT",
+      body: JSON.stringify(collectRadiusForm()),
+    });
+    const result = await api("/api/settings/radius/test", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    showRadiusTestResult(result);
+  } catch (err) {
+    showRadiusTestResult({ ok: false, message: err.message });
   }
 }
 
@@ -5489,6 +5580,8 @@ function bindEvents() {
   });
 
   qs("#ldap-settings-form")?.addEventListener("submit", saveLdapSettings);
+  qs("#radius-settings-form")?.addEventListener("submit", saveRadiusSettings);
+  qs("#btn-radius-test")?.addEventListener("click", testRadius);
   qs("#oxidized-settings-form")?.addEventListener("submit", saveOxidizedSettings);
   qs("#backup-settings-form")?.addEventListener("submit", saveBackupSettings);
   qs("#git-settings-form")?.addEventListener("submit", saveGitSettings);

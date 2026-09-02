@@ -20,11 +20,12 @@ from api.helpers import (
     zabbix_user_from_request,
 )
 from core.models import User
-from services import auth, ldap_settings, scan_job
+from services import auth, ldap_settings, radius_settings, scan_job
 from services.audit import (
     ACTION_AUTH_LOGIN,
     ACTION_AUTH_LOGIN_FAILED,
     ACTION_AUTH_LOGIN_LDAP,
+    ACTION_AUTH_LOGIN_RADIUS,
     ACTION_COMPLIANCE_EXPORT,
     ACTION_COMPLIANCE_REPORT_SEND,
     ACTION_SECURITY_AUDIT_RUN,
@@ -106,6 +107,8 @@ from services.schemas import (
     Inventory,
     LdapConfigUpdate,
     LdapTestRequest,
+    RadiusConfigUpdate,
+    RadiusTestRequest,
     OxidizedSettingsUpdate,
     ScanJobStatus,
     ScanLogEntry,
@@ -195,11 +198,17 @@ def login_view(request: HttpRequest) -> JsonResponse:
         )
         return error_response("Неверный логин или пароль", status=401)
 
-    login_action = ACTION_AUTH_LOGIN_LDAP if (user.auth_source or "") == "ldap" else ACTION_AUTH_LOGIN
+    source = user.auth_source or "local"
+    if source == "ldap":
+        login_action = ACTION_AUTH_LOGIN_LDAP
+    elif source == "radius":
+        login_action = ACTION_AUTH_LOGIN_RADIUS
+    else:
+        login_action = ACTION_AUTH_LOGIN
 
     from services.totp_auth import create_totp_challenge_token, totp_public_status
 
-    if (user.auth_source or "local") != "ldap" and user.totp_enabled:
+    if (user.auth_source or "local") not in ("ldap", "radius") and user.totp_enabled:
         return json_response(
             {
                 "totp_required": True,
@@ -1679,6 +1688,47 @@ def ldap_settings_test_view(request: HttpRequest) -> JsonResponse:
 
     result = ldap_settings.test_connection(
         mode=mode,
+        username=payload.username,
+        password=payload.password,
+    )
+    return json_response(result)
+
+
+@csrf_exempt
+@require_http_methods(["GET", "PUT"])
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def radius_settings_dispatch(request: HttpRequest) -> JsonResponse:
+    if request.method == "GET":
+        return json_response(radius_settings.get_config_public())
+    if request.method == "PUT":
+        try:
+            body = parse_json_body(request)
+            payload = RadiusConfigUpdate.model_validate(body)
+            saved = radius_settings.save_config(payload.model_dump())
+        except ApiError as exc:
+            return error_response(exc.detail, exc.status)
+        except ValidationError as exc:
+            return error_response(str(exc))
+        except ValueError as exc:
+            return error_response(str(exc))
+        log_audit_user(request.api_user, ACTION_SETTINGS_UPDATE, target="radius", request=request)
+        return json_response(saved)
+    return error_response("Method not allowed", status=405)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_MANAGE_USERS)
+def radius_settings_test_view(request: HttpRequest) -> JsonResponse:
+    try:
+        body = parse_json_body(request)
+        payload = RadiusTestRequest.model_validate(body)
+    except ApiError as exc:
+        return error_response(exc.detail, exc.status)
+    except ValidationError as exc:
+        return error_response(str(exc))
+
+    result = radius_settings.test_connection(
         username=payload.username,
         password=payload.password,
     )

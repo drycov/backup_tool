@@ -133,6 +133,58 @@ UI: **Настройки → LDAP → Тест** с произвольными c
 
 API: `POST /api/settings/ldap/test` — проверяет bind и определение роли без сохранения.
 
+## RADIUS SSO
+
+Аутентификация по протоколу RADIUS (RFC 2865 — Access-Request / Access-Accept) через пакет `pyrad`. Общая схема входа: сначала LDAP/AD (если включён), затем RADIUS, затем локальные пользователи.
+
+### Первичная настройка
+
+1. Задайте переменные в `.env` (см. [configuration.md](configuration.md))
+2. При старте scanner импортирует их в таблицу `radius_config`
+3. Дальнейшее редактирование — **Настройки → RADIUS** (только admin)
+
+### API
+
+```http
+GET  /api/settings/radius
+PUT  /api/settings/radius
+POST /api/settings/radius/test   {"username", "password"}
+```
+
+### Логика аутентификации
+
+1. Если RADIUS включён → отправка Access-Request (UDP) c `User-Name` / `User-Password` + `NAS-Identifier`
+2. `Access-Accept` → пользователь аутентифицирован
+3. Роль определяется по значению атрибута ответа (`RADIUS_ROLE_ATTRIBUTE`, по умолчанию `Filter-Id`):
+   - совпадение со значением из `RADIUS_ADMIN_VALUES` → `admin`
+   - совпадение со значением из `RADIUS_OPERATOR_VALUES` → `operator`
+   - иначе → `RADIUS_DEFAULT_ROLE` (по умолчанию `viewer`)
+4. Пользователь upsert в таблицу `users` (`auth_source=radius`), пароль локально не хранится
+5. Если RADIUS недоступен и `RADIUS_FALLBACK_LOCAL=true` → локальная проверка пароля
+
+### Переменные `.env`
+
+```env
+RADIUS_ENABLED=false
+RADIUS_SERVER=radius.example.com
+RADIUS_PORT=1812
+RADIUS_SECRET=shared-secret
+RADIUS_TIMEOUT=5
+RADIUS_RETRIES=3
+RADIUS_NAS_IDENTIFIER=backup-tools
+RADIUS_ROLE_ATTRIBUTE=Filter-Id
+RADIUS_ADMIN_VALUES=Backup-Admin,admin
+RADIUS_OPERATOR_VALUES=NOC,operator
+RADIUS_DEFAULT_ROLE=viewer
+RADIUS_FALLBACK_LOCAL=true
+```
+
+### Тест подключения
+
+UI: **Настройки → RADIUS → Проверить** с произвольным логином/паролем (сохраняет настройки, затем отправляет Access-Request).
+
+API: `POST /api/settings/radius/test` — результат `{ok, message, role}`.
+
 ## Безопасность
 
 | Параметр | Рекомендация |

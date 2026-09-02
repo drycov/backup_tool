@@ -187,9 +187,25 @@ def authenticate_ldap(username: str, password: str) -> Optional[dict]:
 
 def auth_methods() -> dict:
     cfg = get_config()
-    configured = ldap_configured()
+    ldap_on = ldap_configured()
+    ldap_local = (not ldap_on) or cfg.fallback_local
+
+    radius_on = False
+    radius_local = True
+    try:
+        from services.radius_settings import (
+            get_config as get_radius_config,
+            radius_configured,
+        )
+
+        radius_on = radius_configured()
+        radius_local = (not radius_on) or get_radius_config().fallback_local
+    except Exception as exc:
+        logger.warning("ldap | auth_methods radius: %s", exc)
+
     return {
-        "ldap_enabled": configured,
-        "local_enabled": not configured or cfg.fallback_local,
-        "directory_type": cfg.directory_type if configured else None,
+        "ldap_enabled": ldap_on,
+        "radius_enabled": radius_on,
+        "local_enabled": ldap_local or radius_local,
+        "directory_type": cfg.directory_type if ldap_on else None,
     }

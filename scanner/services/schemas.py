@@ -233,6 +233,26 @@ class LdapTestRequest(BaseModel):
     password: Optional[str] = None
 
 
+class RadiusConfigUpdate(BaseModel):
+    enabled: bool = False
+    server: str = ""
+    port: int = 1812
+    secret: Optional[str] = None
+    timeout: int = 5
+    retries: int = 3
+    nas_identifier: str = ""
+    role_attribute: str = "Filter-Id"
+    admin_values: str = ""
+    operator_values: str = ""
+    default_role: str = "viewer"
+    fallback_local: bool = True
+
+
+class RadiusTestRequest(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
 class OxidizedSettingsUpdate(BaseModel):
     interval: int = 3600
     threads: int = 10

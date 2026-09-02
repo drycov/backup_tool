@@ -19,6 +19,9 @@ def initialize() -> None:
     from services.ldap_settings import ensure_initialized
 
     ensure_initialized()
+    from services.radius_settings import ensure_initialized as ensure_radius_initialized
+
+    ensure_radius_initialized()
     from services.backup_settings import ensure_initialized as ensure_backup_initialized
 
     from services.git_settings import ensure_initialized as ensure_git_initialized

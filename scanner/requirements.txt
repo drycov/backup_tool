@@ -9,6 +9,7 @@ paramiko>=3.5
 PyJWT>=2.9
 bcrypt>=4.2
 ldap3>=2.9
+pyrad>=2.4
 
 pyotp>=2.9
 

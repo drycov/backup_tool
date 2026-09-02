@@ -159,6 +159,27 @@ class LdapConfig(models.Model):
         db_table = "ldap_config"
 
 
+class RadiusConfig(models.Model):
+    """Singleton: настройки RADIUS SSO (pk=1)."""
+
+    enabled = models.BooleanField(default=False)
+    server = models.CharField(max_length=512, blank=True, default="")
+    port = models.PositiveIntegerField(default=1812)
+    secret = models.CharField(max_length=256, blank=True, default="")
+    timeout = models.PositiveIntegerField(default=5)
+    retries = models.PositiveIntegerField(default=3)
+    nas_identifier = models.CharField(max_length=128, blank=True, default="")
+    role_attribute = models.CharField(max_length=64, default="Filter-Id")
+    admin_values = models.TextField(blank=True, default="")
+    operator_values = models.TextField(blank=True, default="")
+    default_role = models.CharField(max_length=32, default="viewer")
+    fallback_local = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "radius_config"
+
+
 class BackupConfig(models.Model):
     """Singleton: настройки MikroTik backup и уведомлений (pk=1)."""
 

@@ -89,7 +89,10 @@ def get_user_by_username(username: str) -> Optional[User]:
 
 def authenticate_user(username: str, password: str) -> Optional[User]:
     from services.ldap_auth import authenticate_ldap, ldap_configured
-    from services.ldap_settings import get_config
+    from services.ldap_settings import get_config as get_ldap_config
+    from services.radius_auth import authenticate_radius
+    from services.radius_settings import get_config as get_radius_config
+    from services.radius_settings import radius_configured
 
     if ldap_configured():
         ldap_info = authenticate_ldap(username, password)
@@ -100,16 +103,52 @@ def authenticate_user(username: str, password: str) -> Optional[User]:
                 allowed_groups=ldap_info.get("allowed_groups"),
                 allowed_sites=ldap_info.get("allowed_sites"),
             )
-        if not get_config().fallback_local:
-            return None
+
+    if radius_configured():
+        radius_info = authenticate_radius(username, password)
+        if radius_info:
+            return upsert_radius_user(radius_info["username"], radius_info["role"])
+
+    local_allowed = True
+    if ldap_configured() and not get_ldap_config().fallback_local:
+        local_allowed = False
+    if radius_configured() and not get_radius_config().fallback_local:
+        local_allowed = False
+    if not local_allowed:
+        return None
 
     user = get_user_by_username(username)
     if not user or not user.is_active:
         return None
-    if user.auth_source == "ldap":
+    if user.auth_source in ("ldap", "radius"):
         return None
     if not verify_password(password, user.password_hash):
         return None
+    return user
+
+
+def upsert_radius_user(username: str, role: str) -> User:
+    if role not in VALID_ROLES:
+        role = ROLE_VIEWER
+    placeholder_hash = hash_password(secrets.token_hex(32))
+    user, created = User.objects.get_or_create(
+        username=username,
+        defaults={
+            "password_hash": placeholder_hash,
+            "role": role,
+            "is_active": True,
+            "auth_source": "radius",
+            "allowed_groups": [],
+            "allowed_sites": [],
+        },
+    )
+    if not created:
+        user.auth_source = "radius"
+        if not getattr(user, "role_locked", False):
+            user.role = role
+        user.is_active = True
+        user.password_hash = placeholder_hash
+        user.save()
     return user
 
 
@@ -194,8 +233,8 @@ def seed_default_admin() -> None:
 
 
 def change_password(user: User, current_password: str, new_password: str) -> None:
-    if user.auth_source == "ldap":
-        raise ValueError("Смена пароля недоступна для LDAP-пользователей")
+    if user.auth_source in ("ldap", "radius"):
+        raise ValueError("Смена пароля недоступна для LDAP/RADIUS-пользователей")
     if not verify_password(current_password, user.password_hash):
         raise ValueError("Неверный текущий пароль")
     if len(new_password) < 8:
@@ -274,8 +313,8 @@ def update_user(
         user.role_locked = role_locked
     if scope_locked is not None:
         user.scope_locked = scope_locked
-    if password and user.auth_source == "ldap":
-        raise ValueError("LDAP-пользователи не могут иметь локальный пароль")
+    if password and user.auth_source in ("ldap", "radius"):
+        raise ValueError("LDAP/RADIUS-пользователи не могут иметь локальный пароль")
     if password:
         user.password_hash = hash_password(password)
     if allowed_groups is not None:
