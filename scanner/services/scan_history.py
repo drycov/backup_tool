@@ -100,6 +100,7 @@ def get_scan_history(*, limit: int = 50, days: int = 30) -> dict[str, Any]:
                 "partial": row.partial,
                 "scanned_at": row.scanned_at,
                 "error": row.error or None,
+                "ai_analysis": row.ai_analysis or {},
             }
             for row in qs
         ],
