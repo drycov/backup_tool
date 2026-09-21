@@ -1818,6 +1818,25 @@ def git_settings_dispatch(request: HttpRequest) -> JsonResponse:
     return error_response("Method not allowed", status=405)
 
 
+@require_permission(auth.PERMISSION_SETTINGS_READ)
+def env_settings_view(request: HttpRequest) -> JsonResponse:
+    from services import env_settings
+
+    return json_response(env_settings.get_env_public())
+
+
+@require_permission(auth.PERMISSION_SETTINGS_READ)
+def env_settings_export_view(request: HttpRequest) -> HttpResponse:
+    from services import env_settings
+
+    response = HttpResponse(
+        env_settings.get_env_export(),
+        content_type="text/plain; charset=utf-8",
+    )
+    response["Content-Disposition"] = 'attachment; filename="backup-tools.env.snapshot"'
+    return response
+
+
 @csrf_exempt
 def system_settings_dispatch(request: HttpRequest) -> JsonResponse:
     from services import system_settings
