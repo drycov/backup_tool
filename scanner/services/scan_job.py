@@ -180,7 +180,7 @@ async def _run_scan_job_inner(job: ScanJob) -> None:
                     await sync_to_async(enqueue, thread_sensitive=True)(
                         BackgroundTask.TASK_DISCOVERY_AI_ENRICHMENT,
                         payload={"device_name": device.name},
-                        dedupe=True,
+                        dedupe=False,
                     )
 
             inventory = await load_inventory_async()
