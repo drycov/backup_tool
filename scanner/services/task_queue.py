@@ -254,6 +254,11 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
 
         return run_scheduled_inventory_sync()
 
+    if task.task_type == BackgroundTask.TASK_SCAN_AI_ANALYSIS:
+        from services.ai_analyzer import analyze_scan_run
+
+        return analyze_scan_run(int((task.payload or {}).get("scan_run_id") or 0))
+
     if task.task_type == BackgroundTask.TASK_PROVISION_BULK:
         from services.provisioning_bulk import run_bulk_provision_task
 
