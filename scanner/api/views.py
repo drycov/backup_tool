@@ -1295,6 +1295,7 @@ def compliance_report_send_view(request: HttpRequest) -> JsonResponse:
         group=request.GET.get("group", "").strip(),
         state=request.GET.get("state", "").strip(),
         tags=request.GET.get("tags", "").strip(),
+        sla=request.GET.get("sla", "").strip(),
     )
     log_audit_user(
         user,
