@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from datetime import datetime, timezone
 
 
 @pytest.mark.django_db
@@ -14,7 +15,7 @@ def test_analyze_scan_run_persists_ollama_result(monkeypatch):
         online=1,
         offline=1,
         partial=0,
-        scanned_at="2026-09-21T10:00:00Z",
+        scanned_at=datetime(2026, 9, 21, 10, tzinfo=timezone.utc),
         results_json=[
             {"name": "r1", "ip": "10.0.0.1", "status": "online"},
             {"name": "r2", "ip": "10.0.0.2", "status": "offline"},
