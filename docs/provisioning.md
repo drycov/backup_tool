@@ -6,6 +6,7 @@
 
 - **Шаблоны** — Jinja2 с переменными из инвентаря (`device.name`, `device.ip`, `site`, `group`, `role`, `tags`)
 - **Автогенерация** — шаблоны из конфигов Oxidized по кластерам `group` + `site` + `model`; baseline — наиболее типичный конфиг; outlier-устройства помечаются как «сложные»
+- **Выделение шаблона** — из baseline берётся устойчивая часть конфигурации (по кластеру), автоматически параметризуются только значения из inventory (`name`, `ip`, `site`, `group`, `role`), а divergent-строки сохраняются в отчёте для ручной проверки
 - **Bulk provision** — применение шаблона на все устройства `group`/`site` через персистентную task queue (`provision.bulk`)
 - **Preview** — рендер без применения (dry-run)
 - **Apply** — push конфигурации на устройство с записью в `provision_runs` и audit
@@ -150,3 +151,33 @@ Object scope применяется: operator видит только устро
 - [mikrotik-backups.md](mikrotik-backups.md) — restore из UI
 - [inventory.md](inventory.md) — теги site/role для шаблонов
 - [integrations.md](integrations.md) — автоматизация через API keys
+
+
+## Выделение шаблона из конфигов
+
+Для каждого кластера рассчитывается extraction report:
+
+- `coverage` — доля строк baseline, вошедших в устойчивую часть;
+- `common_lines` — количество устойчивых строк;
+- `divergent_lines` — строки baseline, которых нет минимум у 80% конфигов кластера;
+- `variables` — автоматически выделенные переменные с известным источником;
+- `review_lines` — divergent-строки для ручной проверки.
+
+Автоматически параметризуются только значения, источник которых известен из inventory. Произвольные отличия между устройствами в Jinja-переменные не превращаются.
+
+В UI таблица кластеров показывает `coverage / divergent`, а результат анализа содержит полный `extraction` объект.
+
+Пример:
+
+```json
+{
+  "coverage": 0.94,
+  "common_lines": 47,
+  "divergent_lines": 3,
+  "variables": [
+    {"name": "name", "source": "inventory", "expression": "{{ device.name }}"},
+    {"name": "ip", "source": "inventory", "expression": "{{ device.ip }}"}
+  ],
+  "review_lines": ["/ip route add gateway=10.20.30.1"]
+}
+```
