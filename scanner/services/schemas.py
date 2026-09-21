@@ -24,6 +24,7 @@ class Device(BaseModel):
     critical: bool = False
     maintenance: bool = False
     tags: list[str] = Field(default_factory=list)
+    ai_enrichment: dict = Field(default_factory=dict)
 
 
 class DeviceCreate(BaseModel):
