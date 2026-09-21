@@ -259,6 +259,11 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
 
         return analyze_scan_run(int((task.payload or {}).get("scan_run_id") or 0))
 
+    if task.task_type == BackgroundTask.TASK_DISCOVERY_AI_ENRICHMENT:
+        from services.discovery_ai import enrich_discovered_device
+
+        return enrich_discovered_device(str((task.payload or {}).get("device_name") or ""))
+
     if task.task_type == BackgroundTask.TASK_PROVISION_BULK:
         from services.provisioning_bulk import run_bulk_provision_task
 
