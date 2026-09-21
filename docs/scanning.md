@@ -160,3 +160,17 @@ AI_MODEL=qwen3:4b
 docker compose --profile ai up -d ollama
 docker compose exec ollama ollama pull qwen3:4b
 ```
+
+
+## AI Discovery Enrichment
+
+При включённом `AI_DISCOVERY_ENABLED=true` каждый новый discovery device после детерминированной проверки ставится в очередь `discovery.ai_enrichment`. Локальный Ollama + Qwen3 возвращает предложение по `device_type`, `vendor`, `model_candidate`, `os_candidate`, `confidence`, `recommended_profile`, `risk` и `reason`.
+
+AI не регистрирует устройства и не меняет сетевые параметры автоматически. Результат хранится в поле `ai_enrichment` устройства и используется как подсказка оператору. Для запуска достаточно:
+
+```bash
+AI_ENABLED=true
+AI_DISCOVERY_ENABLED=true
+```
+
+Затем запустить Ollama и загрузить модель, например `qwen3:4b`. Основные проверки discovery остаются детерминированными.
