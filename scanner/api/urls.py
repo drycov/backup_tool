@@ -123,6 +123,7 @@ urlpatterns = [
     path("scan/latest", views.get_latest_scan_view, name="scan-latest"),
     path("api/scan/history", views.scan_history_view, name="scan-history"),
     path("api/scan/trends", views.scan_trends_view, name="scan-trends"),
+    path("api/scan/ai", views.scan_ai_view, name="scan-ai"),
     path("api/compliance/summary", views.compliance_summary_view, name="compliance-summary"),
     path("api/compliance/by-site", views.compliance_by_site_view, name="compliance-by-site"),
     path("api/compliance/export", views.compliance_export_view, name="compliance-export"),
