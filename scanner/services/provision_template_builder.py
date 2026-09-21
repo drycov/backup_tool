@@ -54,7 +54,7 @@ def extract_template_variables(raw: str, device: Device) -> tuple[str, list[dict
     variables: list[dict[str, str]] = []
     known = (
         ("name", device.name, "{{ device.name }}"),
-        ("ip", device.ip.split("/") [0] if device.ip else "", "{{ device.ip }}"),
+        ("ip", device.ip.split("/")[0] if device.ip else "", "{{ device.ip }}"),
         ("site", device.site or "", "{{ site }}"),
         ("group", device.group or "", "{{ group }}"),
         ("role", device.role or "", "{{ role }}"),
@@ -66,6 +66,41 @@ def extract_template_variables(raw: str, device: Device) -> tuple[str, list[dict
         if occurrences:
             body = _replace_known_value(body, value, expression)
             variables.append({"name": name, "source": "inventory", "expression": expression, "occurrences": str(occurrences)})
+    return body, variables
+
+
+
+_SEMANTIC_VARIABLE_PATTERNS = (
+    ("gateway", re.compile(r"\\bgateway=(\\d{1,3}(?:\\.\\d{1,3}){3})\\b", re.I)),
+    ("vlan_id", re.compile(r"\\bvlan-id=(\\d{1,4})\\b", re.I)),
+    ("local_as", re.compile(r"\\b(?:local\\.as|local-as)=(\\d{1,10})\\b", re.I)),
+    ("remote_as", re.compile(r"\\b(?:remote\\.as|remote-as)=(\\d{1,10})\\b", re.I)),
+    ("bgp_peer_ip", re.compile(r"\\b(?:remote.address|remote-address)=(\\d{1,3}(?:\\.\\d{1,3}){3})\\b", re.I)),
+    ("dns_servers", re.compile(r"\\bservers=([\\d., ]+)\\b", re.I)),
+)
+
+def extract_semantic_variables(raw: str) -> tuple[str, list[dict[str, Any]]]:
+    """Выделить сетевые параметры второго уровня при однозначном совпадении."""
+    body = raw
+    variables: list[dict[str, Any]] = []
+    for name, pattern in _SEMANTIC_VARIABLE_PATTERNS:
+        matches = list(pattern.finditer(body))
+        if not matches:
+            continue
+        values = list(dict.fromkeys(m.group(1).strip() for m in matches if m.group(1).strip()))
+        if len(values) != 1:
+            continue
+        value = values[0]
+        expression = "{{ " + name + " }}"
+        body = pattern.sub(lambda m: m.group(0).replace(m.group(1), expression), body)
+        variables.append({
+            "name": name,
+            "source": "semantic",
+            "expression": expression,
+            "confidence": "high",
+            "occurrences": len(matches),
+            "value": value,
+        })
     return body, variables
 
 
@@ -87,6 +122,8 @@ def extract_common_template(samples: list[DeviceConfigSample], baseline: DeviceC
         else:
             divergent.append(line)
     rendered, variables = extract_template_variables("\n".join(common), baseline.device)
+    semantic_body, semantic_variables = extract_semantic_variables(rendered)
+    variables.extend(semantic_variables)
     total = len([x for x in baseline_lines if x.strip()])
     return {
         "common_lines": len(common),
@@ -94,7 +131,7 @@ def extract_common_template(samples: list[DeviceConfigSample], baseline: DeviceC
         "coverage": round(len(common) / max(1, total), 4),
         "variables": variables,
         "review_lines": divergent[:100],
-        "body": rendered.strip() + "\n" if rendered.strip() else "",
+        "body": semantic_body.strip() + "\n" if semantic_body.strip() else "",
     }
 
 
@@ -490,6 +527,10 @@ def generate_templates_from_configs(
             "complex_devices": cluster.complex_devices,
             "device_count": cluster.device_count,
             "extraction": cluster.extraction,
+            "requires_extra_vars": [
+                item["name"] for item in cluster.extraction.get("variables", [])
+                if item.get("source") == "semantic"
+            ],
         }
         name = f"Auto: {cluster.group}"
         if cluster.site:
