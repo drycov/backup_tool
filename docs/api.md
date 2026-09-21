@@ -325,3 +325,8 @@ curl -H "Accept: application/json" \
 ```
 
 Формат: массив `{hostname, ip, os, group, ssh_port}`.
+
+
+### POST /inventory/devices/{name}/ai/accept
+
+Применяет выбранные оператором поля AI-классификации устройства. Тело: `{"apply_model": true, "apply_group": false}`. AI остаётся рекомендательным слоем; endpoint изменяет только явно выбранные поля.
