@@ -4,7 +4,7 @@ Dashboard и фоновые уведомления о деградации ис�
 
 ## Где смотреть
 
-- **Dashboard** — блок «Compliance бэкапов»: процент OK, счётчики по состояниям, таблица устройств
+- **Dashboard** — блок «Compliance бэкапов»: процент OK, счётчики по состояниям, SLA, возраст последнего бэкапа и таблица устройств
 - **API** — `GET /api/compliance/summary`
 - **Уведомления** — фоновый `degradation_monitor` агрегирует проблемы в 4 категории
 
@@ -43,7 +43,7 @@ GET /api/compliance/export?site=dc1&role=core
 
 Permission: `inventory:read`.
 
-Фильтры (все опциональны): `site`, `role`, `group`, `state`, `critical` (`true` / `false`).
+Фильтры (все опциональны): `site`, `role`, `group`, `state`, `critical` (`true` / `false`), `tags`, `sla` (`ok` / `breached`).
 
 Экспорт CSV — те же query-параметры; кнопка **CSV** на Dashboard или прямой запрос с cookie сессии.
 
@@ -115,10 +115,16 @@ UI → **Уведомления** → Webhook: JSON POST на URL при сра�
       "state_label": "Нет изменений",
       "issues": ["stale"],
       "last_status": "success",
-      "reachability": "online"
+      "reachability": "online",
+      "compliance_sla_hours": 24,
+      "backup_age_sec": 3600,
+      "backup_age_hours": 1.0,
+      "sla_breached": false
     }
   ],
-  "oxidized_error": null
+  "oxidized_error": null,
+  "critical_noncompliant": 2,
+  "sla_breached": 1
 }
 ```
 
@@ -151,3 +157,24 @@ UI → **Уведомления** → Webhook: JSON POST на URL при сра�
 - [API](api.md) — эндпоинты compliance и degrade-check
 - [Сканирование](scanning.md) — reachability для offline
 - [Oxidized](oxidized.md) — interval и статусы узлов
+
+
+## SLA и возраст бэкапа
+
+Для каждого устройства compliance дополнительно рассчитывает:
+
+- `compliance_sla_hours` — эффективный SLA группы;
+- `backup_age_sec` / `backup_age_hours` — возраст последнего успешного бэкапа или конфигурации;
+- `sla_breached` — превышен ли SLA;
+- `critical_noncompliant` — количество critical-устройств не в состоянии `ok`;
+- `sla_breached` на уровне summary — количество устройств с нарушенным SLA.
+
+В Dashboard добавлены фильтр **SLA: Все / Нарушен / В SLA**, KPI по нарушениям SLA и critical-устройствам, а также колонка возраста последнего бэкапа.
+
+Примеры:
+
+```http
+GET /api/compliance/summary?sla=breached
+GET /api/compliance/summary?critical=true&sla=breached
+GET /api/compliance/export?format=csv&sla=breached
+```
