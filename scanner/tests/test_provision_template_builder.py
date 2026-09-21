@@ -13,6 +13,7 @@ from services.provision_template_builder import (
     normalize_config_for_compare,
     raw_config_to_jinja_template,
     similarity_ratio,
+    extract_common_template,
 )
 from services.schemas import Device
 
@@ -114,3 +115,19 @@ def test_generate_templates_creates_and_upserts():
 
     assert len(result2["updated"]) == 1
     assert ProvisionTemplate.objects.filter(source=ProvisionTemplate.SOURCE_GENERATED).count() == 1
+
+
+def test_extract_common_template_reports_coverage_and_inventory_variables():
+    device = Device(name="router-a", ip="10.0.0.1", model="routeros", group="hex", site="dc1", role="core")
+    sample = type("Sample", (), {})()
+    sample.device = device
+    sample.raw = "/system identity set name=router-a\\n/ip address add address=10.0.0.1/24\\n/interface bridge add name=br-core\\n"
+    sample.error = ""
+    sample.normalized = normalize_config_for_compare(sample.raw, device)
+
+    result = extract_common_template([sample], sample)
+
+    assert result["coverage"] > 0
+    assert "{{ device.name }}" in result["body"]
+    assert "{{ device.ip }}" in result["body"]
+    assert result["variables"]
