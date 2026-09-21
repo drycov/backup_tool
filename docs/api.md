@@ -132,6 +132,7 @@
 |-------|------|------------|----------|
 | GET | `/api/scan/history` | `inventory:read` | История scan jobs |
 | GET | `/api/scan/trends` | `inventory:read` | Агрегаты для графиков |
+| GET | `/api/scan/ai` | `inventory:read` | AI-анализ последнего scan |
 
 ## Audit
 
