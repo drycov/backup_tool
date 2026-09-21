@@ -163,13 +163,25 @@ async def _run_scan_job_inner(job: ScanJob) -> None:
                     "success",
                 )
 
-            await discover_and_enrich(
+            discovered_devices = await discover_and_enrich(
                 inventory.networks,
                 inventory.devices,
                 inventory.credential_profiles,
                 on_progress=on_discovery_progress,
                 on_device_saved=on_device_saved,
             )
+
+            if os.getenv("AI_DISCOVERY_ENABLED", "false").lower() in ("1", "true", "yes", "on") and discovered_devices:
+                from asgiref.sync import sync_to_async
+                from services.task_queue import enqueue
+                from core.models import BackgroundTask
+
+                for device in discovered_devices:
+                    await sync_to_async(enqueue, thread_sensitive=True)(
+                        BackgroundTask.TASK_DISCOVERY_AI_ENRICHMENT,
+                        payload={"device_name": device.name},
+                        dedupe=True,
+                    )
 
             inventory = await load_inventory_async()
             append_job_log(job, f"Discovery завершён, устройств: {len(inventory.devices)}")
