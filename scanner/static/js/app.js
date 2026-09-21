@@ -2942,7 +2942,7 @@ function renderEnvSettings() {
               ? '<span class="badge text-bg-warning"><i class="fas fa-lock me-1"></i>секрет</span>'
               : item.set
                 ? '<span class="badge text-bg-success">задано</span>'
-                : '<span class="badge text-bg-secondary">default</span>'}
+                : '<span class="badge text-bg-secondary">не задано</span>'}
           </td>
         </tr>
       `).join("")
