@@ -38,6 +38,63 @@ _VOLATILE_PATTERNS = (
 
 _IP_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}(?:/\d{1,2})?\b")
 
+_MAC_RE = re.compile(r"\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b", re.I)
+
+
+def _replace_known_value(body: str, value: str, expression: str) -> str:
+    if not value or len(value.strip()) < 2:
+        return body
+    return re.sub(re.escape(value), expression, body, flags=re.I)
+
+
+def extract_template_variables(raw: str, device: Device) -> tuple[str, list[dict[str, str]]]:
+    """Выделить безопасные device-specific значения из baseline-конфига."""
+    body = raw
+    variables: list[dict[str, str]] = []
+    known = (
+        ("name", device.name, "{{ device.name }}"),
+        ("ip", device.ip.split("/") [0] if device.ip else "", "{{ device.ip }}"),
+        ("site", device.site or "", "{{ site }}"),
+        ("group", device.group or "", "{{ group }}"),
+        ("role", device.role or "", "{{ role }}"),
+    )
+    for name, value, expression in known:
+        if not value or len(value.strip()) < 2:
+            continue
+        occurrences = len(re.findall(re.escape(value), body, flags=re.I))
+        if occurrences:
+            body = _replace_known_value(body, value, expression)
+            variables.append({"name": name, "source": "inventory", "expression": expression, "occurrences": str(occurrences)})
+    return body, variables
+
+
+def extract_common_template(samples: list[DeviceConfigSample], baseline: DeviceConfigSample) -> dict[str, Any]:
+    """Извлечь устойчивую часть baseline без потери divergent-команд."""
+    valid = [s for s in samples if s.raw and not s.error]
+    baseline_lines = baseline.raw.splitlines()
+    normalized_sets = [set(s.normalized.splitlines()) for s in valid]
+    common: list[str] = []
+    divergent: list[str] = []
+    for line in baseline_lines:
+        normalized = normalize_config_for_compare(line, baseline.device)
+        if not normalized:
+            continue
+        matches = sum(1 for lines in normalized_sets if normalized in lines)
+        if matches >= max(1, int(len(valid) * 0.8)):
+            common.append(line)
+        else:
+            divergent.append(line)
+    rendered, variables = extract_template_variables("\n".join(common), baseline.device)
+    total = len([x for x in baseline_lines if x.strip()])
+    return {
+        "common_lines": len(common),
+        "divergent_lines": len(divergent),
+        "coverage": round(len(common) / max(1, total), 4),
+        "variables": variables,
+        "review_lines": divergent[:100],
+        "body": rendered.strip() + "\n" if rendered.strip() else "",
+    }
+
 
 @dataclass
 class DeviceConfigSample:
@@ -58,6 +115,7 @@ class ClusterAnalysis:
     simple_devices: list[str] = field(default_factory=list)
     complex_devices: list[dict[str, Any]] = field(default_factory=list)
     template_body: str = ""
+    extraction: dict[str, Any] = field(default_factory=dict)
     skipped_reason: str = ""
 
     @property
@@ -75,6 +133,7 @@ class ClusterAnalysis:
             "simple_devices": self.simple_devices,
             "complex_devices": self.complex_devices,
             "template_body": self.template_body,
+            "extraction": self.extraction,
             "skipped_reason": self.skipped_reason,
             "devices": [
                 {
@@ -359,7 +418,10 @@ def analyze_clusters(
             baseline,
             threshold=complexity_threshold,
         )
-        analysis.template_body = raw_config_to_jinja_template(baseline.raw, baseline.device)
+        analysis.extraction = extract_common_template(analysis.devices, baseline)
+        analysis.template_body = analysis.extraction["body"]
+        if not analysis.template_body:
+            analysis.template_body = raw_config_to_jinja_template(baseline.raw, baseline.device)
         _log(
             "info",
             f"  baseline: {baseline.device.name} ({avg_sim:.0%}), "
@@ -425,6 +487,7 @@ def generate_templates_from_configs(
             "simple_devices": cluster.simple_devices,
             "complex_devices": cluster.complex_devices,
             "device_count": cluster.device_count,
+            "extraction": cluster.extraction,
         }
         name = f"Auto: {cluster.group}"
         if cluster.site:
@@ -455,6 +518,7 @@ def generate_templates_from_configs(
                     "group": cluster.group,
                     "site": cluster.site,
                     "complex_devices": cluster.complex_devices,
+                    "extraction": cluster.extraction,
                 }
             )
             _log("success", f"▸ {label} — обновлён шаблон {slug}")
