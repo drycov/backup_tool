@@ -1969,3 +1969,40 @@ body.enterprise-ui {
 [data-bs-theme="dark"] .enterprise-ui .enterprise-page-header {
   background: var(--ent-surface-raised);
 }
+
+
+/* Runtime ENV settings */
+.enterprise-ui .env-settings-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.enterprise-ui .env-settings-search {
+  flex: 1 1 280px;
+  max-width: 520px;
+}
+.enterprise-ui .env-settings-group-filter {
+  flex: 0 1 260px;
+}
+.enterprise-ui .env-settings-table-wrap {
+  max-height: 62vh;
+  overflow: auto;
+  border: 1px solid var(--ent-border);
+  border-radius: var(--ent-radius-lg);
+}
+.enterprise-ui .env-settings-table .env-var-name {
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: .78rem;
+}
+.enterprise-ui .env-var-value {
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: .78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.enterprise-ui .env-settings-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
