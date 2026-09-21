@@ -22,3 +22,7 @@ oxidized/crashes/
 # Oxidized runtime/local configuration
 oxidized/config
 oxidized/crashes/
+
+# Deployment runtime
+.deploy.lock
+.deploy-version
