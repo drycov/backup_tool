@@ -131,3 +131,16 @@ def test_extract_common_template_reports_coverage_and_inventory_variables():
     assert "{{ device.name }}" in result["body"]
     assert "{{ device.ip }}" in result["body"]
     assert result["variables"]
+
+
+
+def test_extract_semantic_variables_returns_safe_candidates_without_mutating_body():
+    from services.provision_template_builder import extract_semantic_variables
+
+    raw = "/ip route add gateway=10.20.30.1\n/interface vlan add name=mgmt vlan-id=120\n"
+    body, variables = extract_semantic_variables(raw)
+
+    assert body == raw
+    assert {item["name"] for item in variables} == {"gateway", "vlan_id"}
+    assert all(item["source"] == "semantic_candidate" for item in variables)
+    assert all(item["confidence"] == "high" for item in variables)
