@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -246,12 +247,22 @@ async def _run_scan_job_inner(job: ScanJob) -> None:
         try:
             from services.scan_history import persist_scan_run_async
 
-            await persist_scan_run_async(
+            run_row = await persist_scan_run_async(
                 summary,
                 job_id=job.id,
                 discover=job.discover,
                 status="completed",
             )
+            if os.getenv("AI_ENABLED", "false").lower() in ("1", "true", "yes", "on"):
+                from asgiref.sync import sync_to_async
+                from services.task_queue import enqueue
+                from core.models import BackgroundTask
+
+                await sync_to_async(enqueue, thread_sensitive=True)(
+                    BackgroundTask.TASK_SCAN_AI_ANALYSIS,
+                    payload={"scan_run_id": run_row.id},
+                    dedupe=True,
+                )
         except Exception:
             logger.exception("scan_job | failed to persist history")
 
