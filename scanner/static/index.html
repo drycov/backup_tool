@@ -334,6 +334,14 @@
                           <option value="false">Нет</option>
                         </select>
                       </div>
+                      <div class="form-group col-md-2 col-6 mb-1">
+                        <label for="cf-sla" class="small text-muted mb-0">SLA</label>
+                        <select id="cf-sla" class="form-control form-control-sm">
+                          <option value="">Все</option>
+                          <option value="breached">Нарушен</option>
+                          <option value="ok">В SLA</option>
+                        </select>
+                      </div>
                       <div class="form-group col-md-2 col-12 mb-1">
                         <button type="button" class="btn btn-outline-primary btn-sm w-100" id="btn-compliance-apply">
                           <i class="fas fa-filter me-1"></i> Применить
@@ -347,7 +355,7 @@
                         <tr>
                           <th>Статус</th><th>Устройство</th><th>IP</th><th>Группа</th>
                           <th>Site</th><th>Role</th><th>Critical</th>
-                          <th>Последний бэкап</th><th>Scan</th>
+                          <th>Последний бэкап</th><th>Возраст</th><th>Scan</th>
                         </tr>
                       </thead>
                       <tbody id="compliance-table"></tbody>
