@@ -21,10 +21,9 @@ def _poll_interval_sec() -> int:
 
 def tick() -> None:
     from services.metrics import refresh_all_gauges
-    from services.task_queue import process_next_task, purge_stale_running, schedule_periodic_tasks
+    from services.task_queue import process_next_task, purge_stale_running
 
     purge_stale_running()
-    schedule_periodic_tasks()
     while process_next_task():
         pass
     refresh_all_gauges()
