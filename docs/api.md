@@ -330,3 +330,13 @@ curl -H "Accept: application/json" \
 ### POST /inventory/devices/{name}/ai/accept
 
 Применяет выбранные оператором поля AI-классификации устройства. Тело: `{"apply_model": true, "apply_group": false}`. AI остаётся рекомендательным слоем; endpoint изменяет только явно выбранные поля.
+
+
+### Runtime ENV
+
+| Метод | Путь | Permission | Описание |
+|-------|------|------------|----------|
+| GET | `/api/settings/env` | `settings:read` | Известные переменные runtime environment, секреты замаскированы |
+| GET | `/api/settings/env/export` | `settings:read` | Безопасный `.env` snapshot без секретов |
+
+Источник данных — окружение запущенного процесса scanner. Endpoint не читает произвольные переменные окружения.
