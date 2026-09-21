@@ -1505,12 +1505,14 @@ function complianceFilterQuery() {
   const state = qs("#cf-state")?.value.trim();
   const critical = qs("#cf-critical")?.value.trim();
   const tags = qs("#cf-tags")?.value.trim();
+  const sla = qs("#cf-sla")?.value.trim();
   if (site) params.set("site", site);
   if (role) params.set("role", role);
   if (group) params.set("group", group);
   if (state) params.set("state", state);
   if (critical) params.set("critical", critical);
   if (tags) params.set("tags", tags);
+  if (sla) params.set("sla", sla);
   const q = params.toString();
   return q ? `?${q}` : "";
 }
@@ -1560,6 +1562,8 @@ async function loadComplianceDashboard() {
     dashboardStatItem(`Stale >${compliance.stale_days_threshold}д`, counts.stale || 0, counts.stale ? "warning" : ""),
     dashboardStatItem("Offline", counts.unreachable || 0, counts.unreachable ? "danger" : ""),
     dashboardStatItem("Нет бэкапа", counts.never || 0, counts.never ? "secondary" : ""),
+    dashboardStatItem("SLA нарушен", compliance.sla_breached || 0, compliance.sla_breached ? "danger" : "success"),
+    dashboardStatItem("Critical с проблемой", compliance.critical_noncompliant || 0, compliance.critical_noncompliant ? "danger" : "success"),
   ];
   dashboardStatsState.sites = complianceBySiteFromNodes(compliance.nodes);
   renderDashboardStatsTable();
@@ -1587,6 +1591,7 @@ async function loadComplianceDashboard() {
       <td>${escapeHtml(n.role || "—")}</td>
       <td>${n.critical ? badgeSpan("yes", "danger") : badgeSpan("no", "light")}</td>
       <td class="text-sm">${formatDate(n.last_backup_at) || "—"}</td>
+      <td>${n.backup_age_hours != null ? `${n.backup_age_hours}ч` : "—"}${n.sla_breached ? ` ${badgeSpan("SLA", "danger")}` : ""}</td>
       <td>${n.reachability ? badgeSpan(n.reachability, n.reachability === "online" ? "success" : "danger") : "—"}</td>
     </tr>
   `).join("");
