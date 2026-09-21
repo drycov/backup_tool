@@ -2877,7 +2877,7 @@ function renderDevicesTable() {
       <td>${escapeHtml((d.ports || []).join(", "))}</td>
       <td>${d.enabled ? badgeSpan("on", "success") : badgeSpan("off", "secondary")}</td>
       <td>
-        ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${escapeHtml(d.name)}" title="Изменить" aria-label="Изменить"><i class="fas fa-edit"></i></button>` : ""}
+        ${can("inventory:devices") ? `<button class="btn btn-info btn-sm btn-edit-device" data-name="${escapeHtml(d.name)}" title="Изменить" aria-label="Изменить"><i class="fas fa-edit"></i></button>` : ""}        ${can("inventory:devices") && d.ai_enrichment?.status === "completed" ? `<button class="btn btn-outline-primary btn-sm btn-ai-device" data-name="${escapeHtml(d.name)}" title="AI-классификация" aria-label="AI-классификация"><i class="fas fa-wand-magic-sparkles"></i></button>` : ""}
         ${can("inventory:devices") ? `<button class="btn btn-danger btn-sm btn-delete-device" data-name="${escapeHtml(d.name)}" title="Удалить" aria-label="Удалить"><i class="fas fa-trash"></i></button>` : ""}
       </td>
     </tr>
