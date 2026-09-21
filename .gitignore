@@ -16,3 +16,9 @@ oxidized/router.db
 oxidized-ssh/id_rsa
 oxidized-ssh/id_rsa.pub
 oxidized-ssh/known_hosts
+# Oxidized runtime data
+oxidized/crashes/
+
+# Oxidized runtime/local configuration
+oxidized/config
+oxidized/crashes/
