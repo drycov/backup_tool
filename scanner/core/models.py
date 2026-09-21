@@ -64,6 +64,7 @@ class Device(models.Model):
     critical = models.BooleanField(default=False, db_index=True)
     maintenance = models.BooleanField(default=False, db_index=True)
     tags = LegacyJSONField(default=list, blank=True)
+    ai_enrichment = LegacyJSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "devices"
