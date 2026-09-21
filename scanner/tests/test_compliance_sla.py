@@ -44,7 +44,7 @@ def test_compliance_exposes_backup_age_and_sla(monkeypatch):
     nodes = [{
         "name": "router-1",
         "status": "success",
-        "last": {"status": "success", "end": (now - timedelta(hours=2)).isoformat()},
+        "last": {"status": "success", "end": (now - timedelta(hours=1)).isoformat()},
         "mtime": 0,
     }]
     _patch_compliance(monkeypatch, devices, nodes)
