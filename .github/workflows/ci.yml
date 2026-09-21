@@ -24,7 +24,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Ruff lint
-        run: ruff check api/views.py api/urls.py services/auth.py services/compliance.py services/compliance_report.py services/inventory.py services/schemas.py backup_tools/settings.py tests/
+        run: ruff check api/views.py api/urls.py services/auth.py services/compliance.py services/compliance_report.py services/inventory.py services/schemas.py services/ai_analyzer.py services/scheduler.py services/task_worker.py backup_tools/settings.py tests/
 
       - name: Collect static
         run: python manage.py collectstatic --noinput
