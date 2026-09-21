@@ -169,6 +169,7 @@ def compute_compliance_summary(
     group: str = "",
     state: str = "",
     tags: str = "",
+    sla: str = "",
     user=None,
 ) -> dict[str, Any]:
     cfg = get_config()
@@ -213,6 +214,8 @@ def compute_compliance_summary(
     stale_cutoff = now - timedelta(days=stale_days)
 
     counts = {s: 0 for s in _STATE_LABELS}
+    critical_noncompliant = 0
+    sla_breached_count = 0
     items: list[dict[str, Any]] = []
 
     for device in enabled:
@@ -230,9 +233,34 @@ def compute_compliance_summary(
             stale_cutoff=stale_cutoff,
             overdue_cutoff=overdue_cutoff,
         )
+        last_backup_at = meta["last_backup_at"]
+        config_mtime = meta["config_mtime"]
+        backup_reference = last_backup_at or config_mtime
+        backup_age_sec = (
+            max(0, int((now - backup_reference).total_seconds()))
+            if backup_reference
+            else None
+        )
+        sla_hours = effective_compliance_sla_hours(device.group)
+        sla_breached = bool(
+            sla_hours
+            and backup_age_sec is not None
+            and backup_age_sec > sla_hours * 3600
+        )
+        if sla_breached and "overdue" not in issues and primary == STATE_OK:
+            issues.append(STATE_OVERDUE)
+            primary = STATE_OVERDUE
+        if sla == "breached" and not sla_breached:
+            continue
+        if sla == "ok" and sla_breached:
+            continue
         if state and primary != state:
             continue
         counts[primary] = counts.get(primary, 0) + 1
+        if device.critical and primary != STATE_OK:
+            critical_noncompliant += 1
+        if sla_breached:
+            sla_breached_count += 1
         items.append(
             {
                 "name": device.name,
@@ -247,10 +275,14 @@ def compute_compliance_summary(
                 "state_label": _STATE_LABELS.get(primary, primary),
                 "issues": issues,
                 "last_status": meta["last_status"],
-                "last_backup_at": meta["last_backup_at"],
-                "config_mtime": meta["config_mtime"],
+                "last_backup_at": last_backup_at,
+                "config_mtime": config_mtime,
                 "reachability": meta["reachability"],
                 "backup_interval_sec": interval,
+                "compliance_sla_hours": sla_hours,
+                "backup_age_sec": backup_age_sec,
+                "backup_age_hours": round(backup_age_sec / 3600, 1) if backup_age_sec is not None else None,
+                "sla_breached": sla_breached,
             }
         )
 
@@ -276,7 +308,10 @@ def compute_compliance_summary(
             "group": group,
             "state": state,
             "tags": tags,
+            "sla": sla,
         },
+        "critical_noncompliant": critical_noncompliant,
+        "sla_breached": sla_breached_count,
     }
 
 
@@ -334,6 +369,9 @@ def compliance_to_csv(summary: dict[str, Any] | None = None) -> str:
             "last_backup_at",
             "reachability",
             "backup_interval_sec",
+            "compliance_sla_hours",
+            "backup_age_hours",
+            "sla_breached",
         ]
     )
     for node in data.get("nodes") or []:
@@ -351,6 +389,9 @@ def compliance_to_csv(summary: dict[str, Any] | None = None) -> str:
                 node.get("last_backup_at", "") or "",
                 node.get("reachability", "") or "",
                 node.get("backup_interval_sec", ""),
+                node.get("compliance_sla_hours", ""),
+                node.get("backup_age_hours", ""),
+                "yes" if node.get("sla_breached") else "no",
             ]
         )
     return buf.getvalue()
