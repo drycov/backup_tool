@@ -2909,6 +2909,93 @@ function renderDevicesTable() {
   });
 }
 
+let envSettingsCache = null;
+
+function renderEnvSettings() {
+  const tbody = qs("#env-settings-table-body");
+  if (!tbody) return;
+  const query = (qs("#env-settings-filter")?.value || "").trim().toLowerCase();
+  const group = qs("#env-settings-group")?.value || "";
+  const items = (envSettingsCache?.items || []).filter(item => {
+    const matchesQuery = !query
+      || item.name.toLowerCase().includes(query)
+      || item.value.toLowerCase().includes(query);
+    const matchesGroup = !group || item.group === group;
+    return matchesQuery && matchesGroup;
+  });
+  const total = envSettingsCache?.items?.length || 0;
+  const setCount = (envSettingsCache?.items || []).filter(item => item.set).length;
+  const count = qs("#env-settings-count");
+  if (count) count.textContent = `${setCount}/${total} задано`;
+  tbody.innerHTML = items.length
+    ? items.map(item => `
+        <tr>
+          <td><code class="env-var-name">${escapeHtml(item.name)}</code></td>
+          <td><span class="badge text-bg-light border">${escapeHtml(item.group)}</span></td>
+          <td>
+            ${item.set
+              ? `<code class="env-var-value">${escapeHtml(item.value || (item.secret ? "••••••••" : ""))}</code>`
+              : '<span class="text-muted">не задано</span>'}
+          </td>
+          <td>
+            ${item.secret
+              ? '<span class="badge text-bg-warning"><i class="fas fa-lock me-1"></i>секрет</span>'
+              : item.set
+                ? '<span class="badge text-bg-success">задано</span>'
+                : '<span class="badge text-bg-secondary">default</span>'}
+          </td>
+        </tr>
+      `).join("")
+    : '<tr><td colspan="4" class="text-muted text-center py-4">Переменные не найдены</td></tr>';
+}
+
+function fillEnvSettings(cfg) {
+  envSettingsCache = cfg || { items: [], groups: [] };
+  const source = qs("#env-settings-source");
+  if (source) source.textContent = cfg?.source || "process environment";
+  const select = qs("#env-settings-group");
+  if (select) {
+    const current = select.value;
+    select.innerHTML = '<option value="">Все группы</option>'
+      + (cfg?.groups || []).map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+    if ((cfg?.groups || []).includes(current)) select.value = current;
+  }
+  renderEnvSettings();
+}
+
+async function loadEnvSettings() {
+  if (!can("settings:read")) return;
+  try {
+    const cfg = await api("/api/settings/env");
+    fillEnvSettings(cfg);
+  } catch (e) {
+    showAlert("settings-alert", `ENV: ${e.message}`, "error");
+  }
+}
+
+async function exportEnvSettings() {
+  if (!can("settings:read")) return;
+  try {
+    const res = await fetch(`${API}/api/settings/env/export`, { credentials: "include" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "backup-tools.env.snapshot";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showAlert("settings-alert", "Безопасный ENV snapshot выгружен. Секреты не включены.", "success");
+  } catch (e) {
+    showAlert("settings-alert", `ENV export: ${e.message}`, "error");
+  }
+}
+
 async function loadSettings() {
   inventory = await api("/inventory");
   updateGroupSelects();
@@ -2928,6 +3015,9 @@ async function loadSettings() {
   }
   if (can("users:manage")) {
     await loadSystemSettings();
+  }
+  if (can("settings:read")) {
+    await loadEnvSettings();
   }
   if (can("inventory:write")) {
     await loadScanSettings();
@@ -5603,6 +5693,10 @@ function bindEvents() {
   qs("#notify-settings-form")?.addEventListener("submit", saveNotifySettings);
   qs("#integration-settings-form")?.addEventListener("submit", saveIntegrationSettings);
   qs("#system-settings-form")?.addEventListener("submit", saveSystemSettings);
+  qs("#btn-env-refresh")?.addEventListener("click", loadEnvSettings);
+  qs("#btn-env-export")?.addEventListener("click", exportEnvSettings);
+  qs("#env-settings-filter")?.addEventListener("input", renderEnvSettings);
+  qs("#env-settings-group")?.addEventListener("change", renderEnvSettings);
   qs("#btn-test-audit-webhook")?.addEventListener("click", testAuditWebhook);
   qs("#btn-import-netbox")?.addEventListener("click", () => runInventoryImport("netbox"));
   qs("#btn-import-librenms")?.addEventListener("click", () => runInventoryImport("librenms"));
