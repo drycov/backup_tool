@@ -124,3 +124,39 @@ docker compose exec scanner ping -c 2 10.216.92.1
 ## Связь с Oxidized
 
 Discovery добавляет устройства в инвентарь → они автоматически попадают в source Oxidized при следующей перезагрузке узлов. Рекомендуется после discovery выполнить **Oxidized → Sync** или дождаться интервала `OXIDIZED_INTERVAL`.
+
+
+## Планировщик APScheduler
+
+Периодические scan/discovery больше не должны зависеть от cron. В стеке запускается отдельный контейнер `scheduler`, который использует APScheduler и каждые `SCHEDULER_TICK_SEC` секунд проверяет настройки `ScanConfig` и ставит задачи в персистентную очередь PostgreSQL. Сам scanner-worker только исполняет очередь.
+
+Это разделяет:
+- scheduler — когда запускать;
+- task queue — что поставить в очередь и обеспечить dedupe/retry;
+- scanner worker — выполнение scan/discovery;
+- web UI — ручной запуск и мониторинг.
+
+## Локальный AI-анализ
+
+AI является необязательным post-processing этапом. После завершения scan результат ставится в очередь `scan.ai_analysis`.
+
+Рекомендуемый бесплатный локальный стек:
+- Ollama;
+- open-weight Qwen3;
+- по умолчанию `qwen3:4b);
+- endpoint `GET /api/scan/ai`.
+
+AI не участвует в принятии решения о доступности устройства и не блокирует scan/discovery. Он используется для сводки, выделения рисков и рекомендаций только по фактически полученным данным.
+
+Включение:
+```env
+AI_ENABLED=true
+AI_OLLAMA_URL=http://ollama:11434
+AI_MODEL=qwen3:4b
+```
+
+Запуск:
+```bash
+docker compose --profile ai up -d ollama
+docker compose exec ollama ollama pull qwen3:4b
+```
