@@ -121,7 +121,7 @@ def test_extract_common_template_reports_coverage_and_inventory_variables():
     device = Device(name="router-a", ip="10.0.0.1", model="routeros", group="hex", site="dc1", role="core")
     sample = type("Sample", (), {})()
     sample.device = device
-    sample.raw = "/system identity set name=router-a\\n/ip address add address=10.0.0.1/24\\n/interface bridge add name=br-core\\n"
+    sample.raw = "/system identity set name=router-a\n/ip address add address=10.0.0.1/24\n/interface bridge add name=br-core\n"
     sample.error = ""
     sample.normalized = normalize_config_for_compare(sample.raw, device)
 
