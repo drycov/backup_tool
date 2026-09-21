@@ -1239,6 +1239,7 @@ def compliance_summary_view(request: HttpRequest) -> JsonResponse:
             group=request.GET.get("group", "").strip(),
             state=request.GET.get("state", "").strip(),
             tags=request.GET.get("tags", "").strip(),
+            sla=request.GET.get("sla", "").strip(),
             user=user,
         )
     )
@@ -1255,6 +1256,7 @@ def compliance_export_view(request: HttpRequest) -> HttpResponse:
         group=request.GET.get("group", "").strip(),
         state=request.GET.get("state", "").strip(),
         tags=request.GET.get("tags", "").strip(),
+        sla=request.GET.get("sla", "").strip(),
         user=user,
     )
     fmt = (request.GET.get("format") or "csv").lower()
