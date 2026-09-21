@@ -71,8 +71,6 @@ services:
     depends_on:
       scanner:
         condition: service_healthy
-      db:
-        condition: service_healthy
     labels:
       - com.backup-tools.service=scheduler
 
