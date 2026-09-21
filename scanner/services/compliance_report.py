@@ -58,6 +58,7 @@ def send_scoped_compliance_report(
     group: str = "",
     state: str = "",
     tags: str = "",
+    sla: str = "",
 ) -> dict:
     """Отправить compliance-отчёт с учётом object scope и фильтров дашборда."""
     if not is_database_available():
@@ -74,6 +75,7 @@ def send_scoped_compliance_report(
         group=group,
         state=state,
         tags=tags,
+        sla=sla,
         user=user,
     )
     filters = summary.get("filters") or {}
