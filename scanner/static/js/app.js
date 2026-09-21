@@ -2155,6 +2155,7 @@ function renderProvisionClustersTable(clusters) {
       <td class="text-end">${sim}</td>
       <td class="text-end">${(c.simple_devices || []).length}</td>
       <td class="text-end">${(c.complex_devices || []).length}</td>
+      <td class="small">${c.extraction ? `${Math.round((c.extraction.coverage || 0) * 100)}% / ${c.extraction.divergent_lines || 0}` : "—"}</td>
       <td class="small"><span class="${badgeCls(statusCls)}">${escapeHtml(status)}</span></td>
     </tr>`;
   }).join("");
