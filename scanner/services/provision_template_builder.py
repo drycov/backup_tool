@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import logging
+import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -75,12 +76,13 @@ def extract_common_template(samples: list[DeviceConfigSample], baseline: DeviceC
     normalized_sets = [set(s.normalized.splitlines()) for s in valid]
     common: list[str] = []
     divergent: list[str] = []
+    required_matches = max(1, math.ceil(len(valid) * 0.8))
     for line in baseline_lines:
         normalized = normalize_config_for_compare(line, baseline.device)
         if not normalized:
             continue
         matches = sum(1 for lines in normalized_sets if normalized in lines)
-        if matches >= max(1, int(len(valid) * 0.8)):
+        if matches >= required_matches:
             common.append(line)
         else:
             divergent.append(line)
