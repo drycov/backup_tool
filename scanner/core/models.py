@@ -342,6 +342,7 @@ class ScanRun(models.Model):
     scanned_at = models.DateTimeField(db_index=True)
     error = models.TextField(blank=True, default="")
     results_json = LegacyJSONField(default=list)
+    ai_analysis = LegacyJSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
