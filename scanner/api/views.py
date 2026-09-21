@@ -1039,6 +1039,44 @@ def inventory_devices_dispatch(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
+@require_http_methods(["POST"])
+@require_permission(auth.PERMISSION_EDIT_DEVICES)
+def accept_device_ai_view(request: HttpRequest, name: str) -> JsonResponse:
+    """Применить только выбранные оператором AI-подсказки к устройству."""
+    from core.models import Device as DeviceModel
+
+    row = DeviceModel.objects.filter(name=name).first()
+    if not row:
+        return error_response(f"Device '{name}' not found", status=404)
+
+    payload = parse_json_body(request)
+    enrichment = row.ai_enrichment or {}
+    result = enrichment.get("result") or {}
+    changed: list[str] = []
+
+    if payload.get("apply_model"):
+        candidate = str(result.get("model_candidate") or "").strip()
+        if candidate:
+            row.model = candidate
+            changed.append("model")
+
+    if payload.get("apply_group"):
+        group = str(result.get("recommended_profile") or "").strip()
+        if group:
+            row.group = group
+            changed.append("group")
+
+    if changed:
+        row.save(update_fields=changed)
+
+    return json_response({
+        "name": row.name,
+        "changed": changed,
+        "ai_enrichment": row.ai_enrichment or {},
+    })
+
+
+@csrf_exempt
 @require_http_methods(["DELETE"])
 @require_permission(auth.PERMISSION_EDIT_DEVICES)
 def delete_device_view(request: HttpRequest, name: str) -> JsonResponse:
