@@ -71,37 +71,33 @@ def extract_template_variables(raw: str, device: Device) -> tuple[str, list[dict
 
 
 _SEMANTIC_VARIABLE_PATTERNS = (
-    ("gateway", re.compile(r"\\bgateway=(\\d{1,3}(?:\\.\\d{1,3}){3})\\b", re.I)),
-    ("vlan_id", re.compile(r"\\bvlan-id=(\\d{1,4})\\b", re.I)),
-    ("local_as", re.compile(r"\\b(?:local\\.as|local-as)=(\\d{1,10})\\b", re.I)),
-    ("remote_as", re.compile(r"\\b(?:remote\\.as|remote-as)=(\\d{1,10})\\b", re.I)),
-    ("bgp_peer_ip", re.compile(r"\\b(?:remote.address|remote-address)=(\\d{1,3}(?:\\.\\d{1,3}){3})\\b", re.I)),
-    ("dns_servers", re.compile(r"\\bservers=([\\d., ]+)\\b", re.I)),
+    ("gateway", re.compile(r"\bgateway=(\d{1,3}(?:\.\d{1,3}){3})\b", re.I)),
+    ("vlan_id", re.compile(r"\bvlan-id=(\d{1,4})\b", re.I)),
+    ("local_as", re.compile(r"\b(?:local\.as|local-as)=(\d{1,10})\b", re.I)),
+    ("remote_as", re.compile(r"\b(?:remote\.as|remote-as)=(\d{1,10})\b", re.I)),
+    ("bgp_peer_ip", re.compile(r"\b(?:remote.address|remote-address)=(\d{1,3}(?:\.\d{1,3}){3})\b", re.I)),
+    ("dns_servers", re.compile(r"\bservers=([\d., ]+)\b", re.I)),
 )
 
 def extract_semantic_variables(raw: str) -> tuple[str, list[dict[str, Any]]]:
-    """Выделить сетевые параметры второго уровня при однозначном совпадении."""
-    body = raw
+    """Найти кандидаты второго уровня без автоматической подстановки."""
     variables: list[dict[str, Any]] = []
     for name, pattern in _SEMANTIC_VARIABLE_PATTERNS:
-        matches = list(pattern.finditer(body))
+        matches = list(pattern.finditer(raw))
         if not matches:
             continue
         values = list(dict.fromkeys(m.group(1).strip() for m in matches if m.group(1).strip()))
         if len(values) != 1:
             continue
-        value = values[0]
-        expression = "{{ " + name + " }}"
-        body = pattern.sub(lambda m: m.group(0).replace(m.group(1), expression), body)
         variables.append({
             "name": name,
-            "source": "semantic",
-            "expression": expression,
+            "source": "semantic_candidate",
+            "expression": "{{ " + name + " }}",
             "confidence": "high",
             "occurrences": len(matches),
-            "value": value,
+            "example": values[0],
         })
-    return body, variables
+    return raw, variables
 
 
 def extract_common_template(samples: list[DeviceConfigSample], baseline: DeviceConfigSample) -> dict[str, Any]:
@@ -527,9 +523,9 @@ def generate_templates_from_configs(
             "complex_devices": cluster.complex_devices,
             "device_count": cluster.device_count,
             "extraction": cluster.extraction,
-            "requires_extra_vars": [
+            "suggested_extra_vars": [
                 item["name"] for item in cluster.extraction.get("variables", [])
-                if item.get("source") == "semantic"
+                if item.get("source") == "semantic_candidate"
             ],
         }
         name = f"Auto: {cluster.group}"
