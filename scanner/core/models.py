@@ -374,6 +374,7 @@ class BackgroundTask(models.Model):
     TASK_DEGRADE_CHECK = "degrade.check"
     TASK_COMPLIANCE_REPORT = "compliance.report"
     TASK_SCHEDULED_SCAN = "scan.scheduled"
+    TASK_SCAN_AI_ANALYSIS = "scan.ai_analysis"
     TASK_AUDIT_PURGE = "audit.purge"
     TASK_AUDIT_WEBHOOK = "audit.webhook"
     TASK_CONFIG_AUDIT = "config.audit"
