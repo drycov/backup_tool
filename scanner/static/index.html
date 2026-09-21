@@ -711,6 +711,12 @@
                           <span>Сервис</span>
                         </a>
                       </li>
+                      <li class="nav-item" id="settings-tab-env-li" data-permission="settings:read">
+                        <a class="nav-link" data-bs-toggle="tab" href="#settings-tab-env" role="tab">
+                          <i class="fas fa-file-code" aria-hidden="true"></i>
+                          <span>ENV</span>
+                        </a>
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -1899,6 +1905,66 @@
                           </button>
                         </div>
                       </form>
+                    </div>
+
+                    <!-- Tab: ENV -->
+                    <div class="tab-pane fade" id="settings-tab-env" role="tabpanel" data-permission="settings:read">
+                      <section class="settings-section env-settings-panel">
+                        <div class="settings-section-header">
+                          <div>
+                            <h5 class="settings-section-title mb-1">
+                              <i class="fas fa-file-code text-primary me-1"></i> Runtime ENV
+                            </h5>
+                            <p class="settings-section-desc mb-0">
+                              Фактические переменные окружения контейнера scanner. Только известные приложению параметры.
+                              Секреты отображаются маской и не попадают в экспорт.
+                            </p>
+                          </div>
+                          <div class="d-flex flex-wrap gap-2">
+                            <span class="badge text-bg-secondary" id="env-settings-source">—</span>
+                            <span class="badge text-bg-light" id="env-settings-count">—</span>
+                          </div>
+                        </div>
+                        <div class="settings-section-body">
+                          <div class="env-settings-toolbar mb-3">
+                            <div class="input-group input-group-sm env-settings-search">
+                              <span class="input-group-text"><i class="fas fa-search"></i></span>
+                              <input type="search" id="env-settings-filter" class="form-control" placeholder="Поиск переменной…">
+                            </div>
+                            <select id="env-settings-group" class="form-select form-select-sm env-settings-group-filter">
+                              <option value="">Все группы</option>
+                            </select>
+                            <div class="d-flex gap-2">
+                              <button type="button" class="btn btn-outline-primary btn-sm" id="btn-env-refresh">
+                                <i class="fas fa-sync me-1"></i> Обновить
+                              </button>
+                              <button type="button" class="btn btn-primary btn-sm" id="btn-env-export">
+                                <i class="fas fa-download me-1"></i> Экспорт snapshot
+                              </button>
+                            </div>
+                          </div>
+                          <div class="alert alert-info py-2 small mb-3">
+                            <i class="fas fa-circle-info me-1"></i>
+                            Значения здесь показываются из <code>process environment</code>, то есть из окружения запущенного контейнера.
+                            Изменение файла <code>.env</code> само по себе не меняет уже запущенный контейнер.
+                          </div>
+                          <div class="table-responsive env-settings-table-wrap">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                              <thead>
+                                <tr>
+                                  <th style="width: 24%">Переменная</th>
+                                  <th style="width: 20%">Группа</th>
+                                  <th>Значение</th>
+                                  <th style="width: 110px">Статус</th>
+                                </tr>
+                              </thead>
+                              <tbody id="env-settings-table-body">
+                                <tr><td colspan="4" class="text-muted text-center py-4">Загрузка…</td></tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </section>
                     </div>
 
                     <!-- Tab: Service -->
