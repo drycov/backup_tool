@@ -97,6 +97,7 @@ urlpatterns = [
     path("inventory", views.inventory_dispatch, name="inventory"),
     path("inventory/devices/bulk", views.bulk_update_devices_view, name="inventory-devices-bulk"),
     path("inventory/devices", views.inventory_devices_dispatch, name="inventory-devices"),
+    path("inventory/devices/<str:name>/ai/accept", views.accept_device_ai_view, name="inventory-device-ai-accept"),
     path("inventory/devices/<str:name>", views.delete_device_view, name="inventory-device-delete"),
     path("inventory/credentials", views.create_credential_profile_view, name="inventory-credentials-create"),
     path(
