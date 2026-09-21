@@ -1702,6 +1702,7 @@ async function loadScanHistory() {
       <td>${row.offline}</td>
       <td>${row.partial}</td>
       <td>${row.total}</td>
+      <td>${row.ai_analysis?.status === "completed" ? badgeSpan("AI", "success") : row.ai_analysis?.status === "failed" ? badgeSpan("AI error", "danger") : row.ai_analysis?.status === "disabled" ? badgeSpan("off", "secondary") : "—"}</td>
     </tr>
   `).join("");
 }
