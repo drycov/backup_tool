@@ -1319,6 +1319,19 @@ def scan_history_view(request: HttpRequest) -> JsonResponse:
         days = 30
     return json_response(get_scan_history(limit=limit, days=days))
 
+@require_permission(auth.PERMISSION_VIEW_INVENTORY)
+def scan_ai_view(request: HttpRequest) -> JsonResponse:
+    from core.models import ScanRun
+
+    run = ScanRun.objects.filter(status="completed").order_by("-scanned_at").first()
+    if not run:
+        return json_response({"status": "empty", "analysis": {}})
+    return json_response({
+        "scan_id": run.id,
+        "scanned_at": run.scanned_at,
+        "analysis": run.ai_analysis or {},
+    })
+
 
 @require_permission(auth.PERMISSION_VIEW_INVENTORY)
 def scan_trends_view(request: HttpRequest) -> JsonResponse:
