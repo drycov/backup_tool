@@ -1,19 +1,7 @@
-# Platform role: backup_tool
+# Platform
 
-Backup Tool is the **config backup & network compliance product**.
+Backup Tool — часть ops-платформы drycov.
 
-Profile map: https://github.com/drycov#-ops-platform-ecosystem
-
-## Shared libraries
-
-| Library | Usage |
-| --- | --- |
-| [`network-core`](https://github.com/drycov/network-core) | `scanner/services/network_core_bridge.py` — MikroTik API, vendor labels, geo |
-
-SSH identity probing for backup targets remains product-local (`device_probe.py`) because it uses AutoAddPolicy and Oxidized-oriented model names. Prefer `network-core` for **RouterOS API** reads and shared vendor normalization.
-
-## Does not own
-
-- CCTV operator UI → cms
-- Field Telegram/map → equipment-bot
-- Camera ONVIF stack → camera-probe
+Shared libs:
+- [network-core](https://github.com/drycov/network-core)
+- [design-kit](https://github.com/drycov/design-kit) — Telegram UI tokens (`scanner/static/css/design-kit.css`)
