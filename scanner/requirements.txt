@@ -19,6 +19,11 @@ fpdf2>=2.8
 prometheus-client>=0.21
 APScheduler>=3.11,<4
 
+# Shared ops platform libraries
+network-core @ https://github.com/drycov/network-core/archive/main.zip
+librouteros>=3.2.1
+haversine>=2.8.0
+
 # Dev / CI
 pytest>=8.0
 pytest-django>=4.9
