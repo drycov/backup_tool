@@ -884,9 +884,11 @@ function initNavigation() {
       if (pageEl) pageEl.classList.remove("d-none");
       setPageTitle(page);
       if (page === "oxidized") {
+        window.BackupOperations?.start();
         loadOxidizedNodes();
         refreshOxidizedLogBadge();
       } else {
+        window.BackupOperations?.stop();
         stopOxidizedLogsPolling();
       }
       if (page === "oxidized-ui") loadOxidizedIframe(true);
@@ -5655,6 +5657,7 @@ async function backupAllNodes() {
 }
 
 function bindEvents() {
+  window.BackupOperations?.init({api,can,formatDate});
   window.BackupCenter?.init({
     api, can, isPythonEngine, isRouterOsModel, formatDate, formatBytes, backupDownloadUrl,
     showConfig: showNodeConfig, showVersions: showNodeVersions, showVersion: openOxidizedConfigView,

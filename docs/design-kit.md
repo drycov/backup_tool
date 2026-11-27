@@ -22,3 +22,6 @@ The Oxidized page now provides a node-scoped consolidated Git/Binary/RSC history
 
 ## Stage 4 — persistent manual backup jobs
 POST /api/backup/jobs enqueues a Python-engine configuration or RouterOS backup for an enabled inventory device. GET ?device=NAME lists 50 scoped jobs. The existing BackgroundTask worker executes jobs, rechecks the initiating user's current permissions and device identity, and records outcomes without configuration contents. One active manual job per device; no automatic replay after worker loss. Existing direct endpoints remain unchanged. Schedule management and cross-engine support are not implemented.
+
+## Stage 5 — Backup Operations Center
+Global scoped manual-job list, status/type filters, cursor pagination, counts and polling every 10 seconds while the backup page is active. Pending jobs can be cancelled atomically; running jobs cannot. The existing Oxidized schedule and group policies remain authoritative. Automatic engine runs are not included in the manual-job journal.

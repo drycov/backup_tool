@@ -26,7 +26,7 @@ def permitted_device(user, name, kind):
 
 @transaction.atomic
 def create_job(user, name, kind):
-    if getattr(user, "auth_source", "") == "api_key" or not user.pk or user.pk < 1:
+    if getattr(user, "auth_source", "") in ("api_key", "apikey") or not user.pk or user.pk < 1:
         raise PermissionError("Interactive user required")
     device = permitted_device(user, name, kind)
     Device.objects.select_for_update().get(pk=device.pk)
@@ -65,3 +65,50 @@ def list_jobs(user, name):
     if not device or not device_in_scope(user, device):
         raise PermissionError("Device unavailable")
     return [public_job(t) for t in BackgroundTask.objects.filter(task_type=TASK,payload__device_id=device.pk).order_by("-id")[:50]]
+
+def query_jobs(user, *, name="", status="", kind="", before=None, limit=50):
+    from django.db.models import Count
+    from django.db.models.fields.json import KeyTextTransform
+    from services.object_scope import filter_devices
+
+    devices = list(Device.objects.all())
+    visible = filter_devices(user, devices)
+    if name:
+        visible = [d for d in visible if d.name == name]
+        if not visible:
+            raise PermissionError("Device unavailable")
+    if status and status not in ("pending", "running", "completed", "failed", "cancelled"):
+        raise ValueError("Invalid status")
+    if kind and kind not in ("config", "mikrotik"):
+        raise ValueError("Invalid backup type")
+    qs = BackgroundTask.objects.filter(task_type=TASK).annotate(
+        device_key=KeyTextTransform("device_id", "payload")
+    ).filter(device_key__in=[str(d.pk) for d in visible])
+    if kind:
+        qs = qs.filter(payload__kind=kind)
+    counts = {r["status"]:r["total"] for r in qs.values("status").annotate(total=Count("pk")).order_by()}
+    if status:
+        qs = qs.filter(status=status)
+    if before is not None:
+        qs = qs.filter(pk__lt=before)
+    tasks = list(qs.order_by("-pk")[:limit+1])
+    return {"items":[public_job(t) for t in tasks[:limit]],"counts":counts,
+            "next_before":tasks[limit-1].pk if len(tasks)>limit else None}
+
+@transaction.atomic
+def cancel_job(user, job_id):
+    if not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_WRITE):
+        raise PermissionError("Backup permission required")
+    task = BackgroundTask.objects.select_for_update().filter(pk=job_id,task_type=TASK).first()
+    if not task:
+        raise PermissionError("Job unavailable")
+    device = Device.objects.filter(pk=task.payload.get("device_id")).first()
+    if not device or not device_in_scope(user,device):
+        raise PermissionError("Job unavailable")
+    if task.status != BackgroundTask.STATUS_PENDING:
+        raise ValueError("Only pending jobs can be cancelled")
+    from django.utils import timezone
+    task.status = "cancelled"
+    task.finished_at = timezone.now()
+    task.save(update_fields=["status","finished_at"])
+    return task

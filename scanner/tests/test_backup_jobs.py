@@ -19,3 +19,14 @@ class BackupJobsTests(TestCase):
         self.user.save()
         with self.assertRaises(PermissionError):
             execute({"user_id":self.user.pk,"device_id":self.device.pk,"device":self.device.name,"kind":"config"})
+
+    def test_cancel_pending(self):
+        from services.backup_jobs import cancel_job, query_jobs
+        with patch("services.task_queue.is_database_available",return_value=True):
+            job=create_job(self.user,self.device.name,"config")
+        cancel_job(self.user,job.pk)
+        job.refresh_from_db()
+        self.assertEqual(job.status,"cancelled")
+        self.assertEqual(query_jobs(self.user,status="cancelled")["items"][0]["id"],job.pk)
+        with self.assertRaises(ValueError):
+            cancel_job(self.user,job.pk)
