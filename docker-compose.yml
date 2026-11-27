@@ -6,8 +6,6 @@ name: backup-tools
 
 services:
   db:
-    profiles:
-      - postgres
     image: postgres:16-alpine
     restart: unless-stopped
     env_file:
@@ -21,7 +19,7 @@ services:
     networks:
       - backup-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-backup} -d ${POSTGRES_DB:-inventory}"]
+      test: ["CMD-SHELL", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -52,6 +50,9 @@ services:
       - ${STACK_PATH:-.}/oxidized-ssh:/home/oxidized/.ssh:ro
     networks:
       - backup-net
+    depends_on:
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "/app/scripts/healthcheck.py"]
       interval: 10s

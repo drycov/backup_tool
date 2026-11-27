@@ -28,15 +28,19 @@ def main() -> int:
 
     from django.db import connection
 
-    deadline = int(os.environ.get("DB_WAIT_SECONDS", "60"))
-    for attempt in range(1, deadline + 1):
+    timeout = max(1, int(os.environ.get("DB_WAIT_SECONDS", "60")))
+    deadline = time.monotonic() + timeout
+    attempt = 0
+    while time.monotonic() < deadline:
+        attempt += 1
         try:
             connection.ensure_connection()
             print(f"database | ready (attempt {attempt})", flush=True)
             return 0
         except Exception as exc:
-            print(f"database | wait {attempt}/{deadline}: {exc}", flush=True)
-            time.sleep(1)
+            print(f"database | wait attempt={attempt} remaining={max(0, int(deadline - time.monotonic()))}s: {exc}", flush=True)
+            connection.close()
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
 
     print("database | timeout waiting for PostgreSQL", file=sys.stderr, flush=True)
     return 1
