@@ -291,9 +291,9 @@ def purge_stale_running(max_age_minutes: int = 120) -> int:
         started_at__lt=cutoff,
     )
     # Manual backups are not blindly replayed after worker loss.
-    manual = qs.filter(task_type="backup.manual")
+    manual = qs.filter(task_type__in=["backup.manual", "backup.engine"])
     failed = manual.update(status=BackgroundTask.STATUS_FAILED, finished_at=dj_tz.now(), last_error="Worker lost; outcome unknown")
-    qs = qs.exclude(task_type="backup.manual")
+    qs = qs.exclude(task_type__in=["backup.manual", "backup.engine"])
     count = qs.count()
     if count:
         qs.update(

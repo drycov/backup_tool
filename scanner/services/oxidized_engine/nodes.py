@@ -67,6 +67,9 @@ class Nodes(list[Node]):
             if prev:
                 node.stats = prev.stats
                 node.last = prev.last
+                node.nexted = prev.nexted
+                if prev.running:
+                    self[self.index(node)] = prev
         self.sort(key=_node_sort_key)
 
     def list(self) -> list[dict[str, Any]]:

@@ -497,6 +497,7 @@ function syncAppRouteFromHash() {
 }
 
 function showLogin() {
+  window.BackupOperations?.reset();
   window.BackupCenter?.reset();
   window.BackupWorkspace?.close();
   document.body.classList.add("login-page");
@@ -5658,6 +5659,7 @@ async function backupAllNodes() {
 
 function bindEvents() {
   window.BackupOperations?.init({api,can,formatDate});
+  window.BackupPolicy?.init({api,can});
   window.BackupCenter?.init({
     api, can, isPythonEngine, isRouterOsModel, formatDate, formatBytes, backupDownloadUrl,
     showConfig: showNodeConfig, showVersions: showNodeVersions, showVersion: openOxidizedConfigView,

@@ -68,6 +68,7 @@
   }
   async function load() {
     const n = selected(), ticket = ++generation;
+    window.BackupPolicy?.load(n?.name || "");
     rows = []; errors = []; el("jobs").textContent = ""; busy = Boolean(n && allowed());
     render(); renderActions();
     if (!busy) return;
@@ -97,6 +98,7 @@
     busy = false; render(); renderActions();
   }
   function reset() {
+    window.BackupPolicy?.load("");
     generation++; nodes=[]; rows=[]; errors=[]; busy=false;
     if (!deps) return;
     el("node").replaceChildren(new Option("Выберите устройство",""));

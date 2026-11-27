@@ -6,7 +6,7 @@
   let deps,timer=null,epoch=0,active=false,cursor=null,busy=false,pageBefore=null;
   function reset(){
     stop(); el("rows").replaceChildren();el("counts").replaceChildren();el("status").textContent="";el("more").hidden=true;
-    el("state").value="";el("kind").value="";
+    el("state").value="";el("kind").value="";el("source").value="";
   }
   function stop(){active=false;epoch++;busy=false;clearInterval(timer);timer=null;cursor=null;pageBefore=null;}
   function start(){stop();active=true;load();timer=setInterval(()=>{if(!document.hidden && !pageBefore)load();},10000);}
@@ -14,7 +14,7 @@
   async function load(before=null){
     if(!active||!deps.can("oxidized:read")||busy)return;
     busy=true;const ticket=++epoch;
-    const params=new URLSearchParams({limit:"50",status:el("state").value,kind:el("kind").value});
+    const params=new URLSearchParams({limit:"50",status:el("state").value,kind:el("kind").value,source:el("source").value});
     if(before)params.set("before",before);
     try{
       const data=await deps.api("/api/backup/jobs?"+params);
@@ -29,7 +29,7 @@
       const root=el("rows");root.replaceChildren();
       for(const j of data.items||[]){
         const row=document.createElement("tr");
-        td(row,j.id);td(row,j.device);td(row,j.kind==="config"?"Config":"Binary / RSC");td(row,labels[j.status]||j.status);td(row,deps.formatDate(j.created_at));td(row,deps.formatDate(j.finished_at));
+        td(row,j.id);td(row,j.device);td(row,j.source==="automatic"?"Авто":"Ручное");td(row,j.kind==="config"?"Config":"Binary / RSC");td(row,labels[j.status]||j.status);td(row,deps.formatDate(j.created_at));td(row,deps.formatDate(j.finished_at));
         const actions=td(row,"");
         if(j.status==="pending"&&deps.can("oxidized:write")){
           const btn=document.createElement("button");btn.type="button";btn.className="dk-btn dk-btn--danger dk-btn--sm";btn.textContent="Отменить";
@@ -47,6 +47,6 @@
     finally{if(ticket===epoch)busy=false;}
   }
   function refresh(){epoch++;busy=false;load();}
-  function init(adapters){deps=adapters;el("refresh").addEventListener("click",refresh);el("state").addEventListener("change",refresh);el("kind").addEventListener("change",refresh);el("more").addEventListener("click",()=>load(cursor));}
+  function init(adapters){deps=adapters;el("refresh").addEventListener("click",refresh);el("state").addEventListener("change",refresh);el("kind").addEventListener("change",refresh);el("source").addEventListener("change",refresh);el("more").addEventListener("click",()=>load(cursor));}
   window.BackupOperations={init,start,stop,reset};
 })();

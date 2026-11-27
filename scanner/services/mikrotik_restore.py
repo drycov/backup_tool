@@ -10,6 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 def restore_mikrotik_backup(name: str, backup_type: str, filename: str) -> dict:
+    from services.backup_lock import BackupBusy, backup_lock
+
+    try:
+        with backup_lock(name):
+            return _restore_mikrotik_backup(name, backup_type, filename)
+    except BackupBusy as exc:
+        raise MikrotikBackupError(str(exc)) from exc
+
+
+def _restore_mikrotik_backup(name: str, backup_type: str, filename: str) -> dict:
     """Загрузить локальный backup на устройство и выполнить load/import."""
     if backup_type not in ("bin", "rsc"):
         raise MikrotikBackupError("type must be bin or rsc")

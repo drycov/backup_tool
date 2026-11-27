@@ -5,6 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
+from services.backup_lock import BackupBusy, backup_lock
 from services.oxidized_engine.config import OxidizedConfig
 from services.oxidized_engine.hooks import HookRunner
 from services.oxidized_engine.job import Job
@@ -71,9 +72,26 @@ class Worker:
                 continue
             node.nexted = False
             node.running = True
-            self.executor.submit(self._process, node)
+            self.executor.submit(self._process_scheduled, node)
 
-    def _process(self, node) -> None:
+    def _process_scheduled(self, node) -> None:
+        from services.backup_jobs import record_engine_start, record_engine_finish
+
+        task_id = None
+        try:
+            with backup_lock(node.name):
+                task_id = record_engine_start(node.name)
+                status = self._process(node)
+                record_engine_finish(task_id, status)
+        except BackupBusy:
+            node.nexted = True
+        except Exception:
+            logger.exception("oxidized | scheduled backup failed | %s", node.name)
+            record_engine_finish(task_id, "failed")
+        finally:
+            node.running = False
+
+    def _process(self, node) -> str:
         job = Job(node=node, start=datetime.now(timezone.utc))
         status, outputs = node.run()
         job.end = datetime.now(timezone.utc)
@@ -86,14 +104,15 @@ class Worker:
             time=job.time,
         )
         node.stats.add(job.status)
-        node.running = False
-
         if job.status == "success" and outputs:
-            self._process_success(node, job, outputs)
-        else:
-            self._process_failure(node, job)
+            if self._process_success(node, job, outputs):
+                return "success"
+            node.last.status = "partial"
+            return "partial"
+        self._process_failure(node, job)
+        return "failed"
 
-    def _process_success(self, node, job, outputs) -> None:
+    def _process_success(self, node, job, outputs) -> bool:
         msg = f"update {node.group}/{node.name}"
         if node.msg:
             msg += f" with message '{node.msg}'"
@@ -146,6 +165,7 @@ class Worker:
             )
         node.reset()
         self._jobs_done += 1
+        return binary_ok
 
     def _process_failure(self, node, job) -> None:
         detail = f": {node.err_reason}" if node.err_reason else ""
@@ -184,10 +204,11 @@ class Worker:
     def fetch_node(self, name: str) -> tuple[str, str | None]:
         self.reload()
         node = self.nodes.find(name)
-        node.nexted = True
-        node.running = True
-        self._process(node)
-        node = self.nodes.find(name)
-        if node.last and node.last.status == "success":
-            return "success", self.output.fetch(node)
-        return node.last.status if node.last else "fail", None
+        with backup_lock(name):
+            node.nexted = False
+            node.running = True
+            try:
+                status = self._process(node)
+                return status, self.output.fetch(node) if status == "success" else None
+            finally:
+                node.running = False

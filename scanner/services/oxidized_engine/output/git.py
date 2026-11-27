@@ -106,7 +106,7 @@ class GitOutput:
         )
         if commit.returncode != 0 and "nothing to commit" not in (commit.stdout + commit.stderr):
             logger.warning("oxidized | git | commit failed: %s", commit.stderr)
-            return False
+            raise RuntimeError("Git commit failed")
 
         subprocess.run(
             ["git", "-C", str(repo), "branch", "-M", self.git_cfg.branch],

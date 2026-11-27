@@ -7,6 +7,7 @@ from services.object_scope import device_in_scope
 from services.task_queue import enqueue
 
 TASK = "backup.manual"
+ENGINE_TASK = "backup.engine"
 
 def permitted_device(user, name, kind):
     if not user or not user.is_active or not auth.user_has_permission(user, auth.PERMISSION_OXIDIZED_WRITE):
@@ -57,6 +58,7 @@ def execute(payload):
 def public_job(task):
     p = task.payload
     return {"id":task.pk,"device":p["device"],"kind":p["kind"],"status":task.status,
+            "source":"automatic" if task.task_type == ENGINE_TASK else "manual",
             "created_at":task.created_at,"started_at":task.started_at,"finished_at":task.finished_at,
             "attempts":task.attempts,"error":"Backup failed; consult server logs" if task.last_error else ""}
 
@@ -66,7 +68,7 @@ def list_jobs(user, name):
         raise PermissionError("Device unavailable")
     return [public_job(t) for t in BackgroundTask.objects.filter(task_type=TASK,payload__device_id=device.pk).order_by("-id")[:50]]
 
-def query_jobs(user, *, name="", status="", kind="", before=None, limit=50):
+def query_jobs(user, *, name="", status="", kind="", source="", before=None, limit=50):
     from django.db.models import Count
     from django.db.models.fields.json import KeyTextTransform
     from services.object_scope import filter_devices
@@ -81,9 +83,13 @@ def query_jobs(user, *, name="", status="", kind="", before=None, limit=50):
         raise ValueError("Invalid status")
     if kind and kind not in ("config", "mikrotik"):
         raise ValueError("Invalid backup type")
-    qs = BackgroundTask.objects.filter(task_type=TASK).annotate(
+    qs = BackgroundTask.objects.filter(task_type__in=[TASK, ENGINE_TASK]).annotate(
         device_key=KeyTextTransform("device_id", "payload")
     ).filter(device_key__in=[str(d.pk) for d in visible])
+    if source not in ("", "manual", "automatic"):
+        raise ValueError("Invalid source")
+    if source:
+        qs = qs.filter(task_type=TASK if source == "manual" else ENGINE_TASK)
     if kind:
         qs = qs.filter(payload__kind=kind)
     counts = {r["status"]:r["total"] for r in qs.values("status").annotate(total=Count("pk")).order_by()}
@@ -112,3 +118,42 @@ def cancel_job(user, job_id):
     task.finished_at = timezone.now()
     task.save(update_fields=["status","finished_at"])
     return task
+
+def record_engine_start(name):
+    from django.utils import timezone
+    device = Device.objects.filter(name=name).first()
+    if not device:
+        return None
+    now = timezone.now()
+    task = BackgroundTask.objects.create(task_type=ENGINE_TASK,status="running",
+        payload={"device_id":device.pk,"device":name,"kind":"config"},
+        scheduled_at=now,started_at=now,attempts=1,max_attempts=1)
+    return task.pk
+
+def record_engine_finish(task_id, status):
+    from django.utils import timezone
+    if task_id:
+        BackgroundTask.objects.filter(pk=task_id,status="running").update(
+            status="completed" if status=="success" else "failed",
+            finished_at=timezone.now(),last_error="" if status=="success" else "Engine collection or artifact failed")
+
+def effective_policy(user, name):
+    from services.backup_settings import get_config
+    from services.group_policies import get_policy, effective_interval, effective_mk_flags, effective_compliance_sla_hours
+    from services.maintenance_window import is_backup_paused_for_device
+    from services.oxidized_config_loader import load_oxidized_yaml
+    device=Device.objects.filter(name=name).first()
+    if not device or not device_in_scope(user,device):
+        raise PermissionError("Device unavailable")
+    cfg=get_config()
+    group=get_policy(device.group)
+    interval=int(load_oxidized_yaml().get("interval") or settings.OXIDIZED_INTERVAL)
+    binary,export=effective_mk_flags(device.group,cfg.binary_enabled,cfg.export_enabled)
+    return {"device":name,"group":device.group,"site":device.site,
+        "interval_sec":effective_interval(device.group,interval),
+        "interval_source":"group" if group and group.backup_interval_sec>=60 else "global",
+        "binary_enabled":binary,"export_enabled":export,
+        "retention_enabled":cfg.purge_enabled,"retention_keep":cfg.purge_keep,
+        "sla_hours":effective_compliance_sla_hours(device.group),
+        "scheduled_paused":is_backup_paused_for_device(device_name=name,maintenance=device.maintenance,group_name=device.group),
+        "maintenance":device.maintenance,"enabled":device.enabled}

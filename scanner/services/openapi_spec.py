@@ -101,6 +101,9 @@ def build_openapi_spec() -> dict:
 
 def _paths() -> dict:
     return {
+        "/api/backup/jobs": {"get":{"tags":["oxidized"],"summary":"List scoped backup jobs"},"post":{"tags":["oxidized"],"summary":"Queue manual backup job"}},
+        "/api/backup/jobs/{job_id}/cancel": {"post":{"tags":["oxidized"],"summary":"Cancel pending backup job"}},
+        "/api/backup/policy": {"get":{"tags":["oxidized"],"summary":"Effective device backup policy"}},
         "/health": {
             "get": {"tags": ["observability"], "summary": "Liveness", "security": []},
         },

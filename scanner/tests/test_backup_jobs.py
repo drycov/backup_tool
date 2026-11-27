@@ -1,7 +1,9 @@
 from unittest.mock import patch
 from django.test import TestCase
-from core.models import Device, User, BackgroundTask
+
+from core.models import BackgroundTask, Device, User
 from services.backup_jobs import create_job, execute, list_jobs
+
 
 class BackupJobsTests(TestCase):
     def setUp(self):
@@ -30,3 +32,20 @@ class BackupJobsTests(TestCase):
         self.assertEqual(query_jobs(self.user,status="cancelled")["items"][0]["id"],job.pk)
         with self.assertRaises(ValueError):
             cancel_job(self.user,job.pk)
+
+    def test_engine_history(self):
+        from services.backup_jobs import query_jobs, record_engine_finish, record_engine_start
+
+        job_id = record_engine_start(self.device.name)
+        record_engine_finish(job_id, "partial")
+        result = query_jobs(self.user, source="automatic")
+        self.assertEqual(result["items"][0]["status"], "failed")
+        self.assertEqual(result["items"][0]["source"], "automatic")
+
+    def test_device_lock(self):
+        from services.backup_lock import BackupBusy, backup_lock
+
+        with backup_lock(self.device.name):
+            with self.assertRaises(BackupBusy):
+                with backup_lock(self.device.name):
+                    pass

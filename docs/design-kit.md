@@ -25,3 +25,6 @@ POST /api/backup/jobs enqueues a Python-engine configuration or RouterOS backup 
 
 ## Stage 5 — Backup Operations Center
 Global scoped manual-job list, status/type filters, cursor pagination, counts and polling every 10 seconds while the backup page is active. Pending jobs can be cancelled atomically; running jobs cannot. The existing Oxidized schedule and group policies remain authoritative. Automatic engine runs are not included in the manual-job journal.
+
+## Consolidated operations
+The Python engine records scheduled runs in the existing task journal; the source filter distinguishes automatic and manual entries. Per-device nonblocking locks coordinate Python fetch, scheduled backup, native backup and restore (PostgreSQL advisory locks; SQLite single-process fallback). Effective policy is shown from existing group/global settings without exposing credentials. Existing group policy editing remains in Settings. No site-specific policy editor or full AdminLTE replacement is included. External Ruby engine runs are not captured.
