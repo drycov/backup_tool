@@ -32,7 +32,7 @@
   };
 
   function getStoredTheme() {
-    return localStorage.getItem(THEME_KEY);
+    try { return localStorage.getItem(THEME_KEY); } catch (_) { return null; }
   }
 
   function prefersDark() {
@@ -41,7 +41,7 @@
 
   function getPreferredTheme() {
     const stored = getStoredTheme();
-    if (stored) return stored;
+    if (["light", "dark", "auto"].includes(stored)) return stored;
     return prefersDark() ? "dark" : "light";
   }
 
@@ -51,7 +51,9 @@
   }
 
   function setTheme(theme) {
-    document.documentElement.setAttribute("data-bs-theme", resolveTheme(theme));
+    const resolved = resolveTheme(theme);
+    document.documentElement.setAttribute("data-bs-theme", resolved);
+    document.documentElement.setAttribute("data-tg-theme", resolved);
   }
 
   /* Подсветка активной темы в выпадающем меню */
@@ -110,8 +112,40 @@
     }
   }
 
+  function initWorkspaceNavigation() {
+    const filter = document.getElementById("workspace-nav-filter");
+    const links = [...document.querySelectorAll(".sidebar-menu .nav-page")];
+    if (!filter) return;
+    const update = () => {
+      const term = filter.value.trim().toLocaleLowerCase();
+      links.forEach(link => {
+        const item = link.closest("li");
+        if (item) item.classList.toggle("workspace-filtered", !link.textContent.toLocaleLowerCase().includes(term));
+        if (link.classList.contains("active")) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      });
+    };
+    filter.addEventListener("input", update);
+    filter.addEventListener("keydown", e => {
+      if (e.key === "Escape") { filter.value = ""; update(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const first = links.find(link => link.getClientRects().length && getComputedStyle(link).visibility !== "hidden");
+        first?.click();
+      }
+    });
+    links.forEach(link => link.addEventListener("click", () => {
+      filter.value = "";
+      queueMicrotask(update);
+    }));
+    const observer = new MutationObserver(update);
+    links.forEach(link => observer.observe(link, {attributes:true, attributeFilter:["class"]}));
+    update();
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     initThemeToggle();
+    initWorkspaceNavigation();
     initSidebarScrollbar();
 
     document.querySelectorAll("[data-bs-toggle='dropdown']").forEach(el => {

@@ -871,8 +871,10 @@ function initNavigation() {
   qsa(".nav-page").forEach(link => {
     link.addEventListener("click", e => {
       e.preventDefault();
+      const target = qs(`.sidebar-menu .nav-page[data-page="${link.dataset.page}"]`);
+      if (!target || target.closest("li")?.style.display === "none") return;
       qsa(".nav-page").forEach(l => l.classList.remove("active"));
-      link.classList.add("active");
+      target.classList.add("active");
       const page = link.dataset.page;
       qsa(".page").forEach(p => p.classList.add("d-none"));
       const pageEl = qs(`#page-${page}`);

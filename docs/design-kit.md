@@ -1,28 +1,15 @@
-# Design kit
+# Design kit integration
 
-Backup Tools UI (AdminLTE) подключается к [@drycov/design-kit](https://github.com/drycov/design-kit).
+Source: https://github.com/drycov/design-kit (v0.3 CSS).
+The six upstream CSS entry points are vendored under scanner/static/css/vendor/design-kit.
+Load order: AdminLTE, upstream kit, legacy structural styles, compatibility bridge.
+Bootstrap remains responsible for modal, dropdown, treeview and existing application behavior.
+Both data-bs-theme and data-tg-theme are synchronized before first paint and on theme changes.
+Workspace section filtering does not alter permission visibility. Existing API and DOM IDs are retained.
 
-## Файл
-
-`scanner/static/css/design-kit.css` — токены `--tg-*` и bridge для legacy переменных.
-
-## Подключение
-
-В `scanner/static/index.html` **перед** `style.css` и AdminLTE:
-
-```html
-<html lang="ru" class="enterprise-ui" data-tg-theme="dark">
-...
-<link rel="stylesheet" href="/static/css/design-kit.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/css/adminlte.min.css">
-<link rel="stylesheet" href="/static/css/style.css">
-```
-
-В скрипте темы синхронизируйте:
-
-```js
-document.documentElement.setAttribute("data-tg-theme", theme); // light|dark
-document.documentElement.setAttribute("data-bs-theme", theme);
-```
-
-Кнопки `.btn-primary` подкрашиваются в `#2aabee` через design-kit.
+## Verification
+- Test light, dark and automatic themes, login and TOTP.
+- Verify all ten navigation sections with administrator and restricted roles.
+- Verify dropdowns, modals, backup and restore, inventory, scan, provisioning, security, audit and settings.
+- Test mobile sidebar and keyboard navigation.
+- Run existing scanner CI; browser regression tests are still required.

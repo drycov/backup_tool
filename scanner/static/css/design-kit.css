@@ -1,68 +1,63 @@
-/* @drycov/design-kit tokens — load before style.css */
-:root,
-html[data-tg-theme="dark"] {
-  color-scheme: dark;
-  --tg-bg: #0e1621;
-  --tg-secondary: #17212b;
-  --tg-tertiary: #242f3d;
-  --tg-surface: #1c2733;
-  --tg-border: rgba(160, 184, 205, 0.13);
-  --tg-text: #f3f6f8;
-  --tg-hint: #91a3b7;
-  --tg-link: #68b7f3;
-  --tg-button: #2aabee;
-  --tg-button-text: #ffffff;
-  --tg-success: #53bd86;
-  --tg-danger: #eb6570;
-  --tg-warning: #e5ac4b;
-  --tg-purple: #a967ff;
-  --tg-control-bg: #101b27;
-  --tg-focus: 0 0 0 3px rgba(42, 171, 238, 0.23);
-  --radius: 14px;
-  --radius-sm: 11px;
-  --font-sans: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-
-  /* bridge common legacy names */
-  --bg: var(--tg-bg);
-  --panel: var(--tg-secondary);
-  --text: var(--tg-text);
-  --muted: var(--tg-hint);
-  --accent: var(--tg-button);
-  --border: var(--tg-border);
-  --ok: var(--tg-success);
-  --err: var(--tg-danger);
-  --warn: var(--tg-warning);
+/* Backup Tools — design-kit v0.3 / Bootstrap compatibility bridge */
+html[data-tg-theme] {
+  --ent-font: var(--font-sans);
+  --ent-primary: var(--tg-button);
+  --ent-primary-hover: var(--tg-button-hover);
+  --ent-primary-subtle: color-mix(in srgb,var(--tg-button) 12%,transparent);
+  --ent-sidebar-bg: var(--tg-secondary);
+  --ent-sidebar-border: var(--tg-border);
+  --ent-sidebar-text: var(--tg-hint);
+  --ent-sidebar-text-active: var(--tg-text);
+  --ent-sidebar-hover: var(--tg-tertiary);
+  --ent-sidebar-active: var(--ent-primary-subtle);
+  --ent-header-bg: var(--tg-secondary);
+  --ent-header-border: var(--tg-border);
+  --ent-surface: var(--tg-bg);
+  --ent-surface-raised: var(--tg-secondary);
+  --ent-border: var(--tg-border);
+  --ent-border-subtle: var(--tg-border);
+  --ent-text: var(--tg-text);
+  --ent-text-secondary: var(--tg-hint);
+  --ent-text-muted: var(--tg-hint);
+  --ent-shadow-sm: var(--shadow-sm);
+  --ent-shadow-md: var(--shadow-md);
+  --ent-radius: var(--radius-sm);
+  --ent-radius-lg: var(--radius);
+  --ent-kpi-info: var(--tg-info);
+  --ent-kpi-success: var(--tg-success);
+  --ent-kpi-danger: var(--tg-danger);
+  --ent-kpi-warning: var(--tg-warning);
+  --ent-kpi-primary: var(--tg-button);
+  --ent-kpi-secondary: var(--tg-hint);
+  --ent-kpi-orange: var(--tg-warning);
+  --bs-body-bg: var(--tg-bg);
+  --bs-body-color: var(--tg-text);
+  --bs-secondary-bg: var(--tg-secondary);
+  --bs-tertiary-bg: var(--tg-tertiary);
+  --bs-border-color: var(--tg-border);
+  --bs-link-color: var(--tg-link);
+  --bs-link-hover-color: var(--tg-button-hover);
+  --bs-primary: var(--tg-button);
+  --bs-body-font-family: var(--font-sans);
 }
-
-html[data-tg-theme="light"] {
-  color-scheme: light;
-  --tg-bg: #f2f4f7;
-  --tg-secondary: #ffffff;
-  --tg-tertiary: #e8eef3;
-  --tg-surface: #ffffff;
-  --tg-border: rgba(28, 52, 72, 0.13);
-  --tg-text: #182533;
-  --tg-hint: #697f91;
-  --tg-link: #2481cc;
-  --tg-button: #2481cc;
-  --tg-button-text: #ffffff;
-  --tg-success: #24804a;
-  --tg-danger: #ca384d;
-  --tg-warning: #b7791f;
-  --tg-purple: #7c3aed;
-  --tg-control-bg: #f5f7fa;
-}
-
-body {
-  font-family: var(--font-sans);
-  background: var(--tg-bg);
-  color: var(--tg-text);
-}
-
-.btn-primary,
-button.primary,
-.button-primary {
-  background: var(--tg-button) !important;
-  color: var(--tg-button-text) !important;
-  border-color: var(--tg-button) !important;
-}
+.enterprise-ui .app-header,.enterprise-ui .app-sidebar,.enterprise-ui .app-footer {background:var(--tg-secondary);color:var(--tg-text);border-color:var(--tg-border);}
+.enterprise-ui .sidebar-menu .nav-link {border-radius:var(--radius-sm);color:var(--tg-hint);margin:2px 8px;width:auto;}
+.enterprise-ui .sidebar-menu .nav-link.active {background:var(--ent-primary-subtle);color:var(--tg-text);}
+.enterprise-ui .sidebar-menu .nav-link:hover {background:var(--tg-tertiary);color:var(--tg-text);}
+.enterprise-ui .card {background:var(--tg-secondary);border-color:var(--tg-border);border-radius:var(--radius);overflow:visible;}
+.enterprise-ui .card-header,.enterprise-ui .card-footer {background:transparent;border-color:var(--tg-border);}
+.enterprise-ui .modal-content,.enterprise-ui .dropdown-menu {background:var(--tg-elevated);color:var(--tg-text);border-color:var(--tg-border);border-radius:var(--radius);}
+.enterprise-ui .form-control,.enterprise-ui .form-select,.enterprise-ui .input-group-text {background-color:var(--tg-control-bg);color:var(--tg-text);border-color:var(--tg-border);}
+.enterprise-ui .form-control:focus,.enterprise-ui .form-select:focus {border-color:var(--tg-button);box-shadow:var(--tg-focus);}
+.enterprise-ui .btn-primary {--bs-btn-bg:var(--tg-button);--bs-btn-border-color:var(--tg-button);--bs-btn-hover-bg:var(--tg-button-hover);--bs-btn-hover-border-color:var(--tg-button-hover);--bs-btn-active-bg:var(--tg-button-hover);--bs-btn-disabled-bg:var(--tg-button);}
+.enterprise-ui .btn {border-radius:var(--radius-sm);}
+.enterprise-ui .table {--bs-table-bg:transparent;--bs-table-color:var(--tg-text);--bs-table-border-color:var(--tg-border);--bs-table-hover-bg:var(--ent-primary-subtle);}
+.enterprise-ui .table th {font-size:var(--text-xs);letter-spacing:.035em;color:var(--tg-hint);}
+.enterprise-ui .table-responsive {overflow-x:auto;}
+.enterprise-ui .nav-tabs .nav-link.active {background:var(--tg-secondary);color:var(--tg-link);border-color:var(--tg-border);}
+.enterprise-ui .workspace-filtered {display:none!important;}
+.enterprise-ui :focus-visible {outline:2px solid var(--tg-button);outline-offset:2px;}
+.enterprise-ui .app-content-header {padding:var(--space-4) var(--space-3);}
+.enterprise-ui .page {--page-block-gap:var(--space-4);}
+@media(max-width:767px){.enterprise-ui .app-content-header{padding:var(--space-3) 0}.enterprise-ui .table-responsive{max-width:100%}.enterprise-ui .card-tools{display:flex;flex-wrap:wrap;gap:4px}}
+@media(prefers-reduced-motion:reduce){.enterprise-ui .page{animation:none!important}}

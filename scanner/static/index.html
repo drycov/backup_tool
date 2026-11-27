@@ -17,6 +17,7 @@
         var theme = stored === "light" || stored === "dark" ? stored
           : window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         document.documentElement.setAttribute("data-bs-theme", theme);
+        document.documentElement.setAttribute("data-tg-theme", theme);
       } catch (e) { /* localStorage недоступен — останется тема по умолчанию */ }
     })();
   </script>
@@ -29,7 +30,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@4.0.0/dist/css/adminlte.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/codemirror.min.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/static/css/vendor/design-kit/index.css">
   <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/design-kit.css">
 </head>
 <body class="layout-fixed sidebar-expand-lg enterprise-ui">
 
@@ -137,7 +140,7 @@
       </div>
     </nav>
 
-    <aside class="app-sidebar enterprise-sidebar shadow" data-bs-theme="dark">
+    <aside class="app-sidebar enterprise-sidebar shadow">
       <div class="sidebar-brand enterprise-brand">
         <a href="#" class="brand-link">
           <span class="enterprise-brand__icon" aria-hidden="true"><i class="fas fa-shield-halved"></i></span>
@@ -146,6 +149,7 @@
       </div>
       <div class="sidebar-wrapper">
         <nav class="mt-2">
+          <div class="px-3 pt-2 pb-1"><label for="workspace-nav-filter" class="visually-hidden">Фильтр разделов</label><input id="workspace-nav-filter" class="form-control form-control-sm" type="search" placeholder="Разделы…" autocomplete="off"></div>
           <ul class="nav sidebar-menu flex-column" data-lte-toggle="treeview" role="navigation">
             <li class="nav-item" data-permission="inventory:read">
               <a href="#dashboard" class="nav-link nav-page active" data-page="dashboard">
