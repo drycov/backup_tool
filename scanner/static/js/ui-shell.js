@@ -1,4 +1,4 @@
-/** AdminLTE 4 / Bootstrap 5 UI helpers */
+/** Design Kit application shell and Bootstrap interaction adapters. */
 
 (function () {
 
@@ -97,6 +97,32 @@
     if (media.addEventListener) media.addEventListener("change", onChange);
   }
 
+  function initSidebar() {
+    const root = document.getElementById("app-layout");
+    const toggle = document.getElementById("workspace-sidebar-toggle");
+    const sidebar = document.getElementById("workspace-sidebar");
+    const backdrop = document.getElementById("workspace-sidebar-backdrop");
+    const mobile = window.matchMedia("(max-width: 991.98px)");
+    if (!root || !toggle || !sidebar || !backdrop) return;
+    const sync = () => {
+      const open = mobile.matches ? root.classList.contains("workspace-sidebar-open") : !root.classList.contains("workspace-sidebar-collapsed");
+      toggle.setAttribute("aria-expanded", String(open));
+      sidebar.inert = !open;
+      backdrop.hidden = !(mobile.matches && open);
+    };
+    const close = () => { root.classList.remove("workspace-sidebar-open"); sync(); };
+    toggle.addEventListener("click", e => {
+      e.preventDefault();
+      root.classList.toggle(mobile.matches ? "workspace-sidebar-open" : "workspace-sidebar-collapsed");
+      sync();
+    });
+    backdrop.addEventListener("click", () => { close(); toggle.focus(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && mobile.matches && !backdrop.hidden) { close(); toggle.focus(); } });
+    sidebar.querySelectorAll(".nav-page").forEach(link => link.addEventListener("click", () => { if (mobile.matches) close(); }));
+    mobile.addEventListener("change", close);
+    sync();
+  }
+
   function initSidebarScrollbar() {
     const sidebarWrapper = document.querySelector(".sidebar-wrapper");
     const os = window.OverlayScrollbarsGlobal?.OverlayScrollbars;
@@ -146,6 +172,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     initThemeToggle();
     initWorkspaceNavigation();
+    initSidebar();
     initSidebarScrollbar();
 
     document.querySelectorAll("[data-bs-toggle='dropdown']").forEach(el => {

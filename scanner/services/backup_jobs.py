@@ -70,7 +70,6 @@ def list_jobs(user, name):
 
 def query_jobs(user, *, name="", status="", kind="", source="", before=None, limit=50):
     from django.db.models import Count
-    from django.db.models.fields.json import KeyTextTransform
     from services.object_scope import filter_devices
 
     devices = list(Device.objects.all())
@@ -83,9 +82,7 @@ def query_jobs(user, *, name="", status="", kind="", source="", before=None, lim
         raise ValueError("Invalid status")
     if kind and kind not in ("config", "mikrotik"):
         raise ValueError("Invalid backup type")
-    qs = BackgroundTask.objects.filter(task_type__in=[TASK, ENGINE_TASK]).annotate(
-        device_key=KeyTextTransform("device_id", "payload")
-    ).filter(device_key__in=[str(d.pk) for d in visible])
+    qs = BackgroundTask.objects.filter(task_type__in=[TASK, ENGINE_TASK], payload__device_id__in=[d.pk for d in visible])
     if source not in ("", "manual", "automatic"):
         raise ValueError("Invalid source")
     if source:

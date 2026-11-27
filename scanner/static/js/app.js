@@ -929,9 +929,7 @@ function updateGroupSelects(selected) {
   const fallback = groups.length ? groups : ["default"];
   qsa(".group-select").forEach(sel => {
     const current = selected || sel.value || fallback[0];
-    sel.innerHTML = fallback.map(g =>
-      `<option value="${g}"${g === current ? " selected" : ""}>${g}</option>`
-    ).join("");
+    sel.replaceChildren(...fallback.map(g => new Option(g, g, false, g === current)));
   });
 }
 
@@ -4482,7 +4480,6 @@ function updateDeviceGroupHint() {
 
   const group = groupSel.value;
   const profile = (inventory?.credential_profiles || []).find(p => p.group_name === group);
-  const canSeePass = can("credentials:read") || can("credentials:write");
 
   if (!group) {
     hint.innerHTML = '<span class="text-muted">Выберите группу — SSH-креды берутся из профиля Oxidized</span>';
@@ -4492,7 +4489,7 @@ function updateDeviceGroupHint() {
     hint.innerHTML = `
       <span class="text-warning">
         <i class="fas fa-exclamation-triangle me-1"></i>
-        Нет профиля для группы «${group}».
+        Нет профиля для группы «${escapeHtml(group)}».
         <a href="#" class="device-goto-settings">Добавить в настройках</a>
       </span>`;
     hint.querySelector(".device-goto-settings")?.addEventListener("click", e => {
@@ -4503,12 +4500,12 @@ function updateDeviceGroupHint() {
     return;
   }
 
-  const pass = canSeePass ? profile.password : "********";
+  const pass = "********";
   hint.innerHTML = `
     <span class="cred-preview text-muted">
       <i class="fas fa-key me-1"></i>
-      Профиль <strong>${profile.name}</strong>:
-      <code>${profile.username}</code> / <code>${pass}</code>
+      Профиль <strong>${escapeHtml(profile.name)}</strong>:
+      <code>${escapeHtml(profile.username)}</code> / <code>${pass}</code>
     </span>`;
 }
 

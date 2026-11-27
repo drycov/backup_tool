@@ -49,3 +49,13 @@ class BackupJobsTests(TestCase):
             with self.assertRaises(BackupBusy):
                 with backup_lock(self.device.name):
                     pass
+
+    def test_scope_filters_numeric_device_ids(self):
+        from services.backup_jobs import query_jobs, record_engine_start
+
+        other = Device.objects.create(name="other", ip="192.0.2.2", group="other")
+        record_engine_start(self.device.name)
+        record_engine_start(other.name)
+        viewer = User.objects.create(username="scoped", role="viewer", allowed_groups=["default"])
+        result = query_jobs(viewer)
+        self.assertEqual([j["device"] for j in result["items"]], [self.device.name])

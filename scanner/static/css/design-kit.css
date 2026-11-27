@@ -74,3 +74,34 @@ html[data-tg-theme] {
 .backup-center-row-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;}
 #backup-center-history td{overflow-wrap:anywhere;}
 @media(max-width:767px){.backup-center-controls{grid-template-columns:1fr;}}
+
+/* Native application shell: no AdminLTE runtime or stylesheet. */
+.enterprise-ui #app-layout {
+  display:grid;grid-template-columns:var(--ent-sidebar-width,15.5rem) minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"sidebar header" "sidebar main" "sidebar footer";
+  min-height:100dvh;align-items:start;
+}
+.enterprise-ui #app-layout.d-none{display:none!important}
+.enterprise-ui #app-layout>.app-header{grid-area:header;position:sticky;top:0;z-index:1030;min-width:0;margin:0!important}
+.enterprise-ui #app-layout>.app-sidebar{grid-area:sidebar;position:sticky;top:0;height:100dvh;display:flex;flex-direction:column;width:100%;min-width:0;margin:0!important;overflow:hidden}
+.enterprise-ui .sidebar-wrapper{flex:1;min-height:0;overflow:auto}
+.enterprise-ui .sidebar-brand{flex:none}
+.enterprise-ui .sidebar-menu .nav-link{display:flex;align-items:center;gap:10px}
+.enterprise-ui .sidebar-menu .nav-link p{margin:0;white-space:normal;min-width:0}
+.enterprise-ui #app-layout>.app-main{grid-area:main;min-width:0;margin:0!important}
+.enterprise-ui #app-layout>.app-footer{grid-area:footer;margin:0!important}
+.enterprise-ui #app-layout.workspace-sidebar-collapsed{grid-template-columns:0 minmax(0,1fr)}
+.enterprise-ui #app-layout.workspace-sidebar-collapsed>.app-sidebar{visibility:hidden}
+.enterprise-ui .card-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.enterprise-ui .card-title{font-size:var(--text-base,1rem);margin:0;font-weight:600}
+.enterprise-ui .card-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.enterprise-ui .card-outline{border-top:2px solid var(--tg-border)}
+.enterprise-ui #workspace-sidebar-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);border:0;z-index:1040}
+.enterprise-ui #workspace-sidebar-backdrop[hidden]{display:none}
+.enterprise-ui .login-box{width:min(100%,400px);margin-inline:auto}
+@media(max-width:991.98px){
+ .enterprise-ui #app-layout,.enterprise-ui #app-layout.workspace-sidebar-collapsed{grid-template-columns:minmax(0,1fr);grid-template-areas:"header" "main" "footer"}
+ .enterprise-ui #app-layout>.app-sidebar{position:fixed;inset:0 auto 0 0;width:min(85vw,var(--ent-sidebar-width,15.5rem));z-index:1045;visibility:hidden;transform:translateX(-100%);transition:transform .18s ease,visibility .18s}
+ .enterprise-ui #app-layout.workspace-sidebar-open>.app-sidebar{visibility:visible;transform:translateX(0)}
+}
+@media(prefers-reduced-motion:reduce){.enterprise-ui #app-layout>.app-sidebar{transition:none}}

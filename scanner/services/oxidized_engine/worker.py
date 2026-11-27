@@ -86,6 +86,8 @@ class Worker:
         except BackupBusy:
             node.nexted = True
         except Exception:
+            if node.last:
+                node.last.status = "failed"
             logger.exception("oxidized | scheduled backup failed | %s", node.name)
             record_engine_finish(task_id, "failed")
         finally:
@@ -109,6 +111,7 @@ class Worker:
                 return "success"
             node.last.status = "partial"
             return "partial"
+        node.last.status = "failed" if job.status == "success" else job.status
         self._process_failure(node, job)
         return "failed"
 
@@ -210,5 +213,9 @@ class Worker:
             try:
                 status = self._process(node)
                 return status, self.output.fetch(node) if status == "success" else None
+            except Exception:
+                if node.last:
+                    node.last.status = "failed"
+                raise
             finally:
                 node.running = False

@@ -162,7 +162,9 @@ def process_next_task() -> bool:
             task.finished_at = dj_tz.now()
             task.last_error = ""
             task.payload = {**(task.payload or {}), "result": _json_safe(result)}
-            task.save(update_fields=["status", "finished_at", "last_error", "payload"])
+            updated = BackgroundTask.objects.filter(pk=task.pk,status=BackgroundTask.STATUS_RUNNING,attempts=task.attempts).update(status=task.status,finished_at=task.finished_at,last_error=task.last_error,payload=task.payload)
+            if not updated:
+                return True
             from services.metrics import task_runs_total
 
             task_runs_total.labels(task_type=task.task_type, status="completed").inc()
@@ -186,11 +188,11 @@ def process_next_task() -> bool:
                 task.scheduled_at = dj_tz.now() + timedelta(
                     minutes=min(60, 2**task.attempts)
                 )
-                task.save(update_fields=["status", "scheduled_at", "last_error"])
+                BackgroundTask.objects.filter(pk=task.pk,status=BackgroundTask.STATUS_RUNNING,attempts=task.attempts).update(status=task.status,scheduled_at=task.scheduled_at,last_error=task.last_error)
             else:
                 task.status = BackgroundTask.STATUS_FAILED
                 task.finished_at = dj_tz.now()
-                task.save(update_fields=["status", "finished_at", "last_error"])
+                BackgroundTask.objects.filter(pk=task.pk,status=BackgroundTask.STATUS_RUNNING,attempts=task.attempts).update(status=task.status,finished_at=task.finished_at,last_error=task.last_error)
                 from services.metrics import task_runs_total
 
                 task_runs_total.labels(task_type=task.task_type, status="failed").inc()

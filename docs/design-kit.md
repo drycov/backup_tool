@@ -28,3 +28,6 @@ Global scoped manual-job list, status/type filters, cursor pagination, counts an
 
 ## Consolidated operations
 The Python engine records scheduled runs in the existing task journal; the source filter distinguishes automatic and manual entries. Per-device nonblocking locks coordinate Python fetch, scheduled backup, native backup and restore (PostgreSQL advisory locks; SQLite single-process fallback). Effective policy is shown from existing group/global settings without exposing credentials. Existing group policy editing remains in Settings. No site-specific policy editor or full AdminLTE replacement is included. External Ruby engine runs are not captured.
+
+## Native shell and regression fixes
+The main UI loads Bootstrap 5 directly instead of AdminLTE CSS/JS, with a responsive native grid, keyboard-dismissable mobile sidebar and compatibility rules. Scoped job filtering uses numeric JSON IDs, stale workers cannot overwrite a terminal state, and Git writes are serialized within the process and committed by explicit path. Device group hints no longer render passwords or unescaped profile names. Bootstrap remains for modal/tab/dropdown compatibility; browser verification is required. Cross-process Git coordination with other repository writers is not covered by the in-process lock.
