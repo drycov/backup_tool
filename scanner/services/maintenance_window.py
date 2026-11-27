@@ -44,7 +44,10 @@ def is_maintenance_window_active(
     days: list[Any] | None = None,
 ) -> bool:
     now = now or datetime.now(timezone.utc)
-    if now.weekday() not in _normalize_days(days):
+    weekday = now.weekday()
+    if start_hour_utc > end_hour_utc and now.hour < end_hour_utc:
+        weekday = (weekday - 1) % 7
+    if weekday not in _normalize_days(days):
         return False
     return _hour_in_window(now.hour, start_hour_utc, end_hour_utc)
 

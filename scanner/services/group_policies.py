@@ -48,10 +48,9 @@ def get_policy(group_name: str) -> GroupPolicyData | None:
 
 
 def effective_interval(group_name: str, global_interval: int) -> int:
-    policy = get_policy(group_name)
-    if policy and policy.backup_interval_sec >= 60:
-        return policy.backup_interval_sec
-    return max(60, global_interval)
+    from services.policy_engine import resolve_policy
+
+    return resolve_policy(group_name, global_interval)["interval_sec"]
 
 
 def effective_mk_flags(
@@ -59,12 +58,10 @@ def effective_mk_flags(
     global_binary: bool,
     global_export: bool,
 ) -> tuple[bool, bool]:
-    policy = get_policy(group_name)
-    if not policy:
-        return global_binary, global_export
-    binary = global_binary if policy.mk_binary_enabled is None else policy.mk_binary_enabled
-    export = global_export if policy.mk_export_enabled is None else policy.mk_export_enabled
-    return binary, export
+    from services.policy_engine import resolve_policy
+
+    result = resolve_policy(group_name, 60, binary=global_binary, export=global_export)
+    return result["binary_enabled"], result["export_enabled"]
 
 
 def effective_notify_flags(
@@ -72,32 +69,34 @@ def effective_notify_flags(
     global_telegram: bool,
     global_email: bool,
 ) -> tuple[bool, bool]:
-    policy = get_policy(group_name)
-    if not policy:
-        return global_telegram, global_email
-    tg = global_telegram if policy.notify_telegram is None else policy.notify_telegram
-    em = global_email if policy.notify_email is None else policy.notify_email
-    return tg, em
+    from services.policy_engine import resolve_policy
+
+    result = resolve_policy(group_name, 60, telegram=global_telegram, email=global_email)
+    return result["notify_telegram"], result["notify_email"]
 
 
 def effective_maintenance_override(group_name: str) -> bool | None:
-    policy = get_policy(group_name)
-    if not policy:
-        return None
-    return policy.maintenance_override
+    from services.policy_engine import resolve_policy
+
+    return resolve_policy(group_name, 60)["maintenance_override"]
 
 
 def effective_compliance_sla_hours(group_name: str) -> int | None:
-    policy = get_policy(group_name)
-    if not policy or not policy.compliance_sla_hours:
-        return None
-    return max(1, policy.compliance_sla_hours)
+    from services.policy_engine import resolve_policy
+
+    return resolve_policy(group_name, 60)["sla_hours"]
 
 
 def _nullable_bool(value: Any) -> bool | None:
     if value in ("inherit", "null", "", None):
         return None
-    return bool(value)
+    if isinstance(value, bool):
+        return value
+    if str(value).lower() in ("true", "1"):
+        return True
+    if str(value).lower() in ("false", "0"):
+        return False
+    raise ValueError("Invalid boolean policy value")
 
 
 def save_policy(payload: dict[str, Any]) -> GroupPolicyData:

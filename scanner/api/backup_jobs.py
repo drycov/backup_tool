@@ -59,3 +59,28 @@ def backup_effective_policy(request):
         return json_response(effective_policy(request.api_user,request.GET.get("device","")))
     except PermissionError as exc:
         return error_response(str(exc),status=403)
+
+@require_http_methods(["GET"])
+@require_permission(auth.PERMISSION_OXIDIZED_READ)
+def backup_integrity(request):
+    from core.models import Device
+    from services.object_scope import device_in_scope
+    from services.storage_integrity import verify_config
+    from django.conf import settings
+
+    device = Device.objects.filter(name=request.GET.get("device", "")).first()
+    if not device or not device_in_scope(request.api_user, device):
+        return error_response("Device unavailable", status=403)
+    if settings.OXIDIZED_ENGINE != "python":
+        return error_response("Python engine required", status=409)
+    try:
+        from services.oxidized_settings import load_oxidized_yaml
+
+        git = (load_oxidized_yaml().get("output") or {}).get("git") or {}
+        repo = git.get("repo") or settings.OXIDIZED_GIT_REPO
+        path = f"{device.group}/{device.name}" if git.get("single_repo", True) and device.group else device.name
+        return json_response(verify_config(repo, path))
+    except ValueError as exc:
+        return error_response(str(exc), status=400)
+    except (OSError, TimeoutError):
+        return error_response("Storage unavailable", status=503)

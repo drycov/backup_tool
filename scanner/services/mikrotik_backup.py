@@ -248,6 +248,8 @@ class MikrotikBackup:
 
         if self.config.purge_enabled:
             self._purge_old(self.config.bin_dir, prefix)
+            if self.config.rsc_dir != self.config.bin_dir:
+                self._purge_old(self.config.rsc_dir, prefix)
 
         size = local_stamp.stat().st_size
         logger.info(

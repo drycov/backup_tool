@@ -37,3 +37,6 @@ Sidebar opens up to ten reusable, session-local tabs. Only one page panel is vis
 
 ## Backup-focused workspace
 Removed the provisioning page, navigation item, UI handlers and controller code. Legacy provisioning API, task processing and database tables are retained for compatibility; this change does not disable external API access. TOTP provisioning URI is unrelated and retained.
+
+## Backup Management 2.1 foundation
+Central group/global resolver returns per-field sources and validates boolean inputs. Git diff includes heuristic risk metadata; device-scoped read-only SHA-256 checks compare the working config to HEAD. No external storage adapters, persistent change-event table or site/device override editor in this increment. Native files are not covered by the Git integrity check. Overnight maintenance is attributed to the start day; both binary and RSC retention paths are processed. Existing provision API remains untouched.

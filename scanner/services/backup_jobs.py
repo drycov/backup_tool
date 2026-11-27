@@ -136,21 +136,17 @@ def record_engine_finish(task_id, status):
 
 def effective_policy(user, name):
     from services.backup_settings import get_config
-    from services.group_policies import get_policy, effective_interval, effective_mk_flags, effective_compliance_sla_hours
+    from services.policy_engine import resolve_policy
     from services.maintenance_window import is_backup_paused_for_device
-    from services.oxidized_config_loader import load_oxidized_yaml
+    from services.oxidized_settings import load_oxidized_yaml
     device=Device.objects.filter(name=name).first()
     if not device or not device_in_scope(user,device):
         raise PermissionError("Device unavailable")
     cfg=get_config()
-    group=get_policy(device.group)
     interval=int(load_oxidized_yaml().get("interval") or settings.OXIDIZED_INTERVAL)
-    binary,export=effective_mk_flags(device.group,cfg.binary_enabled,cfg.export_enabled)
+    policy = resolve_policy(device.group, interval, binary=cfg.binary_enabled, export=cfg.export_enabled, telegram=cfg.error_notify_telegram, email=cfg.error_notify_email)
     return {"device":name,"group":device.group,"site":device.site,
-        "interval_sec":effective_interval(device.group,interval),
-        "interval_source":"group" if group and group.backup_interval_sec>=60 else "global",
-        "binary_enabled":binary,"export_enabled":export,
+        **policy, "interval_source":policy["sources"]["interval_sec"],
         "retention_enabled":cfg.purge_enabled,"retention_keep":cfg.purge_keep,
-        "sla_hours":effective_compliance_sla_hours(device.group),
         "scheduled_paused":is_backup_paused_for_device(device_name=name,maintenance=device.maintenance,group_name=device.group),
         "maintenance":device.maintenance,"enabled":device.enabled}

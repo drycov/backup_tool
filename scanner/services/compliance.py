@@ -68,7 +68,7 @@ def _classify_node(
 
     if reachability == "offline":
         issues.append(STATE_UNREACHABLE)
-    if last_status in ("fail", "no_connection"):
+    if last_status in ("fail", "failed", "partial", "no_connection"):
         issues.append(STATE_FAILED)
     elif last_status in ("never", None, "") and mtime <= 0:
         issues.append(STATE_NEVER)

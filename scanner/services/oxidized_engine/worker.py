@@ -183,6 +183,7 @@ class Worker:
                 detail,
             )
             self.nodes.next(node.name)
+            return
         else:
             logger.warning(
                 "oxidized | %s/%s status %s, retries exhausted%s",

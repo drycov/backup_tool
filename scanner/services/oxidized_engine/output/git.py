@@ -209,4 +209,6 @@ class GitOutput:
         patch = diff.stdout or "no diffs"
         added = patch.count("\n+") - patch.count("\n+++")
         removed = patch.count("\n-") - patch.count("\n---")
-        return {"patch": patch, "stat": [len(patch.splitlines()), added, removed]}
+        from services.change_detection import classify_patch
+
+        return {"patch": patch, "stat": [len(patch.splitlines()), added, removed], "risk": classify_patch(patch)}
