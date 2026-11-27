@@ -909,6 +909,11 @@ def oxidized_node_diff(request: HttpRequest, name: str) -> HttpResponse:
     return HttpResponse(html_body, content_type="text/html; charset=utf-8")
 
 
+def health_live(request: HttpRequest) -> JsonResponse:
+    """Process liveness without inventory, database or external engine calls."""
+    return json_response({"status": "ok"})
+
+
 def health(request: HttpRequest) -> JsonResponse:
     from services.database import is_database_available
 
