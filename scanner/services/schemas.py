@@ -460,6 +460,7 @@ class ApiKeyCreate(BaseModel):
 class MikrotikRestoreRequest(BaseModel):
     type: str = Field(pattern=r"^(bin|rsc)$")
     file: str = Field(min_length=1, max_length=256)
+    confirmation: str = Field(min_length=1, max_length=4096)
 
 
 class MikrotikBackupCompareRequest(BaseModel):

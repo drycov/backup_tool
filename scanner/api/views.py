@@ -812,7 +812,12 @@ def oxidized_node_backups_restore(request: HttpRequest, name: str) -> JsonRespon
     try:
         body = parse_json_body(request)
         payload = MikrotikRestoreRequest.model_validate(body)
-        result = restore_mikrotik_backup(name, payload.type, payload.file)
+        if request.api_user.role != "admin":
+            return error_response("Administrator required", status=403)
+        log_audit_user(request.api_user, ACTION_MIKROTIK_RESTORE, target=name,
+                       detail="attempt:" + payload.type + ":" + payload.file, request=request)
+        result = restore_mikrotik_backup(name, payload.type, payload.file,
+                                         confirmation=payload.confirmation, user_id=request.api_user.pk)
     except ValidationError as exc:
         return error_response(str(exc))
     except MikrotikBackupError as exc:
@@ -827,7 +832,7 @@ def oxidized_node_backups_restore(request: HttpRequest, name: str) -> JsonRespon
         request.api_user,
         ACTION_MIKROTIK_RESTORE,
         target=name,
-        detail=f"{payload.type}:{payload.file}",
+        detail=f"submitted_unverified:{payload.type}:{payload.file}",
         request=request,
     )
     return json_response(result)

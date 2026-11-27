@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import logging
+import re
+from uuid import uuid4
 
 from services.mikrotik_backup import MikrotikBackup, MikrotikBackupError, device_file_prefix
 
 logger = logging.getLogger(__name__)
 
 
-def restore_mikrotik_backup(name: str, backup_type: str, filename: str) -> dict:
+def restore_mikrotik_backup(name: str, backup_type: str, filename: str, *, confirmation: str, user_id: int) -> dict:
     from services.backup_lock import BackupBusy, backup_lock
 
     try:
         with backup_lock(name):
+            from services.recovery import validate_confirmation
+
+            validate_confirmation(confirmation, name, backup_type, filename, user_id)
             return _restore_mikrotik_backup(name, backup_type, filename)
     except BackupBusy as exc:
         raise MikrotikBackupError(str(exc)) from exc
@@ -40,29 +45,41 @@ def _restore_mikrotik_backup(name: str, backup_type: str, filename: str) -> dict
     svc = MikrotikBackup()
     local_path = svc.resolve_download(name, backup_type, filename)
     prefix = device_file_prefix(name)
-    remote_base = f"{prefix}_ui_restore"
+    remote_base = f"{prefix}_ui_restore_{uuid4().hex[:12]}"
 
     client = svc._connect(node)
     try:
+        from dataclasses import replace
+
+        safety = MikrotikBackup(replace(svc.config, binary_enabled=True, export_enabled=True, purge_enabled=False))
+        safety._backup_binary(client, node)
+        safety._backup_export(client, node)
         with client.open_sftp() as sftp:
             if backup_type == "bin":
                 remote_file = f"{remote_base}.backup"
                 sftp.put(str(local_path), remote_file)
+                if sftp.stat(remote_file).st_size != local_path.stat().st_size:
+                    raise MikrotikBackupError("Restore upload size mismatch")
                 output = svc._exec(client, f'/system backup load name="{remote_base}"')
                 action = "backup_load"
             else:
                 remote_file = f"{remote_base}.rsc"
                 sftp.put(str(local_path), remote_file)
+                if sftp.stat(remote_file).st_size != local_path.stat().st_size:
+                    raise MikrotikBackupError("Restore upload size mismatch")
                 output = svc._exec(client, f'/import file-name="{remote_file}"')
                 action = "import"
 
+        if re.search(r"failure:|error:|syntax error|expected end of command", output or "", re.I):
+            raise MikrotikBackupError("Device reported restore error; inspect device before retry")
         logger.info("mikrotik | restore | %s | %s | %s", name, action, filename)
         return {
             "ok": True,
+            "status": "submitted_unverified",
             "action": action,
             "file": filename,
             "remote": remote_base,
-            "output": (output or "")[:2000],
+            "safety_backup": True,
         }
     finally:
         client.close()

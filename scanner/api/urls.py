@@ -7,7 +7,10 @@ from api.backup_management import change_events, policy_override
 
 from api.backup_storage import artifact_integrity
 
+from api.recovery import restore_preflight
+
 urlpatterns = [
+    path("api/oxidized/nodes/<str:name>/backups/preflight", restore_preflight, name="restore-preflight"),
     path("api/backup/artifacts/integrity", artifact_integrity, name="backup-artifact-integrity"),
     path("api/backup/overrides", policy_override, name="backup-overrides"),
     path("api/backup/changes", change_events, name="backup-changes"),

@@ -4928,16 +4928,15 @@ async function loadNodeBackupFiles(name) {
 }
 
 async function restoreMikrotikBackup(name, type, file) {
-  if (!confirm(`Восстановить ${file} на устройство ${name}? Текущая конфигурация может быть перезаписана.`)) {
-    return;
-  }
+  if (!can("oxidized:write") || currentUser?.role !== "admin") return;
   try {
-    showAlert("oxidized-alert", `Restore ${name}…`, "info");
-    const res = await api(`/api/oxidized/nodes/${encodeURIComponent(name)}/backups/restore`, {
-      method: "POST",
-      body: JSON.stringify({ type, file }),
-    });
-    showAlert("oxidized-alert", `Restore выполнен: ${res.action || "ok"}`, "success");
+    const base = "/api/oxidized/nodes/" + encodeURIComponent(name) + "/backups/";
+    const plan = await api(base + "preflight?" + new URLSearchParams({type,file}));
+    if (!confirm("Цель: " + name + " (" + plan.ip + ")\nФайл: " + file + "\nSHA-256: " + plan.sha256 + "\nПроверьте модель и версию RouterOS. Binary может перезагрузить устройство; RSC не является полным откатом. Перед операцией будет создана страховочная копия.")) return;
+    if (prompt("Введите точное имя устройства для подтверждения:") !== name) return;
+    showAlert("oxidized-alert", "Restore: создание страховочной копии и отправка команды…", "info");
+    await api(base + "restore", {method:"POST",body:JSON.stringify({type,file,confirmation:plan.confirmation})});
+    showAlert("oxidized-alert", "Команда отправлена. Восстановление не подтверждено: проверьте доступность и конфигурацию устройства.", "warning");
   } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
   }
