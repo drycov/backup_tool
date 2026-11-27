@@ -497,6 +497,7 @@ function syncAppRouteFromHash() {
 }
 
 function showLogin() {
+  window.BackupWorkspace?.close();
   document.body.classList.add("login-page");
   document.body.classList.remove("layout-fixed", "sidebar-expand-lg", "bg-body-tertiary");
   qs("#login-screen").style.display = "block";
@@ -666,6 +667,7 @@ function dashboardStatValueHtml(value, tone) {
 }
 
 function renderDashboardStatsTable() {
+  window.BackupWorkspace?.renderMetrics(dashboardStatsState.platform || []);
   const tbody = qs("#dashboard-stats-table-body");
   if (!tbody) return;
 
@@ -2834,7 +2836,30 @@ async function runBulkDeviceUpdate(payload) {
   }
 }
 
+function openDeviceWorkspace(name) {
+  if (!can("inventory:read")) return;
+  const device = inventory?.devices?.find(d => d.name === name);
+  if (!device) return;
+  const actions = [];
+  if (can("inventory:devices")) actions.push({label:"Редактировать",run:()=>openDeviceModal(name)});
+  if (can("oxidized:read")) {
+    const open = fn => () => {
+      if (!can("oxidized:read")) return;
+      navigateToPage("oxidized");
+      fn();
+    };
+    actions.push({label:"Конфигурация",run:open(()=>showNodeConfig(name,device.model))});
+    actions.push({label:"Версии / Diff",run:open(()=>showNodeVersions(name))});
+    if (isPythonEngine() && isRouterOsModel(device.model)) {
+      actions.push({label:"MikroTik Backup / Export",run:open(()=>showNodeBackups(name))});
+    }
+    if (can("oxidized:write")) actions.push({label:"Получить конфигурацию",run:open(()=>{if(can("oxidized:write"))fetchNodeConfig(name);})});
+  }
+  window.BackupWorkspace?.renderDevice(device,actions);
+}
+
 function renderDevicesTable() {
+  window.BackupWorkspace?.close();
   const tbody = qs("#devices-table");
   if (!tbody) return;
   const devices = inventory?.devices || [];
@@ -2871,7 +2896,7 @@ function renderDevicesTable() {
   tbody.innerHTML = filtered.map(d => `
     <tr>
       ${showBulk ? `<td><input type="checkbox" class="form-check-input device-select-cb" data-name="${escapeHtml(d.name)}" ${selectedDeviceNames.has(d.name) ? "checked" : ""}></td>` : ""}
-      <td><strong>${escapeHtml(d.name)}</strong></td>
+      <td><button type="button" class="btn btn-link p-0 text-start btn-workspace-device" data-name="${escapeHtml(d.name)}">${escapeHtml(d.name)}</button></td>
       <td>${escapeHtml(d.ip)}</td>
       <td><span class="oxidized-model-label">${escapeHtml(formatOxidizedModelLabel(d.model))}</span></td>
       <td>${escapeHtml(d.group)}</td>
@@ -2885,6 +2910,9 @@ function renderDevicesTable() {
     </tr>
   `).join("");
 
+  tbody.querySelectorAll(".btn-workspace-device").forEach(btn => {
+    btn.addEventListener("click", () => openDeviceWorkspace(btn.dataset.name));
+  });
   tbody.querySelectorAll(".device-select-cb").forEach(cb => {
     cb.addEventListener("change", () => {
       if (cb.checked) selectedDeviceNames.add(cb.dataset.name);

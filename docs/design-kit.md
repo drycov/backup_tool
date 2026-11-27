@@ -13,3 +13,6 @@ Workspace section filtering does not alter permission visibility. Existing API a
 - Verify dropdowns, modals, backup and restore, inventory, scan, provisioning, security, audit and settings.
 - Test mobile sidebar and keyboard navigation.
 - Run existing scanner CI; browser regression tests are still required.
+
+## Unified workspace (stage 2)
+Grouped navigation, permission-aware section visibility, dashboard KPI cards and an inventory device workspace. Device actions delegate to existing configuration, version and MikroTik backup handlers. No new API or database migrations. Browser and integration verification pending.

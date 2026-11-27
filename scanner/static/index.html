@@ -151,67 +151,71 @@
         <nav class="mt-2">
           <div class="px-3 pt-2 pb-1"><label for="workspace-nav-filter" class="visually-hidden">Фильтр разделов</label><input id="workspace-nav-filter" class="form-control form-control-sm" type="search" placeholder="Разделы…" autocomplete="off"></div>
           <ul class="nav sidebar-menu flex-column" data-lte-toggle="treeview" role="navigation">
-            <li class="nav-item" data-permission="inventory:read">
+            <li class="nav-header workspace-section" role="presentation">Обзор</li>
+<li class="nav-item" data-permission="inventory:read">
               <a href="#dashboard" class="nav-link nav-page active" data-page="dashboard">
                 <i class="nav-icon fas fa-tachometer-alt"></i>
                 <p>Дашборд</p>
               </a>
             </li>
-            <li class="nav-item" data-permission="inventory:read">
+<li class="nav-header workspace-section" role="presentation">Инфраструктура</li>
+<li class="nav-item" data-permission="inventory:read">
               <a href="#inventory" class="nav-link nav-page" data-page="inventory">
                 <i class="nav-icon fas fa-clipboard-list"></i>
                 <p>Инвентарь</p>
               </a>
             </li>
-            <li class="nav-item" data-permission-any="scan:read,scan:run">
+<li class="nav-item" data-permission-any="scan:read,scan:run">
               <a href="#scan" class="nav-link nav-page" data-page="scan">
                 <i class="nav-icon fas fa-search"></i>
                 <p>Сканирование</p>
               </a>
             </li>
-            <li class="nav-item" data-permission="oxidized:read">
+<li class="nav-header workspace-section" role="presentation">Резервное копирование</li>
+<li class="nav-item" data-permission="oxidized:read">
               <a href="#oxidized" class="nav-link nav-page" data-page="oxidized">
                 <i class="nav-icon fas fa-database"></i>
                 <p>Oxidized</p>
               </a>
             </li>
-            <li class="nav-item" data-permission="oxidized:read">
+<li class="nav-item" data-permission="oxidized:read">
               <a href="#oxidized-ui" class="nav-link nav-page" data-page="oxidized-ui">
                 <i class="nav-icon fas fa-globe"></i>
                 <p>Oxidized UI</p>
               </a>
             </li>
-            <li class="nav-item" data-permission-any="credentials:read,credentials:write,inventory:write,users:manage">
-              <a href="#settings" class="nav-link nav-page" data-page="settings">
-                <i class="nav-icon fas fa-cog"></i>
-                <p>Настройки</p>
-              </a>
-            </li>
-            <li class="nav-item" data-permission="provision:read">
+<li class="nav-header workspace-section" role="presentation">Эксплуатация</li>
+<li class="nav-item" data-permission="provision:read">
               <a href="#provision" class="nav-link nav-page" data-page="provision">
                 <i class="nav-icon fas fa-magic"></i>
                 <p>Провижионинг</p>
               </a>
             </li>
-            <li class="nav-item" data-permission="security:read">
+<li class="nav-item" data-permission="security:read">
               <a href="#security" class="nav-link nav-page" data-page="security">
                 <i class="nav-icon fas fa-user-shield"></i>
                 <p>Безопасность</p>
               </a>
             </li>
-            <li class="nav-item" data-permission="users:manage">
+<li class="nav-header workspace-section" role="presentation">Администрирование</li>
+<li class="nav-item" data-permission="users:manage">
               <a href="#users" class="nav-link nav-page" data-page="users">
                 <i class="nav-icon fas fa-users"></i>
                 <p>Пользователи</p>
               </a>
             </li>
-            <li class="nav-item" data-permission="users:manage">
+<li class="nav-item" data-permission="users:manage">
               <a href="#audit" class="nav-link nav-page" data-page="audit">
                 <i class="nav-icon fas fa-history"></i>
                 <p>Аудит</p>
               </a>
             </li>
-          </ul>
+<li class="nav-item" data-permission-any="credentials:read,credentials:write,inventory:write,users:manage">
+              <a href="#settings" class="nav-link nav-page" data-page="settings">
+                <i class="nav-icon fas fa-cog"></i>
+                <p>Настройки</p>
+              </a>
+            </li></ul>
         </nav>
       </div>
     </aside>
@@ -241,6 +245,7 @@
           <div id="page-dashboard" class="page">
             <div id="dashboard-alert" class="page-alert mb-2"></div>
             <div id="dashboard-warnings" class="mb-2"></div>
+<div id="workspace-kpis" class="dk-grid-auto mb-3" aria-live="polite"></div>
             <div class="card card-outline card-secondary mb-3">
               <div class="card-header d-flex flex-wrap align-items-center gap-2 py-2">
                 <h3 class="card-title mb-0">Статистика</h3>
@@ -422,6 +427,7 @@
           <!-- Inventory -->
           <div id="page-inventory" class="page d-none">
             <div id="inventory-alert" class="page-alert"></div>
+<section class="dk-card mb-3" id="device-workspace" hidden aria-labelledby="workspace-device-title"><div class="dk-card__body"><div class="d-flex justify-content-between align-items-center"><h2 class="h5 mb-0" id="workspace-device-title"></h2><button type="button" class="btn btn-outline-secondary btn-sm" id="workspace-device-close">Закрыть</button></div><dl id="workspace-device-details" class="workspace-details mt-3"></dl><div id="workspace-device-actions" class="dk-row-flex"></div></div></section>
             <div class="card card-outline card-info" id="networks-card">
               <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <h3 class="card-title mb-0">Подсети для discovery</h3>
@@ -2962,6 +2968,7 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/addon/mode/simple.min.js"></script>
   <script defer src="/static/js/ui-shell.js"></script>
   <script defer src="/static/js/config-editor.js"></script>
-  <script defer src="/static/js/app.js?v=20260618-5"></script>
+  <script defer src="/static/js/workspace.js"></script>
+  <script defer src="/static/js/app.js?v=20261127-2"></script>
 </body>
 </html>
