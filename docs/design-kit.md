@@ -16,3 +16,6 @@ Workspace section filtering does not alter permission visibility. Existing API a
 
 ## Unified workspace (stage 2)
 Grouped navigation, permission-aware section visibility, dashboard KPI cards and an inventory device workspace. Device actions delegate to existing configuration, version and MikroTik backup handlers. No new API or database migrations. Browser and integration verification pending.
+
+## Unified Backup Center (stage 3)
+The Oxidized page now provides a node-scoped consolidated Git/Binary/RSC history, type filters, per-source error reporting, configuration acquisition, native backups, download and existing restore/diff workflows. Binary/RSC operations require the Python engine and RouterOS support. No global job persistence or aggregate history endpoint has been added. Runtime browser and network tests remain pending.

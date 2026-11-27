@@ -68,3 +68,9 @@ html[data-tg-theme] {
 .workspace-details{display:grid;grid-template-columns:minmax(80px,140px) minmax(0,1fr);gap:8px 16px;}
 .workspace-details dt{color:var(--tg-hint);font-weight:500;}.workspace-details dd{margin:0;overflow-wrap:anywhere;}
 #workspace-kpis .dk-stat{min-width:0;}#workspace-kpis .dk-stat__value{overflow-wrap:anywhere;}
+
+/* Unified Backup Center */
+.backup-center-controls{display:grid;grid-template-columns:minmax(180px,2fr) minmax(150px,1fr) auto;gap:var(--space-3);align-items:end;}
+.backup-center-row-actions{display:flex;gap:var(--space-2);flex-wrap:wrap;}
+#backup-center-history td{overflow-wrap:anywhere;}
+@media(max-width:767px){.backup-center-controls{grid-template-columns:1fr;}}

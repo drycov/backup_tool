@@ -175,7 +175,7 @@
 <li class="nav-item" data-permission="oxidized:read">
               <a href="#oxidized" class="nav-link nav-page" data-page="oxidized">
                 <i class="nav-icon fas fa-database"></i>
-                <p>Oxidized</p>
+                <p>Центр резервного копирования</p>
               </a>
             </li>
 <li class="nav-item" data-permission="oxidized:read">
@@ -595,13 +595,14 @@
             <div id="oxidized-engine-banner" class="alert alert-info py-2 small" style="display:none;" role="status"></div>
             <div id="oxidized-models-warning" class="alert alert-warning py-2 small" style="display:none;" role="status"></div>
             <div class="row g-3" id="oxidized-stats"></div>
+<section class="dk-card mb-3" aria-labelledby="backup-center-title"><div class="dk-card__body dk-stack"><div><h2 class="h5" id="backup-center-title">История резервных копий</h2><p class="dk-hint mb-0">Выберите узел для просмотра конфигураций Git, Binary и RSC Export. Доступность зависит от модели и движка.</p></div><div class="backup-center-controls"><div><label class="dk-label" for="backup-center-node">Устройство</label><select class="form-select" id="backup-center-node"><option value="">Выберите устройство</option></select></div><div><label class="dk-label" for="backup-center-type">Тип копии</label><select class="form-select" id="backup-center-type"><option value="all">Все типы</option><option value="config">Git / Config</option><option value="bin">MikroTik Binary</option><option value="rsc">MikroTik RSC</option></select></div><button type="button" class="btn btn-outline-secondary" id="backup-center-refresh" disabled>Обновить историю</button></div><div class="dk-row-flex" id="backup-center-actions"></div><div id="backup-center-status" role="status" aria-live="polite" class="dk-hint">Выберите устройство.</div><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Дата</th><th>Тип</th><th>Версия / файл</th><th>Размер</th><th>Действия</th></tr></thead><tbody id="backup-center-history"></tbody></table></div></div></section>
             <div class="mb-3">
               <button class="btn btn-secondary me-1" id="btn-refresh-oxidized"><i class="fas fa-redo me-1"></i> Обновить</button>
               <button class="btn btn-primary me-1" id="btn-sync-oxidized" data-permission="oxidized:write">
                 <i class="fas fa-sync me-1"></i> Sync конфиг
               </button>
               <button class="btn btn-warning me-1" id="btn-backup-all" data-permission="oxidized:write">
-                <i class="fas fa-database me-1"></i> Backup все
+                <i class="fas fa-database me-1"></i> Запустить для всех
               </button>
               <a class="btn btn-outline-secondary me-1" id="link-oxidized-2" href="#" target="_blank">
                 <i class="fas fa-external-link-alt me-1"></i> Oxidized Web ↗
@@ -2969,6 +2970,7 @@
   <script defer src="/static/js/ui-shell.js"></script>
   <script defer src="/static/js/config-editor.js"></script>
   <script defer src="/static/js/workspace.js"></script>
-  <script defer src="/static/js/app.js?v=20261127-2"></script>
+  <script defer src="/static/js/backup-center.js"></script>
+  <script defer src="/static/js/app.js?v=20261127-3"></script>
 </body>
 </html>
