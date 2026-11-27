@@ -105,3 +105,16 @@ html[data-tg-theme] {
  .enterprise-ui #app-layout.workspace-sidebar-open>.app-sidebar{visibility:visible;transform:translateX(0)}
 }
 @media(prefers-reduced-motion:reduce){.enterprise-ui #app-layout>.app-sidebar{transition:none}}
+
+/* Compact tabbed workspace */
+.enterprise-ui .workspace-tabs{display:flex;align-items:center;gap:4px;min-width:0;padding:4px 12px;background:var(--tg-secondary);border-bottom:1px solid var(--tg-border);position:sticky;top:0;z-index:20}
+#workspace-tablist{display:flex;flex:1;min-width:0;gap:4px;overflow-x:auto;scrollbar-width:thin}
+.workspace-tab{display:inline-flex;align-items:center;gap:7px;flex:0 0 auto;max-width:240px;padding:9px 12px;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--tg-hint);font-size:13px;text-align:left}
+.workspace-tab span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workspace-tab[aria-selected="true"]{background:var(--ent-primary-subtle);border-color:var(--tg-border);color:var(--tg-text);font-weight:600}
+.workspace-tab:hover{background:var(--tg-tertiary)}
+.enterprise-ui .workspace-tabs .dk-btn{flex:none}
+.enterprise-ui .enterprise-page-header{padding:10px 12px}
+.enterprise-ui .enterprise-page-title{font-size:1.15rem}
+.enterprise-ui .page .table-responsive{max-width:100%}
+@media(max-width:767px){.enterprise-ui .workspace-tabs{padding:4px 6px}.workspace-tab{max-width:175px;padding:8px}.enterprise-ui .enterprise-breadcrumb{display:none}}
