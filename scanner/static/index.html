@@ -32,7 +32,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.18/theme/dracula.min.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/static/css/vendor/design-kit/index.css">
   <link rel="stylesheet" href="/static/css/style.css">
-  <link rel="stylesheet" href="/static/css/design-kit.css?v=20261127-7">
+  <link rel="stylesheet" href="/static/css/design-kit.css?v=20261127-8">
 </head>
 <body class="layout-fixed sidebar-expand-lg enterprise-ui">
 
@@ -222,6 +222,7 @@
 
     <button id="workspace-sidebar-backdrop" type="button" aria-label="Закрыть меню" hidden></button>
     <main class="app-main">
+      <nav id="workspace-tabs" class="workspace-tabs" aria-label="Рабочие вкладки"><div id="workspace-tablist" role="tablist" aria-label="Открытые разделы"></div><button type="button" id="workspace-tab-refresh" class="dk-btn dk-btn--ghost dk-btn--sm" title="Обновить активный раздел" aria-label="Обновить активный раздел"><i class="fas fa-sync-alt" aria-hidden="true"></i></button><button type="button" id="workspace-tab-close" class="dk-btn dk-btn--ghost dk-btn--sm" title="Закрыть активную вкладку" aria-label="Закрыть активную вкладку"><i class="fas fa-times" aria-hidden="true"></i></button></nav>
       <div class="app-content-header enterprise-page-header" id="content-header">
         <div class="container-fluid">
           <div class="row align-items-center">
@@ -2973,6 +2974,7 @@
   <script defer src="/static/js/backup-center.js"></script>
   <script defer src="/static/js/backup-operations.js"></script>
   <script defer src="/static/js/backup-policy.js"></script>
-  <script defer src="/static/js/app.js?v=20261127-7"></script>
+  <script defer src="/static/js/workspace-tabs.js?v=20261127-8"></script>
+  <script defer src="/static/js/app.js?v=20261127-8"></script>
 </body>
 </html>

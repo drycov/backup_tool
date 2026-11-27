@@ -31,3 +31,6 @@ The Python engine records scheduled runs in the existing task journal; the sourc
 
 ## Native shell and regression fixes
 The main UI loads Bootstrap 5 directly instead of AdminLTE CSS/JS, with a responsive native grid, keyboard-dismissable mobile sidebar and compatibility rules. Scoped job filtering uses numeric JSON IDs, stale workers cannot overwrite a terminal state, and Git writes are serialized within the process and committed by explicit path. Device group hints no longer render passwords or unescaped profile names. Bootstrap remains for modal/tab/dropdown compatibility; browser verification is required. Cross-process Git coordination with other repository writers is not covered by the in-process lock.
+
+## Tabbed workspace
+Sidebar opens up to ten reusable, session-local tabs. Only one page panel is visible; switching preserves the existing DOM and forms, with settings dirty confirmation. Tabs support arrow keys, Home/End, Delete and explicit refresh. Permission-filtered sidebar remains the source of available pages. Page refreshes have a 15-second freshness window; not all legacy API calls are deduplicated or cancellable. No persistent tab storage or backend changes.

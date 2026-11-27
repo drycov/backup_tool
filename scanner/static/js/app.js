@@ -280,6 +280,7 @@ function applyPermissions() {
     netsCard.style.display = can("inventory:write") ? "" : "none";
   }
   syncSettingsActiveTab();
+  window.WorkspaceTabs?.reconcile();
 }
 
 function updateLocationHash(hash) {
@@ -489,14 +490,20 @@ function syncAppRouteFromHash() {
   if (!currentUser) return;
   const h = location.hash.replace(/^#/, "");
   if (!h) {
-    navigateToPage("dashboard");
-    updateLocationHash("dashboard");
+    const first = qsa(".sidebar-menu .nav-page").find(link => allowedWorkspaceLink(link.dataset.page));
+    if (first) navigateToPage(first.dataset.page);
     return;
   }
   handleRouteHash();
 }
 
 function showLogin() {
+  workspaceSession++;
+  activeWorkspacePage = null;
+  workspaceLoaded.clear();
+  workspaceLoad = null;
+  workspaceSettingsTask = null;
+  window.WorkspaceTabs?.reset();
   window.BackupOperations?.reset();
   window.BackupCenter?.reset();
   window.BackupWorkspace?.close();
@@ -871,50 +878,78 @@ function setPageTitle(page) {
   if (crumbEl) crumbEl.textContent = title;
 }
 
-function initNavigation() {
-  qsa(".nav-page").forEach(link => {
-    link.addEventListener("click", e => {
-      e.preventDefault();
-      const target = qs(`.sidebar-menu .nav-page[data-page="${link.dataset.page}"]`);
-      if (!target || target.closest("li")?.style.display === "none") return;
-      qsa(".nav-page").forEach(l => l.classList.remove("active"));
-      target.classList.add("active");
-      const page = link.dataset.page;
-      qsa(".page").forEach(p => p.classList.add("d-none"));
-      const pageEl = qs(`#page-${page}`);
-      if (pageEl) pageEl.classList.remove("d-none");
-      setPageTitle(page);
-      if (page === "oxidized") {
-        window.BackupOperations?.start();
-        loadOxidizedNodes();
-        refreshOxidizedLogBadge();
-      } else {
-        window.BackupOperations?.stop();
-        stopOxidizedLogsPolling();
-      }
-      if (page === "oxidized-ui") loadOxidizedIframe(true);
-      if (page === "users") {
-        loadRbacMatrix().then(() => loadCustomRoles());
-        loadUsers();
-        refreshTotpSettings();
-      }
-      if (page === "scan") {
-        resumeScanIfRunning();
-        loadScanHistory();
-      }
-      if (page === "audit") loadAudit();
-      if (page === "security") loadSecurityAudit();
-      if (page === "provision") loadProvisionPage();
-      if (page === "dashboard") loadHealth();
-      if (page === "settings") {
-        loadSettings().then(() => {
-          activateSettingsTab(resolveInitialSettingsTab(), { updateHash: true });
-        });
-      } else {
-        updateLocationHash(page);
-      }
-    });
+let activeWorkspacePage = null;
+let workspaceSession = 0;
+let workspaceLoad = null;
+let workspaceLoaded = new Map();
+let workspaceSettingsTask = null;
+
+function allowedWorkspaceLink(page) {
+  return qsa(".sidebar-menu .nav-page").find(link => link.dataset.page === page && link.closest("li")?.style.display !== "none");
+}
+
+function loadWorkspacePage(page, force = false) {
+  if (!currentUser || activeWorkspacePage !== page || !allowedWorkspaceLink(page)) return Promise.resolve();
+  const key = workspaceSession + ":" + page;
+  if (workspaceLoad?.key === key) return workspaceLoad.promise;
+  if (!force && Date.now() - (workspaceLoaded.get(page) || 0) < 15000) return Promise.resolve();
+  const session = workspaceSession;
+  const task = Promise.resolve().then(async () => {
+    if (session !== workspaceSession || !currentUser) return;
+    switch(page) {
+      case "dashboard": await loadHealth(); break;
+      case "inventory": await loadInventory(); break;
+      case "oxidized": await Promise.all([loadOxidizedNodes(), refreshOxidizedLogBadge()]); break;
+      case "oxidized-ui": loadOxidizedIframe(force); break;
+      case "users": await Promise.all([loadRbacMatrix().then(() => loadCustomRoles()), loadUsers(), refreshTotpSettings()]); break;
+      case "scan": await Promise.all([resumeScanIfRunning(), loadScanHistory()]); break;
+      case "audit": await loadAudit(); break;
+      case "security": await loadSecurityAudit(); break;
+      case "provision": await loadProvisionPage(); break;
+      case "settings":
+        if (!workspaceSettingsTask) workspaceSettingsTask = loadSettings().finally(() => { if (session === workspaceSession) workspaceSettingsTask = null; });
+        await workspaceSettingsTask;
+        if (session === workspaceSession && activeWorkspacePage === page) activateSettingsTab(resolveInitialSettingsTab(), {updateHash:true});
+        break;
+    }
+    if (session === workspaceSession && currentUser) workspaceLoaded.set(page, Date.now());
+  }).catch(error => {
+    if (session === workspaceSession && activeWorkspacePage === page) showAlert(page + "-alert", error.message, "error");
+  }).finally(() => { if (workspaceLoad?.promise === task) workspaceLoad = null; });
+  workspaceLoad = {key,promise:task};
+  return task;
+}
+
+function openWorkspacePage(page, force = false) {
+  const target = allowedWorkspaceLink(page);
+  if (!currentUser || !target) return false;
+  const changed = activeWorkspacePage !== page;
+  if (changed && activeWorkspacePage === "settings" && isSettingsDirty() && !confirm("Есть несохранённые изменения. Перейти в другой раздел?")) return false;
+  activeWorkspacePage = page;
+  qsa(".nav-page").forEach(link => link.classList.toggle("active", link === target));
+  qsa(".page").forEach(panel => {
+    const selected = panel.id === "page-" + page;
+    panel.classList.toggle("d-none", !selected);
+    panel.setAttribute("aria-hidden", String(!selected));
   });
+  setPageTitle(page);
+  window.WorkspaceTabs?.activate(page);
+  if (changed) {
+    if (page === "oxidized") window.BackupOperations?.start();
+    else { window.BackupOperations?.stop(); stopOxidizedLogsPolling(); }
+  }
+  if (page !== "settings") updateLocationHash(page);
+  else activateSettingsTab(resolveInitialSettingsTab(), {updateHash:true});
+  loadWorkspacePage(page, force);
+  return true;
+}
+
+function initNavigation() {
+  window.WorkspaceTabs?.init({allowed: allowedWorkspaceLink, open: openWorkspacePage, refresh: () => activeWorkspacePage && loadWorkspacePage(activeWorkspacePage, true)});
+  qsa(".nav-page").forEach(link => link.addEventListener("click", e => {
+    e.preventDefault();
+    openWorkspacePage(link.dataset.page);
+  }));
 }
 
 function getGroupNames() {
@@ -6163,10 +6198,8 @@ async function bootstrapApp(uiConfig = {}) {
   } catch {}
 
   const page = currentAppPage();
-  const tasks = [loadInventory(), loadOxidizedModels()];
-  if (page === "dashboard") {
-    tasks.push(loadHealth());
-  }
+  const tasks = [loadOxidizedModels()];
+  if (page !== "inventory" && page !== "settings" && can("inventory:read")) tasks.push(loadInventory());
 
   await Promise.all(tasks);
 
