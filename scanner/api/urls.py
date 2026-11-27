@@ -5,7 +5,10 @@ from api.backup_jobs import backup_effective_policy, backup_integrity, backup_jo
 
 from api.backup_management import change_events, policy_override
 
+from api.backup_storage import artifact_integrity
+
 urlpatterns = [
+    path("api/backup/artifacts/integrity", artifact_integrity, name="backup-artifact-integrity"),
     path("api/backup/overrides", policy_override, name="backup-overrides"),
     path("api/backup/changes", change_events, name="backup-changes"),
     path("api/backup/integrity", backup_integrity, name="backup-integrity"),

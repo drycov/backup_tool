@@ -641,3 +641,18 @@ class ConfigChangeEvent(models.Model):
     class Meta:
         db_table = "config_change_events"
         constraints = [models.UniqueConstraint(fields=["device", "commit_oid"], name="config_change_device_commit")]
+
+
+class BackupArtifact(models.Model):
+    device = models.ForeignKey(Device, on_delete=models.CASCADE)
+    kind = models.CharField(max_length=8)
+    filename = models.CharField(max_length=255)
+    sha256 = models.CharField(max_length=64)
+    size_bytes = models.PositiveBigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    remote_key = models.CharField(max_length=512, blank=True, default="")
+    remote_status = models.CharField(max_length=16, default="disabled")
+
+    class Meta:
+        db_table = "backup_artifacts"
+        constraints = [models.UniqueConstraint(fields=["device", "kind", "filename"], name="backup_artifact_identity")]

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import os
+from uuid import uuid4
 import shutil
 import time
 from dataclasses import dataclass, replace
@@ -120,9 +122,10 @@ class MikrotikBackup:
         prefix = device_file_prefix(name)
         base = self.config.bin_dir if backup_type == "bin" else self.config.rsc_dir
         path = (base / filename).resolve()
-        if not str(path).startswith(str(base.resolve())):
+        if backup_type not in ("bin", "rsc") or Path(filename).name != filename or path.parent != base.resolve():
             raise MikrotikBackupError("invalid path")
-        if not path.name.startswith(prefix):
+        suffix = ".backup" if backup_type == "bin" else ".rsc"
+        if path.name != filename or not path.name.endswith(suffix) or not (path.name == prefix + suffix or path.name.startswith(prefix + "_")):
             raise MikrotikBackupError("file not found")
         if not path.is_file():
             raise MikrotikBackupError("file not found")
@@ -132,7 +135,7 @@ class MikrotikBackup:
         if not folder.is_dir():
             return []
         items: list[dict[str, str | int]] = []
-        for path in sorted(folder.glob(f"{prefix}*{suffix}"), key=lambda p: p.stat().st_mtime, reverse=True):
+        for path in sorted((p for p in folder.glob(f"{prefix}*{suffix}") if p.is_file() and not p.is_symlink() and (p.name == prefix + suffix or p.name.startswith(prefix + "_"))), key=lambda p: p.stat().st_mtime, reverse=True):
             stat = path.stat()
             items.append(
                 {
@@ -215,7 +218,16 @@ class MikrotikBackup:
                 client=client,
                 wait_timeout=wait_timeout,
             )
-            sftp.get(remote_path, str(local))
+            expected = sftp.stat(remote_path).st_size
+            temp = local.with_name("." + local.name + "." + uuid4().hex + ".part")
+            try:
+                sftp.get(remote_path, str(temp))
+                if not expected or temp.stat().st_size != expected:
+                    raise MikrotikBackupError("Incomplete SFTP transfer")
+                os.chmod(temp, 0o600)
+                os.replace(temp, local)
+            finally:
+                temp.unlink(missing_ok=True)
 
     def _ros7(self, client: paramiko.SSHClient) -> bool:
         resource = self._exec(client, "/system resource print")
@@ -233,7 +245,7 @@ class MikrotikBackup:
     def _backup_binary(self, client: paramiko.SSHClient, node: Node) -> bool:
         prefix = device_file_prefix(node.name)
         remote_base = f"{prefix}.backup"
-        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S-%f")
         local_stamp = self.config.bin_dir / f"{prefix}_{stamp}.backup"
         local_last = self.config.bin_dir / f"{prefix}_last.backup"
 
@@ -243,13 +255,14 @@ class MikrotikBackup:
         if re.search(r"(failure:|status: failed|could not create|not enough (disk )?space)", save_out, re.I):
             raise MikrotikBackupError(f"backup save rejected: {save_out[:300].strip()}")
         self._sftp_get(client, remote_base, local_stamp, wait_timeout=180)
+        from services.backup_artifacts import register_artifact
+
+        register_artifact(node.name, "bin", local_stamp)
         shutil.copy2(local_stamp, local_last)
         self._exec(client, f'/file remove "{remote_base}"')
 
         if self.config.purge_enabled:
-            self._purge_old(self.config.bin_dir, prefix)
-            if self.config.rsc_dir != self.config.bin_dir:
-                self._purge_old(self.config.rsc_dir, prefix)
+            self._purge_old(self.config.bin_dir, prefix, ".backup")
 
         size = local_stamp.stat().st_size
         logger.info(
@@ -264,7 +277,8 @@ class MikrotikBackup:
         prefix = device_file_prefix(node.name)
         remote_base = prefix
         remote_file = f"{remote_base}.rsc"
-        local_file = self.config.rsc_dir / f"{prefix}.rsc"
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S-%f")
+        local_file = self.config.rsc_dir / f"{prefix}_{stamp}.rsc"
 
         hide = node.vars.get("remove_secret")
         if hide is None:
@@ -284,6 +298,12 @@ class MikrotikBackup:
         self._sftp_get(client, remote_file, local_file, wait_timeout=90)
         self._exec(client, f'/file remove "{remote_file}"')
         self._clean_export_header(local_file)
+        from services.backup_artifacts import register_artifact
+
+        register_artifact(node.name, "rsc", local_file)
+        shutil.copy2(local_file, self.config.rsc_dir / f"{prefix}.rsc")
+        if self.config.purge_enabled:
+            self._purge_old(self.config.rsc_dir, prefix, ".rsc")
 
         size = local_file.stat().st_size
         logger.info(
@@ -302,12 +322,12 @@ class MikrotikBackup:
         if cleaned != text:
             path.write_text(cleaned, encoding="utf-8")
 
-    def _purge_old(self, folder: Path, prefix: str) -> None:
+    def _purge_old(self, folder: Path, prefix: str, suffix: str = ".backup") -> None:
         keep = max(1, self.config.purge_keep)
         dated = [
             path
-            for path in folder.glob(f"{prefix}_*.backup")
-            if not path.name.endswith("_last.backup")
+            for path in folder.glob(f"{prefix}_*{suffix}")
+            if not path.name.endswith("_last" + suffix) and not path.is_symlink()
         ]
         dated.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         for path in dated[keep:]:

@@ -32,6 +32,15 @@
         } else {
           const a = document.createElement("a"); a.className = "dk-btn dk-btn--secondary dk-btn--sm";
           a.href = deps.backupDownloadUrl(n.name,r.type,r.name); a.download = ""; a.textContent = "Скачать"; actions.append(a);
+          const verify = button("SHA-256", async () => {
+            if (!allowed()) return;
+            verify.disabled = true;
+            try {
+              const result = await deps.api("/api/backup/artifacts/integrity?" + new URLSearchParams({device:n.name,kind:r.type,file:r.name}));
+              verify.textContent = ({verified:"Целостность OK",mismatch:"Повреждён",missing:"Нет файла",untracked:"Нет эталона"})[result.status] || result.status;
+            } catch (_) { verify.textContent = "Проверка недоступна"; }
+            finally { verify.disabled = false; }
+          }, actions);
           if (deps.can("oxidized:write") && supported(n)) button("Восстановить", () => {
             if (deps.can("oxidized:write") && supported(n)) deps.restore(n.name,r.type,r.name);
           }, actions, true);
