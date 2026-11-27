@@ -274,6 +274,10 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
 
         return run_provision_generate_task(task.payload or {})
 
+    if task.task_type == "backup.manual":
+        from services.backup_jobs import execute
+        return execute(task.payload or {})
+
     raise ValueError(f"Unknown task type: {task.task_type}")
 
 
@@ -286,6 +290,10 @@ def purge_stale_running(max_age_minutes: int = 120) -> int:
         status=BackgroundTask.STATUS_RUNNING,
         started_at__lt=cutoff,
     )
+    # Manual backups are not blindly replayed after worker loss.
+    manual = qs.filter(task_type="backup.manual")
+    failed = manual.update(status=BackgroundTask.STATUS_FAILED, finished_at=dj_tz.now(), last_error="Worker lost; outcome unknown")
+    qs = qs.exclude(task_type="backup.manual")
     count = qs.count()
     if count:
         qs.update(
@@ -293,4 +301,4 @@ def purge_stale_running(max_age_minutes: int = 120) -> int:
             scheduled_at=dj_tz.now(),
             last_error="stale running reset after restart",
         )
-    return count
+    return count + failed

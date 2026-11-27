@@ -19,3 +19,6 @@ Grouped navigation, permission-aware section visibility, dashboard KPI cards and
 
 ## Unified Backup Center (stage 3)
 The Oxidized page now provides a node-scoped consolidated Git/Binary/RSC history, type filters, per-source error reporting, configuration acquisition, native backups, download and existing restore/diff workflows. Binary/RSC operations require the Python engine and RouterOS support. No global job persistence or aggregate history endpoint has been added. Runtime browser and network tests remain pending.
+
+## Stage 4 — persistent manual backup jobs
+POST /api/backup/jobs enqueues a Python-engine configuration or RouterOS backup for an enabled inventory device. GET ?device=NAME lists 50 scoped jobs. The existing BackgroundTask worker executes jobs, rechecks the initiating user's current permissions and device identity, and records outcomes without configuration contents. One active manual job per device; no automatic replay after worker loss. Existing direct endpoints remain unchanged. Schedule management and cross-engine support are not implemented.

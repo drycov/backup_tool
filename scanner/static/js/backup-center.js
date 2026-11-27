@@ -55,26 +55,30 @@
         pending.add(key); btn.disabled = true;
         const ticket = generation;
         try {
-          await deps.api(path(n,suffix),{method:"POST"});
-          if (ticket === generation && allowed()) { await load(); message(suffix === "/fetch" ? "Запрос Fetch принят. Новая версия появится после завершения." : "Резервная копия создана. " + el("status").textContent); }
+          await deps.api("/api/backup/jobs",{method:"POST",body:JSON.stringify({device:n.name,kind:suffix==="/fetch"?"config":"mikrotik"})});
+          if (ticket === generation && allowed()) { await load(); message("Задание принято в очередь. Обновите историю для проверки результата."); }
         } catch (e) { if (ticket === generation && allowed()) message(e.message); }
         finally { pending.delete(key); if (allowed()) renderActions(); }
       },root);
       btn.disabled = pending.has(key);
     };
+    if (!deps.isPythonEngine()) return;
     run("Получить конфигурацию","/fetch");
     if (supported(n)) run("Создать Binary / RSC","/backups/run");
   }
   async function load() {
     const n = selected(), ticket = ++generation;
-    rows = []; errors = []; busy = Boolean(n && allowed());
+    rows = []; errors = []; el("jobs").textContent = ""; busy = Boolean(n && allowed());
     render(); renderActions();
     if (!busy) return;
     message("Загрузка истории…");
     const requests = [deps.api(path(n,"/versions"))];
     if (supported(n)) requests.push(deps.api(path(n,"/backups")));
+    const jobsPromise = deps.api("/api/backup/jobs?device="+encodeURIComponent(n.name)).catch(()=>null);
     const results = await Promise.allSettled(requests);
+    const jobs = await jobsPromise;
     if (ticket !== generation || !allowed()) return;
+    el("jobs").textContent = jobs ? "Последние задания: " + (jobs.items || []).slice(0,5).map(j=>"#"+j.id+" "+j.kind+" — "+j.status).join(" · ") : "Журнал заданий недоступен";
     const versions = results[0];
     if (versions.status === "fulfilled") {
       for (const v of versions.value.versions || []) {
@@ -96,7 +100,7 @@
     generation++; nodes=[]; rows=[]; errors=[]; busy=false;
     if (!deps) return;
     el("node").replaceChildren(new Option("Выберите устройство",""));
-    el("type").value="all"; render(); renderActions();
+    el("jobs").textContent=""; el("type").value="all"; render(); renderActions();
   }
   function setNodes(items) {
     if (!allowed()) return reset();
