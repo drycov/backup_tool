@@ -162,7 +162,9 @@ def process_next_task() -> bool:
             task.finished_at = dj_tz.now()
             task.last_error = ""
             task.payload = {**(task.payload or {}), "result": _json_safe(result)}
-            task.save(update_fields=["status", "finished_at", "last_error", "payload"])
+            updated = BackgroundTask.objects.filter(pk=task.pk,status=BackgroundTask.STATUS_RUNNING,attempts=task.attempts).update(status=task.status,finished_at=task.finished_at,last_error=task.last_error,payload=task.payload)
+            if not updated:
+                return True
             from services.metrics import task_runs_total
 
             task_runs_total.labels(task_type=task.task_type, status="completed").inc()
@@ -186,11 +188,11 @@ def process_next_task() -> bool:
                 task.scheduled_at = dj_tz.now() + timedelta(
                     minutes=min(60, 2**task.attempts)
                 )
-                task.save(update_fields=["status", "scheduled_at", "last_error"])
+                BackgroundTask.objects.filter(pk=task.pk,status=BackgroundTask.STATUS_RUNNING,attempts=task.attempts).update(status=task.status,scheduled_at=task.scheduled_at,last_error=task.last_error)
             else:
                 task.status = BackgroundTask.STATUS_FAILED
                 task.finished_at = dj_tz.now()
-                task.save(update_fields=["status", "finished_at", "last_error"])
+                BackgroundTask.objects.filter(pk=task.pk,status=BackgroundTask.STATUS_RUNNING,attempts=task.attempts).update(status=task.status,finished_at=task.finished_at,last_error=task.last_error)
                 from services.metrics import task_runs_total
 
                 task_runs_total.labels(task_type=task.task_type, status="failed").inc()
@@ -274,6 +276,10 @@ def _run_task(task: BackgroundTask) -> dict[str, Any]:
 
         return run_provision_generate_task(task.payload or {})
 
+    if task.task_type == "backup.manual":
+        from services.backup_jobs import execute
+        return execute(task.payload or {})
+
     raise ValueError(f"Unknown task type: {task.task_type}")
 
 
@@ -286,6 +292,10 @@ def purge_stale_running(max_age_minutes: int = 120) -> int:
         status=BackgroundTask.STATUS_RUNNING,
         started_at__lt=cutoff,
     )
+    # Manual backups are not blindly replayed after worker loss.
+    manual = qs.filter(task_type__in=["backup.manual", "backup.engine"])
+    failed = manual.update(status=BackgroundTask.STATUS_FAILED, finished_at=dj_tz.now(), last_error="Worker lost; outcome unknown")
+    qs = qs.exclude(task_type__in=["backup.manual", "backup.engine"])
     count = qs.count()
     if count:
         qs.update(
@@ -293,4 +303,4 @@ def purge_stale_running(max_age_minutes: int = 120) -> int:
             scheduled_at=dj_tz.now(),
             last_error="stale running reset after restart",
         )
-    return count
+    return count + failed

@@ -1,4 +1,4 @@
-/** AdminLTE 4 / Bootstrap 5 UI helpers */
+/** Design Kit application shell and Bootstrap interaction adapters. */
 
 (function () {
 
@@ -32,7 +32,7 @@
   };
 
   function getStoredTheme() {
-    return localStorage.getItem(THEME_KEY);
+    try { return localStorage.getItem(THEME_KEY); } catch (_) { return null; }
   }
 
   function prefersDark() {
@@ -41,7 +41,7 @@
 
   function getPreferredTheme() {
     const stored = getStoredTheme();
-    if (stored) return stored;
+    if (["light", "dark", "auto"].includes(stored)) return stored;
     return prefersDark() ? "dark" : "light";
   }
 
@@ -51,7 +51,9 @@
   }
 
   function setTheme(theme) {
-    document.documentElement.setAttribute("data-bs-theme", resolveTheme(theme));
+    const resolved = resolveTheme(theme);
+    document.documentElement.setAttribute("data-bs-theme", resolved);
+    document.documentElement.setAttribute("data-tg-theme", resolved);
   }
 
   /* Подсветка активной темы в выпадающем меню */
@@ -95,6 +97,32 @@
     if (media.addEventListener) media.addEventListener("change", onChange);
   }
 
+  function initSidebar() {
+    const root = document.getElementById("app-layout");
+    const toggle = document.getElementById("workspace-sidebar-toggle");
+    const sidebar = document.getElementById("workspace-sidebar");
+    const backdrop = document.getElementById("workspace-sidebar-backdrop");
+    const mobile = window.matchMedia("(max-width: 991.98px)");
+    if (!root || !toggle || !sidebar || !backdrop) return;
+    const sync = () => {
+      const open = mobile.matches ? root.classList.contains("workspace-sidebar-open") : !root.classList.contains("workspace-sidebar-collapsed");
+      toggle.setAttribute("aria-expanded", String(open));
+      sidebar.inert = !open;
+      backdrop.hidden = !(mobile.matches && open);
+    };
+    const close = () => { root.classList.remove("workspace-sidebar-open"); sync(); };
+    toggle.addEventListener("click", e => {
+      e.preventDefault();
+      root.classList.toggle(mobile.matches ? "workspace-sidebar-open" : "workspace-sidebar-collapsed");
+      sync();
+    });
+    backdrop.addEventListener("click", () => { close(); toggle.focus(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && mobile.matches && !backdrop.hidden) { close(); toggle.focus(); } });
+    sidebar.querySelectorAll(".nav-page").forEach(link => link.addEventListener("click", () => { if (mobile.matches) close(); }));
+    mobile.addEventListener("change", close);
+    sync();
+  }
+
   function initSidebarScrollbar() {
     const sidebarWrapper = document.querySelector(".sidebar-wrapper");
     const os = window.OverlayScrollbarsGlobal?.OverlayScrollbars;
@@ -110,8 +138,41 @@
     }
   }
 
+  function initWorkspaceNavigation() {
+    const filter = document.getElementById("workspace-nav-filter");
+    const links = [...document.querySelectorAll(".sidebar-menu .nav-page")];
+    if (!filter) return;
+    const update = () => {
+      const term = filter.value.trim().toLocaleLowerCase();
+      links.forEach(link => {
+        const item = link.closest("li");
+        if (item) item.classList.toggle("workspace-filtered", !link.textContent.toLocaleLowerCase().includes(term));
+        if (link.classList.contains("active")) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      });
+    };
+    filter.addEventListener("input", update);
+    filter.addEventListener("keydown", e => {
+      if (e.key === "Escape") { filter.value = ""; update(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const first = links.find(link => link.getClientRects().length && getComputedStyle(link).visibility !== "hidden");
+        first?.click();
+      }
+    });
+    links.forEach(link => link.addEventListener("click", () => {
+      filter.value = "";
+      queueMicrotask(update);
+    }));
+    const observer = new MutationObserver(update);
+    links.forEach(link => observer.observe(link, {attributes:true, attributeFilter:["class"]}));
+    update();
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     initThemeToggle();
+    initWorkspaceNavigation();
+    initSidebar();
     initSidebarScrollbar();
 
     document.querySelectorAll("[data-bs-toggle='dropdown']").forEach(el => {

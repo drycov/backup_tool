@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from threading import RLock
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from services.oxidized_engine.node import Node
 
 logger = logging.getLogger(__name__)
+_git_write_lock = RLock()
 
 
 class GitOutput:
@@ -64,16 +66,24 @@ class GitOutput:
         user: str | None = None,
         email: str | None = None,
     ) -> bool:
+        with _git_write_lock:
+            return self._store(name, outputs, msg=msg, group=group, user=user, email=email)
+
+    def _store(self, name, outputs, *, msg, group=None, user=None, email=None):
         data = outputs.to_cfg()
         if not data:
-            return False
+            raise RuntimeError("Empty configuration")
 
         rel_path = self._file_path(name, group)
         repo = self._repo_path()
         target = repo / rel_path
         target.parent.mkdir(parents=True, exist_ok=True)
 
-        if target.exists() and target.read_text(encoding="utf-8", errors="replace") == data:
+        committed = subprocess.run(
+            ["git", "-C", str(repo), "show", f"HEAD:{rel_path}"],
+            capture_output=True, text=True, env=git_env(repo),
+        )
+        if committed.returncode == 0 and committed.stdout == data:
             logger.debug("oxidized | git | no change for %s", rel_path)
             return False
 
@@ -99,14 +109,16 @@ class GitOutput:
                 msg,
                 "--author",
                 author,
+                "--",
+                rel_path,
             ],
             capture_output=True,
             text=True,
             env=git_env(repo),
         )
-        if commit.returncode != 0 and "nothing to commit" not in (commit.stdout + commit.stderr):
+        if commit.returncode != 0:
             logger.warning("oxidized | git | commit failed: %s", commit.stderr)
-            return False
+            raise RuntimeError("Git commit failed")
 
         subprocess.run(
             ["git", "-C", str(repo), "branch", "-M", self.git_cfg.branch],

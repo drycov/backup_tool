@@ -346,6 +346,16 @@ def run_mikrotik_backups(node: Node) -> bool:
 
 
 def run_mikrotik_backup_by_name(name: str) -> dict[str, str | bool]:
+    from services.backup_lock import BackupBusy, backup_lock
+
+    try:
+        with backup_lock(name):
+            return _run_mikrotik_backup_by_name(name)
+    except BackupBusy as exc:
+        raise MikrotikBackupError(str(exc)) from exc
+
+
+def _run_mikrotik_backup_by_name(name: str) -> dict[str, str | bool]:
     from django.conf import settings
 
     if getattr(settings, "OXIDIZED_ENGINE", "python").lower() != "python":

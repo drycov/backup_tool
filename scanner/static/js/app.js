@@ -39,7 +39,7 @@ const PAGE_TITLES = {
   dashboard: "Дашборд",
   inventory: "Инвентарь",
   scan: "Сканирование",
-  oxidized: "Oxidized",
+  oxidized: "Центр резервного копирования",
   "oxidized-ui": "Oxidized UI",
   settings: "Настройки",
   users: "Пользователи",
@@ -497,6 +497,9 @@ function syncAppRouteFromHash() {
 }
 
 function showLogin() {
+  window.BackupOperations?.reset();
+  window.BackupCenter?.reset();
+  window.BackupWorkspace?.close();
   document.body.classList.add("login-page");
   document.body.classList.remove("layout-fixed", "sidebar-expand-lg", "bg-body-tertiary");
   qs("#login-screen").style.display = "block";
@@ -666,6 +669,7 @@ function dashboardStatValueHtml(value, tone) {
 }
 
 function renderDashboardStatsTable() {
+  window.BackupWorkspace?.renderMetrics(dashboardStatsState.platform || []);
   const tbody = qs("#dashboard-stats-table-body");
   if (!tbody) return;
 
@@ -789,7 +793,7 @@ function nativeModelsHintHtml() {
 function applyEngineAwareUi() {
   const python = isPythonEngine();
   const backupAll = qs("#btn-backup-all");
-  if (backupAll) backupAll.style.display = python ? "" : "none";
+  if (backupAll) backupAll.style.display = python && can("oxidized:write") ? "" : "none";
 
   const mikrotikBlock = qs("#mikrotik-backup-settings");
   if (mikrotikBlock) {
@@ -871,17 +875,21 @@ function initNavigation() {
   qsa(".nav-page").forEach(link => {
     link.addEventListener("click", e => {
       e.preventDefault();
+      const target = qs(`.sidebar-menu .nav-page[data-page="${link.dataset.page}"]`);
+      if (!target || target.closest("li")?.style.display === "none") return;
       qsa(".nav-page").forEach(l => l.classList.remove("active"));
-      link.classList.add("active");
+      target.classList.add("active");
       const page = link.dataset.page;
       qsa(".page").forEach(p => p.classList.add("d-none"));
       const pageEl = qs(`#page-${page}`);
       if (pageEl) pageEl.classList.remove("d-none");
       setPageTitle(page);
       if (page === "oxidized") {
+        window.BackupOperations?.start();
         loadOxidizedNodes();
         refreshOxidizedLogBadge();
       } else {
+        window.BackupOperations?.stop();
         stopOxidizedLogsPolling();
       }
       if (page === "oxidized-ui") loadOxidizedIframe(true);
@@ -921,9 +929,7 @@ function updateGroupSelects(selected) {
   const fallback = groups.length ? groups : ["default"];
   qsa(".group-select").forEach(sel => {
     const current = selected || sel.value || fallback[0];
-    sel.innerHTML = fallback.map(g =>
-      `<option value="${g}"${g === current ? " selected" : ""}>${g}</option>`
-    ).join("");
+    sel.replaceChildren(...fallback.map(g => new Option(g, g, false, g === current)));
   });
 }
 
@@ -2832,7 +2838,30 @@ async function runBulkDeviceUpdate(payload) {
   }
 }
 
+function openDeviceWorkspace(name) {
+  if (!can("inventory:read")) return;
+  const device = inventory?.devices?.find(d => d.name === name);
+  if (!device) return;
+  const actions = [];
+  if (can("inventory:devices")) actions.push({label:"Редактировать",run:()=>openDeviceModal(name)});
+  if (can("oxidized:read")) {
+    const open = fn => () => {
+      if (!can("oxidized:read")) return;
+      navigateToPage("oxidized");
+      fn();
+    };
+    actions.push({label:"Конфигурация",run:open(()=>showNodeConfig(name,device.model))});
+    actions.push({label:"Версии / Diff",run:open(()=>showNodeVersions(name))});
+    if (isPythonEngine() && isRouterOsModel(device.model)) {
+      actions.push({label:"MikroTik Backup / Export",run:open(()=>showNodeBackups(name))});
+    }
+    if (can("oxidized:write")) actions.push({label:"Получить конфигурацию",run:open(()=>{if(can("oxidized:write"))fetchNodeConfig(name);})});
+  }
+  window.BackupWorkspace?.renderDevice(device,actions);
+}
+
 function renderDevicesTable() {
+  window.BackupWorkspace?.close();
   const tbody = qs("#devices-table");
   if (!tbody) return;
   const devices = inventory?.devices || [];
@@ -2869,7 +2898,7 @@ function renderDevicesTable() {
   tbody.innerHTML = filtered.map(d => `
     <tr>
       ${showBulk ? `<td><input type="checkbox" class="form-check-input device-select-cb" data-name="${escapeHtml(d.name)}" ${selectedDeviceNames.has(d.name) ? "checked" : ""}></td>` : ""}
-      <td><strong>${escapeHtml(d.name)}</strong></td>
+      <td><button type="button" class="btn btn-link p-0 text-start btn-workspace-device" data-name="${escapeHtml(d.name)}">${escapeHtml(d.name)}</button></td>
       <td>${escapeHtml(d.ip)}</td>
       <td><span class="oxidized-model-label">${escapeHtml(formatOxidizedModelLabel(d.model))}</span></td>
       <td>${escapeHtml(d.group)}</td>
@@ -2883,6 +2912,9 @@ function renderDevicesTable() {
     </tr>
   `).join("");
 
+  tbody.querySelectorAll(".btn-workspace-device").forEach(btn => {
+    btn.addEventListener("click", () => openDeviceWorkspace(btn.dataset.name));
+  });
   tbody.querySelectorAll(".device-select-cb").forEach(cb => {
     cb.addEventListener("change", () => {
       if (cb.checked) selectedDeviceNames.add(cb.dataset.name);
@@ -4448,7 +4480,6 @@ function updateDeviceGroupHint() {
 
   const group = groupSel.value;
   const profile = (inventory?.credential_profiles || []).find(p => p.group_name === group);
-  const canSeePass = can("credentials:read") || can("credentials:write");
 
   if (!group) {
     hint.innerHTML = '<span class="text-muted">Выберите группу — SSH-креды берутся из профиля Oxidized</span>';
@@ -4458,7 +4489,7 @@ function updateDeviceGroupHint() {
     hint.innerHTML = `
       <span class="text-warning">
         <i class="fas fa-exclamation-triangle me-1"></i>
-        Нет профиля для группы «${group}».
+        Нет профиля для группы «${escapeHtml(group)}».
         <a href="#" class="device-goto-settings">Добавить в настройках</a>
       </span>`;
     hint.querySelector(".device-goto-settings")?.addEventListener("click", e => {
@@ -4469,12 +4500,12 @@ function updateDeviceGroupHint() {
     return;
   }
 
-  const pass = canSeePass ? profile.password : "********";
+  const pass = "********";
   hint.innerHTML = `
     <span class="cred-preview text-muted">
       <i class="fas fa-key me-1"></i>
-      Профиль <strong>${profile.name}</strong>:
-      <code>${profile.username}</code> / <code>${pass}</code>
+      Профиль <strong>${escapeHtml(profile.name)}</strong>:
+      <code>${escapeHtml(profile.username)}</code> / <code>${pass}</code>
     </span>`;
 }
 
@@ -4873,9 +4904,12 @@ async function syncOxidized() {
   }
 }
 
+let backupNodesRequest = 0;
 async function loadOxidizedNodes() {
+  const request = ++backupNodesRequest;
   try {
     const health = await api("/api/oxidized/health");
+    if (request !== backupNodesRequest || !can("oxidized:read")) return;
     setOxidizedLinks(health.public_url, "/oxidized-proxy/nodes", health.engine);
 
     qs("#oxidized-stats").innerHTML = `
@@ -4891,6 +4925,7 @@ async function loadOxidizedNodes() {
     if (!health.reachable) {
       showAlert("oxidized-alert", health.error || "Oxidized недоступен", "error");
       oxidizedNodesCache = [];
+      window.BackupCenter?.reset();
       qs("#oxidized-empty").style.display = "block";
       qs("#oxidized-nodes-table").innerHTML = "";
       updateSearchCountBadge(0, 0, "oxidized-count-badge");
@@ -4910,7 +4945,9 @@ async function loadOxidizedNodes() {
     }
 
     const nodes = await api("/api/oxidized/nodes");
+    if (request !== backupNodesRequest || !can("oxidized:read")) return;
     oxidizedNodesCache = nodes;
+    window.BackupCenter?.setNodes(nodes);
     renderOxidizedNodesTable(nodes);
   } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
@@ -5600,7 +5637,11 @@ async function runMikrotikBackupForNode(name) {
 }
 
 async function backupAllNodes() {
-  if (!can("oxidized:write")) return;
+  if (!can("oxidized:write") || !isPythonEngine()) return;
+  if (!confirm("Запустить резервное копирование всех доступных узлов?")) return;
+  const button = qs("#btn-backup-all");
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
   try {
     showAlert("oxidized-alert", "Запуск backup для всех узлов…", "info");
     const res = await api("/api/oxidized/backup/all", { method: "POST" });
@@ -5608,10 +5649,19 @@ async function backupAllNodes() {
     loadOxidizedNodes();
   } catch (e) {
     showAlert("oxidized-alert", e.message, "error");
+  } finally {
+    if (button) button.disabled = !can("oxidized:write");
   }
 }
 
 function bindEvents() {
+  window.BackupOperations?.init({api,can,formatDate});
+  window.BackupPolicy?.init({api,can});
+  window.BackupCenter?.init({
+    api, can, isPythonEngine, isRouterOsModel, formatDate, formatBytes, backupDownloadUrl,
+    showConfig: showNodeConfig, showVersions: showNodeVersions, showVersion: openOxidizedConfigView,
+    restore: restoreMikrotikBackup
+  });
   bindMaintenanceDayToggles();
   initSettingsTabs();
   window.addEventListener("hashchange", () => {

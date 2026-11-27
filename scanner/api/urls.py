@@ -1,8 +1,12 @@
 from django.urls import path
 
 from api import views
+from api.backup_jobs import backup_effective_policy, backup_job_cancel, backup_jobs
 
 urlpatterns = [
+    path("api/backup/policy", backup_effective_policy, name="backup-effective-policy"),
+    path("api/backup/jobs", backup_jobs, name="backup-jobs"),
+    path("api/backup/jobs/<int:job_id>/cancel", backup_job_cancel, name="backup-job-cancel"),
     path("ui", views.ui_page, name="ui"),
     path("api/ui/config", views.ui_config, name="ui-config"),
     path("api/openapi.json", views.openapi_json_view, name="openapi-json"),

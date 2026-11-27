@@ -1,0 +1,108 @@
+/* @drycov/design-kit v0.3 — design tokens (Telegram Dark / Light) */
+:root,
+html[data-tg-theme="dark"] {
+  color-scheme: dark;
+
+  /* surfaces */
+  --tg-bg: #0e1621;
+  --tg-secondary: #17212b;
+  --tg-tertiary: #242f3d;
+  --tg-surface: #1c2733;
+  --tg-elevated: #1e2c3a;
+  --tg-overlay: rgba(0, 0, 0, 0.56);
+  --tg-border: rgba(160, 184, 205, 0.13);
+  --tg-border-strong: rgba(160, 184, 205, 0.22);
+
+  /* text */
+  --tg-text: #f3f6f8;
+  --tg-hint: #91a3b7;
+  --tg-muted: #6d7f92;
+  --tg-link: #68b7f3;
+
+  /* brand / status */
+  --tg-button: #2aabee;
+  --tg-button-text: #ffffff;
+  --tg-button-hover: #3bb6f5;
+  --tg-success: #53bd86;
+  --tg-danger: #eb6570;
+  --tg-warning: #e5ac4b;
+  --tg-purple: #a967ff;
+  --tg-info: #68b7f3;
+
+  /* controls */
+  --tg-control-bg: #101b27;
+  --tg-control-bg-hover: #15202e;
+  --tg-focus: 0 0 0 3px rgba(42, 171, 238, 0.23);
+  --tg-transition: 0.16s ease;
+
+  /* radii */
+  --radius: 14px;
+  --radius-sm: 11px;
+  --radius-xs: 8px;
+  --radius-pill: 999px;
+
+  /* layout */
+  --sidebar-w: 260px;
+  --header-h: 56px;
+  --content-max: 1500px;
+
+  /* spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.4);
+
+  /* z-index */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 1000;
+  --z-toast: 1100;
+
+  /* typography */
+  --font-sans: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+}
+
+html[data-tg-theme="light"] {
+  color-scheme: light;
+  --tg-bg: #f2f4f7;
+  --tg-secondary: #ffffff;
+  --tg-tertiary: #e8eef3;
+  --tg-surface: #ffffff;
+  --tg-elevated: #ffffff;
+  --tg-overlay: rgba(15, 23, 42, 0.45);
+  --tg-border: rgba(28, 52, 72, 0.13);
+  --tg-border-strong: rgba(28, 52, 72, 0.22);
+  --tg-text: #182533;
+  --tg-hint: #697f91;
+  --tg-muted: #8a9bab;
+  --tg-link: #2481cc;
+  --tg-button: #2481cc;
+  --tg-button-text: #ffffff;
+  --tg-button-hover: #1a6fb3;
+  --tg-success: #24804a;
+  --tg-danger: #ca384d;
+  --tg-warning: #b7791f;
+  --tg-purple: #7c3aed;
+  --tg-info: #2481cc;
+  --tg-control-bg: #f5f7fa;
+  --tg-control-bg-hover: #eef2f6;
+  --tg-focus: 0 0 0 3px rgba(36, 129, 204, 0.22);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 24px 70px rgba(15, 23, 42, 0.18);
+}
