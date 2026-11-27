@@ -34,3 +34,6 @@ The main UI loads Bootstrap 5 directly instead of AdminLTE CSS/JS, with a respon
 
 ## Tabbed workspace
 Sidebar opens up to ten reusable, session-local tabs. Only one page panel is visible; switching preserves the existing DOM and forms, with settings dirty confirmation. Tabs support arrow keys, Home/End, Delete and explicit refresh. Permission-filtered sidebar remains the source of available pages. Page refreshes have a 15-second freshness window; not all legacy API calls are deduplicated or cancellable. No persistent tab storage or backend changes.
+
+## Backup-focused workspace
+Removed the provisioning page, navigation item, UI handlers and controller code. Legacy provisioning API, task processing and database tables are retained for compatibility; this change does not disable external API access. TOTP provisioning URI is unrelated and retained.
