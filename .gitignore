@@ -6,23 +6,39 @@ scanner/scanner.db
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env.local
+
+# Test / lint / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+scanner/staticfiles/
+scanner/home/
 
 # Oxidized runtime (не коммитить)
 oxidized/crash
 oxidized/pid
 oxidized/router.db
+oxidized/crashes/
+oxidized/config
 
 # SSH keys
 oxidized-ssh/id_rsa
 oxidized-ssh/id_rsa.pub
 oxidized-ssh/known_hosts
-# Oxidized runtime data
-oxidized/crashes/
-
-# Oxidized runtime/local configuration
-oxidized/config
-oxidized/crashes/
 
 # Deployment runtime
 .deploy.lock
 .deploy-version
+*.swp
+*~
+.DS_Store
