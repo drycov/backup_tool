@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from services.backup_settings import get_config
-from services.group_policies import effective_compliance_sla_hours, effective_interval
+from services.policy_engine import resolve_policy
 from services.inventory import load_inventory
 from services.oxidized_client import get_nodes
 from services.oxidized_settings import get_oxidized_settings
@@ -127,9 +127,10 @@ def device_compliance_item(device_name: str, *, user=None) -> dict[str, Any] | N
     now = datetime.now(timezone.utc)
     stale_cutoff = now - timedelta(days=stale_days)
     node = node_map.get(device.name, {})
-    interval = effective_interval(device.group, global_interval)
+    policy = resolve_policy(device.group, global_interval, site=device.site or "", device=device.name)
+    interval = policy["interval_sec"]
     overdue_cutoff = now - timedelta(seconds=interval * 2)
-    sla_hours = effective_compliance_sla_hours(device.group)
+    sla_hours = policy["sla_hours"]
     if sla_hours:
         sla_cutoff = now - timedelta(hours=sla_hours)
         if sla_cutoff < overdue_cutoff:
@@ -220,9 +221,10 @@ def compute_compliance_summary(
 
     for device in enabled:
         node = node_map.get(device.name, {})
-        interval = effective_interval(device.group, global_interval)
+        policy = resolve_policy(device.group, global_interval, site=device.site or "", device=device.name)
+        interval = policy["interval_sec"]
         overdue_cutoff = now - timedelta(seconds=interval * 2)
-        sla_hours = effective_compliance_sla_hours(device.group)
+        sla_hours = policy["sla_hours"]
         if sla_hours:
             sla_cutoff = now - timedelta(hours=sla_hours)
             if sla_cutoff < overdue_cutoff:
@@ -241,7 +243,7 @@ def compute_compliance_summary(
             if backup_reference
             else None
         )
-        sla_hours = effective_compliance_sla_hours(device.group)
+        sla_hours = policy["sla_hours"]
         sla_breached = bool(
             sla_hours
             and backup_age_sec is not None

@@ -40,3 +40,6 @@ Removed the provisioning page, navigation item, UI handlers and controller code.
 
 ## Backup Management 2.1 foundation
 Central group/global resolver returns per-field sources and validates boolean inputs. Git diff includes heuristic risk metadata; device-scoped read-only SHA-256 checks compare the working config to HEAD. No external storage adapters, persistent change-event table or site/device override editor in this increment. Native files are not covered by the Git integrity check. Overnight maintenance is attributed to the start day; both binary and RSC retention paths are processed. Existing provision API remains untouched.
+
+## Policy & change management 2.2
+Migration 0029 adds site/device overrides and device+commit change events. Precedence global < site < existing group < device; site matches exact slug. Admin-only override editor in Backup Center; existing group editor remains in Settings. Changes captured from new Python-engine Git commits, not backfilled. Historical diff and integrity APIs unchanged. Changes are metadata only and scoped by device RBAC.

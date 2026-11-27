@@ -60,9 +60,9 @@ def is_backup_paused_for_device(
     now: datetime | None = None,
 ) -> bool:
     """Scheduled backup skip: group override, device maintenance + global window."""
-    from services.group_policies import effective_maintenance_override
+    from services.policy_engine import resolve_device_policy
 
-    override = effective_maintenance_override(group_name)
+    override = resolve_device_policy(device_name, group_name, 60)["maintenance_override"]
     if override is True:
         logger.debug("maintenance | skip (group override) | %s", device_name)
         return True

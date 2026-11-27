@@ -616,3 +616,28 @@ class ProvisionBulkRun(models.Model):
     class Meta:
         db_table = "provision_bulk_runs"
         ordering = ["-created_at"]
+
+
+class BackupPolicyOverride(models.Model):
+    scope = models.CharField(max_length=16)
+    target = models.CharField(max_length=128)
+    values = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "backup_policy_overrides"
+        constraints = [models.UniqueConstraint(fields=["scope", "target"], name="backup_policy_scope_target")]
+
+
+class ConfigChangeEvent(models.Model):
+    device = models.ForeignKey(Device, on_delete=models.CASCADE)
+    commit_oid = models.CharField(max_length=64)
+    severity = models.CharField(max_length=16, db_index=True)
+    categories = models.JSONField(default=list)
+    added = models.PositiveIntegerField(default=0)
+    removed = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "config_change_events"
+        constraints = [models.UniqueConstraint(fields=["device", "commit_oid"], name="config_change_device_commit")]

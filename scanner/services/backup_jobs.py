@@ -144,7 +144,7 @@ def effective_policy(user, name):
         raise PermissionError("Device unavailable")
     cfg=get_config()
     interval=int(load_oxidized_yaml().get("interval") or settings.OXIDIZED_INTERVAL)
-    policy = resolve_policy(device.group, interval, binary=cfg.binary_enabled, export=cfg.export_enabled, telegram=cfg.error_notify_telegram, email=cfg.error_notify_email)
+    policy = resolve_policy(device.group, interval, site=device.site, device=device.name, binary=cfg.binary_enabled, export=cfg.export_enabled, telegram=cfg.error_notify_telegram, email=cfg.error_notify_email)
     return {"device":name,"group":device.group,"site":device.site,
         **policy, "interval_source":policy["sources"]["interval_sec"],
         "retention_enabled":cfg.purge_enabled,"retention_keep":cfg.purge_keep,

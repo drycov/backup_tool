@@ -3,7 +3,11 @@ from django.urls import path
 from api import views
 from api.backup_jobs import backup_effective_policy, backup_integrity, backup_job_cancel, backup_jobs
 
+from api.backup_management import change_events, policy_override
+
 urlpatterns = [
+    path("api/backup/overrides", policy_override, name="backup-overrides"),
+    path("api/backup/changes", change_events, name="backup-changes"),
     path("api/backup/integrity", backup_integrity, name="backup-integrity"),
     path("health/live", views.health_live, name="health-live"),
     path("api/backup/policy", backup_effective_policy, name="backup-effective-policy"),

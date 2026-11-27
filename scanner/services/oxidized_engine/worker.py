@@ -29,9 +29,9 @@ class Worker:
         self._nodes_count = 0
 
     def _node_interval(self, node) -> int:
-        from services.group_policies import effective_interval
+        from services.policy_engine import resolve_device_policy
 
-        return effective_interval(node.group, self.config.interval)
+        return resolve_device_policy(node.name, node.group, self.config.interval)["interval_sec"]
 
     def reload(self) -> None:
         self.nodes.load()

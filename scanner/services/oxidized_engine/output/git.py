@@ -129,6 +129,17 @@ class GitOutput:
 
         rev = self._git("rev-parse", "HEAD")
         self.last_commit = rev.stdout.strip()
+        try:
+            from core.models import ConfigChangeEvent, Device
+            from services.change_detection import classify_patch
+
+            device = Device.objects.filter(name=name).first()
+            if device:
+                patch = self._git("show", self.last_commit, "--", rel_path).stdout
+                risk = classify_patch(patch)
+                ConfigChangeEvent.objects.get_or_create(device=device, commit_oid=self.last_commit, defaults=risk)
+        except Exception:
+            logger.exception("oxidized | change journal write failed | %s", name)
         logger.info("oxidized | git | stored %s", rel_path)
         return True
 

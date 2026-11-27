@@ -317,9 +317,10 @@ class MikrotikBackup:
 
 def run_mikrotik_backups(node: Node) -> bool:
     cfg = MikrotikBackupConfig.from_django()
-    from services.group_policies import effective_mk_flags
+    from services.policy_engine import resolve_device_policy
 
-    binary, export = effective_mk_flags(node.group, cfg.binary_enabled, cfg.export_enabled)
+    policy = resolve_device_policy(node.name, node.group, 60, binary=cfg.binary_enabled, export=cfg.export_enabled)
+    binary, export = policy["binary_enabled"], policy["export_enabled"]
     if not binary and not export:
         logger.info("mikrotik | backup | %s | skipped (disabled for group)", node.name)
         return True

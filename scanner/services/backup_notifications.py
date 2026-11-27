@@ -239,10 +239,11 @@ def notify_backup_error(
     device: str, ip: str, status: str, detail: str = "", *, group: str = ""
 ) -> None:
     from services.notification_templates import backup_error
-    from services.group_policies import effective_notify_flags
+    from services.policy_engine import resolve_device_policy
 
     cfg = get_config()
-    tg, em = effective_notify_flags(group, cfg.error_notify_telegram, cfg.error_notify_email)
+    policy = resolve_device_policy(device, group, 60, telegram=cfg.error_notify_telegram, email=cfg.error_notify_email)
+    tg, em = policy["notify_telegram"], policy["notify_email"]
     if not tg and not em:
         return
     bodies = backup_error(device, ip, status, detail)
