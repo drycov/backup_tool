@@ -34,6 +34,13 @@ services:
       dockerfile: Dockerfile
     image: backup-tools-scanner:${SCANNER_IMAGE_TAG:-latest}
     restart: unless-stopped
+    init: true
+    stop_grace_period: 45s
+    environment:
+      PYTHONUNBUFFERED: "1"
+      GUNICORN_TIMEOUT: "${GUNICORN_TIMEOUT:-240}"
+      DB_WAIT_SECONDS: "${DB_WAIT_SECONDS:-90}"
+      TASK_WORKER_INLINE: "${TASK_WORKER_INLINE:-true}"
     ports:
       - "${SCANNER_PORT:-8000}:8000"
     env_file:
@@ -46,11 +53,16 @@ services:
     networks:
       - backup-net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      test: ["CMD", "python", "/app/scripts/healthcheck.py"]
+      interval: 10s
+      timeout: 8s
+      retries: 6
+      start_period: 180s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     labels:
       - com.backup-tools.service=scanner
 

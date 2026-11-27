@@ -19,6 +19,10 @@ INSTALLED_APPS = [
     "api",
 ]
 
+# Container-local HTTP health probes must work with restricted public hosts.
+if "*" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS = list(dict.fromkeys([*ALLOWED_HOSTS, "localhost", "127.0.0.1"]))
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",

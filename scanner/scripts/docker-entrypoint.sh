@@ -15,7 +15,11 @@ git config --global --add safe.directory "$OX_REPO" 2>/dev/null || true
 mkdir -p "$OX_REPO/bin" "$OX_REPO/rsc"
 chmod -R a+rwx "$OX_REPO/bin" "$OX_REPO/rsc" 2>/dev/null || true
 
+echo "scanner | waiting for database" >&2
 python scripts/wait_for_db.py
+echo "scanner | checking Django URL configuration" >&2
+python manage.py check
+echo "scanner | starting Gunicorn" >&2
 
 WORKERS="${GUNICORN_WORKERS:-2}"
 if [ "${OXIDIZED_ENGINE:-python}" = "python" ]; then
@@ -38,4 +42,8 @@ fi
 exec gunicorn backup_tools.wsgi:application \
   --bind 0.0.0.0:8000 \
   --workers "$WORKERS" \
-  --timeout 120
+  --timeout "${GUNICORN_TIMEOUT:-240}" \
+  --graceful-timeout 30 \
+  --access-logfile - \
+  --error-logfile - \
+  --capture-output
